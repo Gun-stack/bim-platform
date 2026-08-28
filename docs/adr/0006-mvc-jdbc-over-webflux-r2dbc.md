@@ -8,7 +8,7 @@ M0 골격은 WebFlux + R2DBC 로 생성했다. M1 컨트롤러를 짜기 시작�
 
 ## 결정
 
-Spring MVC (Tomcat) + Spring Data JDBC(`JdbcClient`) + Java 25 가상 스레드(`spring.threads.virtual.enabled=true`).
+Spring MVC (Tomcat) + `spring-jdbc` 의 `JdbcClient` (Spring Data JDBC 의 Repository·엔티티 매핑은 안 씀 — geometry·jsonb 라 SQL 직접이 짧고, 스키마는 Flyway 소유) + Java 25 가상 스레드(`spring.threads.virtual.enabled=true`).
 
 ## 이유
 
