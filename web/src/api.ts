@@ -24,3 +24,5 @@ export type System = { id: number; globalId: string; name: string; predefinedTyp
 export type SystemMember = ElementRow & { spatialName: string | null; upstream: number; downstream: number }
 export type RouteNode = { globalId: string; ifcClass: string; name: string | null; depth: number; spatialName: string | null; via: string | null }
 export type Route = { globalId: string; direction: 'up' | 'down'; systems: string[]; nodes: RouteNode[] }
+export type StatusRow = { globalId: string; ifcClass: string; name: string | null; spatialName: string | null; status: Record<string, unknown> & { Status?: string } }
+export type PowerResult = { source: 'UTILITY' | 'GENERATOR'; powered: string[]; unpowered: string[] }

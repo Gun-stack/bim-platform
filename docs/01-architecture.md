@@ -116,6 +116,8 @@ src/
 | GET/PATCH | `/api/work-orders/{id}` | 상세 / 상태·담당·기한 변경 |
 | GET | `/api/models/{id}/systems` · `/systems/{sid}/elements` | 설비 계통 목록·멤버 |
 | GET | `/api/models/{id}/elements/{globalId}/route?dir=up\|down` | 흐름 추적 (재귀 CTE, 원천까지 / 말단까지) |
+| GET/PATCH | `/api/models/{id}/status` · `/elements/{globalId}/status` | 런타임 상태(Pset_BimStatus jsonb 병합, 수신기 집계, 자산이면 작업지시 자동) |
+| POST | `/api/models/{id}/power?source=UTILITY\|GENERATOR` | 정전 시나리오: ATS/발전기 상태 + 전원 있음/없음 집합 |
 
 ## glb ↔ 요소 매핑
 

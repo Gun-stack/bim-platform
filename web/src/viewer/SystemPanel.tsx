@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, Droplets, Flame, Focus, Waves, X, type LucideIcon } from 'lucide-react'
-import { api, type Route, type System, type SystemMember } from '../api'
+import { AlertTriangle, ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, CheckCircle2, Droplets, Flame, Focus, PlugZap, Siren, Waves, X, type LucideIcon } from 'lucide-react'
+import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
 
 /** 계통별 색 (ColorPanel 팔레트와 별개로 의미색 고정) */
 export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xf59e0b, DOMESTICCOLDWATER: 0x2563eb, WASTEWATER: 0x78350f, FIREPROTECTION: 0xdc2626, SIGNAL: 0x9333ea, 비상전원: 0xea580c, 화재감지: 0x9333ea }
@@ -9,12 +9,17 @@ const SYSTEM_ICON: Record<string, LucideIcon> = { ELECTRICAL: Cable, DOMESTICCOL
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 선택 요소의 상류/하류 추적 */
-export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode }: {
+export const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, STANDBY: 0x6b7280, RUNNING: 0x16a34a, TRANSFERRED: 0xea580c, ALARM: 0xdc2626, FAULT: 0xf59e0b }
+
+export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode, statusRows, reloadStatus, power, setPower, statusView, setStatusView }: {
   modelId: string; selection: string[]
   members: Map<number, SystemMember[]>; setMembers: (m: Map<number, SystemMember[]>) => void
   route?: Route; setRoute: (r?: Route) => void
   onSolo: (label: string, gids: string[], key: string) => void; onSelect: (gids: string[]) => void
   colorMode: boolean; setColorMode: (b: boolean) => void
+  statusRows: StatusRow[]; reloadStatus: () => Promise<unknown>
+  power?: PowerResult; setPower: (p?: PowerResult) => void
+  statusView: boolean; setStatusView: (b: boolean) => void
 }) {
   const [systems, setSystems] = useState<System[]>([])
   const [busy, setBusy] = useState(false)
@@ -44,6 +49,8 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
         </div>) })}
 
       <div style={{ borderTop: '1px solid #e5e5e5', margin: '8px 0' }} />
+      <StatusBoard rows={statusRows} modelId={modelId} gid={gid} reload={reloadStatus} onSelect={onSelect} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} />
+      <div style={{ borderTop: '1px solid #e5e5e5', margin: '8px 0' }} />
       {!gid && <div style={{ color: '#888', fontSize: 12, padding: 6 }}>요소를 하나 선택하면 흐름을 추적할 수 있습니다.</div>}
       {gid && <>
         <div style={{ fontSize: 12, color: '#666', padding: '0 6px 6px' }}>선택 요소 계통: {inSystems.length ? inSystems.map(s => s.name).join(', ') : '없음'}</div>
@@ -64,6 +71,46 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
           : Object.entries(groupBy(route.nodes, n => n.ifcClass)).map(([cls, ns]) => <div key={cls} style={{ display: 'flex', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }} onClick={() => onSelect(ns.map(n => n.globalId))}>
               <span style={{ flex: 1 }}>{cls.replace('Ifc', '')}</span><span style={{ color: '#888' }}>{ns.length}</span></div>)}
       </div>}
+    </div>
+  )
+}
+
+/** 상태판: ALARM/FAULT 목록, 선택 요소 경보/복구 시뮬레이션, 정전/복전 */
+function StatusBoard({ rows, modelId, gid, reload, onSelect, statusView, setStatusView, power, setPower }: {
+  rows: StatusRow[]; modelId: string; gid?: string; reload: () => Promise<unknown>; onSelect: (g: string[]) => void
+  statusView: boolean; setStatusView: (b: boolean) => void; power?: PowerResult; setPower: (p?: PowerResult) => void
+}) {
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState<string>()
+  const abnormal = rows.filter(r => r.status.Status === 'ALARM' || r.status.Status === 'FAULT')
+  const sel = gid ? rows.find(r => r.globalId === gid) : undefined
+  const setStatus = (Status: string) => { if (!gid) return; setBusy(true); setMsg(undefined)
+    post(`/models/${modelId}/elements/${encodeURIComponent(gid)}/status`, Status === 'ALARM' ? { Status, AlarmAt: new Date().toISOString().slice(0, 16) } : { Status }, 'PATCH')
+      .then(r => { if (r.workOrder) setMsg(`작업지시 자동 생성 (${r.workOrder.assetTag})`) }).then(reload).catch(e => setMsg(e.message)).finally(() => setBusy(false)) }
+  const togglePower = () => { setBusy(true); post(`/models/${modelId}/power?source=${power?.source === 'GENERATOR' ? 'UTILITY' : 'GENERATOR'}`, {}).then((p: PowerResult) => setPower(p.source === 'GENERATOR' ? p : undefined)).then(reload).finally(() => setBusy(false)) }
+  return (
+    <div style={{ padding: '0 6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <Siren size={14} style={{ color: abnormal.length ? '#dc2626' : '#16a34a' }} />
+        <b style={{ flex: 1 }}>상태판</b>
+        <span style={{ fontSize: 11, color: abnormal.length ? '#dc2626' : '#16a34a' }}>{abnormal.length ? `이상 ${abnormal.length}` : '전부 정상'}</span>
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#444', marginBottom: 4 }}>
+        <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기 (정상 초록 · 경보 빨강 · 장애 주황)</label>
+      {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: 4, background: '#fff5f5' }}>
+        <AlertTriangle size={12} style={{ color: r.status.Status === 'ALARM' ? '#dc2626' : '#f59e0b' }} />
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+        <span style={{ color: '#888' }}>{r.spatialName}</span><b style={{ color: r.status.Status === 'ALARM' ? '#dc2626' : '#f59e0b' }}>{r.status.Status}</b></div>)}
+      {sel && <div style={{ marginTop: 6, padding: 6, background: '#f5f5f5', borderRadius: 6, fontSize: 12 }}>
+        <div style={{ marginBottom: 4 }}>선택: <b>{sel.name}</b> · <b style={{ color: '#' + (STATUS_COLOR[sel.status.Status ?? ''] ?? 0x444444).toString(16).padStart(6, '0') }}>{sel.status.Status}</b></div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {sel.ifcClass === 'IfcSensor' && <button disabled={busy} onClick={() => setStatus('ALARM')} style={btn}><Siren size={12} /> 경보 발생</button>}
+          <button disabled={busy} onClick={() => setStatus('FAULT')} style={btn}><AlertTriangle size={12} /> 장애</button>
+          <button disabled={busy} onClick={() => setStatus('NORMAL')} style={btn}><CheckCircle2 size={12} /> 정상 복구</button>
+        </div>
+        {msg && <div style={{ color: '#2563eb', marginTop: 4 }}>{msg}</div>}
+      </div>}
+      <button disabled={busy} onClick={togglePower} style={{ ...btn, marginTop: 8, width: '100%', background: power ? '#fff7ed' : '#fff', borderColor: power ? '#f59e0b' : '#ddd', color: power ? '#9a3412' : '#222' }}>
+        <PlugZap size={13} /> {power ? `정전 중 — 비상발전 운전 (무전원 ${power.unpowered.length}) · 클릭하면 복전` : '정전 시나리오 (발전기 절체)'}</button>
     </div>
   )
 }

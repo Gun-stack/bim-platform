@@ -57,6 +57,23 @@ SELECT DISTINCT ON (id) ... ORDER BY id, depth
 - 요소 하나 선택 → 상류/하류. 경로는 파랑(상류)/초록(하류), 선택 요소 주황, 나머지 반투명. "경로만 보기" 는 솔로 모델 재사용.
 - 층·구역 필터(트리 눈/솔로)와 조합: "2F-B 구역 소방" = 트리에서 2F-B 솔로 + 계통 색.
 
+## 런타임 상태 — IFC 밖의 것을 IFC 위에 얹기
+
+`Pset_BimStatus` 는 IFC 파일에 초기값으로 있지만 **운영 중엔 API 가 바꾼다**: `PATCH /models/{id}/elements/{gid}/status` 가 jsonb 를 병합(`||`)한다. 별도 테이블을 안 둔 이유 — 속성 패널·색상 모드·검색이 전부 `element.properties` 를 읽으므로 같은 자리에 두면 아무것도 안 바꿔도 된다. 대가: 재변환하면 IFC 값으로 초기화. 상태는 본래 BMS/수신기의 것이지 IFC 의 것이 아니므로 맞는 방향(운영에선 연동 배치가 다시 채운다).
+
+부수효과 두 가지가 "관계" 를 만든다:
+- 감지기 ALARM/FAULT → 수신기 `ActiveAlarms/Faults` 재계산(모델 단위 집계 쿼리).
+- 이상 상태 요소가 **자산이면 작업지시 자동 생성**(제목 "경보 확인: …", viewpoint 에 선택 요소) → FM 보드에 바로 뜬다. 상태(BMS) → 자산(FMS) → 작업지시 가 한 줄로 이어지는 지점.
+
+## 정전 시나리오 = 그래프 차집합
+
+`POST /models/{id}/power?source=GENERATOR`:
+1. ATS `Source=GENERATOR, Status=TRANSFERRED`, 발전기 `Status=RUNNING`
+2. 전원 있음 = EMDB 하류(재귀 CTE), 전원 없음 = MDB 하류 ∖ EMDB 하류
+3. 뷰어가 초록/짙은 회색으로 칠한다 — 어느 조명·분전반이 죽는지, 소화펌프·수신기·비상조명이 살아있는지가 한눈에.
+
+`source=UTILITY` 로 복전. 계통 데이터(connection)만으로 "무엇이 영향받나" 가 나오는 게 핵심 — 정전뿐 아니라 밸브 잠금·차단기 트립도 같은 계산(하류 차집합)이다.
+
 ## FM 시나리오
 
 1. 3층 B구역 조명 고장 신고 → 조명 선택 → 상류 → `LP-3F-B 구역 분전반` 부터 확인, 그래도 안 되면 `LP-3F` → `MDB`.
