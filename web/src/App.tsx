@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
+import { api, type Model } from './api'
+import Viewer from './viewer/Viewer'
 
-type Model = {
-  id: string; name: string; status: 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED'
-  ifcSchema?: string; elementCount?: number; progress: number; error?: string; glbUrl?: string
+// 라우팅은 해시 하나. 페이지가 셋(모델·뷰어·지도) 넘어가면 react-router.
+const useHash = () => {
+  const [h, setH] = useState(location.hash)
+  useEffect(() => { const f = () => setH(location.hash); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
+  return h
 }
-const api = (path: string, init?: RequestInit) => fetch('/api' + path, init).then(async r => {
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message ?? r.statusText)
-  return r.json()
-})
 
 export default function App() {
+  const m = useHash().match(/^#\/models\/([0-9a-f-]{36})$/)
+  return m ? <Viewer modelId={m[1]} /> : <Models />
+}
+
+function Models() {
   const [pid, setPid] = useState<string>()
   const [models, setModels] = useState<Model[]>([])
   const [err, setErr] = useState<string>()
@@ -59,7 +64,7 @@ export default function App() {
         <thead><tr><th align="left">모델</th><th>상태</th><th>스키마</th><th>요소</th><th align="left">진행</th></tr></thead>
         <tbody>{models.map(m => (
           <tr key={m.id} style={{ borderTop: '1px solid #ddd' }}>
-            <td>{m.status === 'READY' ? <a href={m.glbUrl}>{m.name}</a> : m.name}</td>
+            <td>{m.status === 'READY' ? <a href={`#/models/${m.id}`}>{m.name}</a> : m.name}</td>
             <td align="center">{m.status}</td>
             <td align="center">{m.ifcSchema ?? '-'}</td>
             <td align="center">{m.elementCount ?? '-'}</td>
