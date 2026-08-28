@@ -260,7 +260,7 @@ for i, (hx, hy) in enumerate([(4, 4), (10, 12), (26, 4), (32, 12)]):
     DET = make("IfcSensor", f"B2 열감지기 {i + 1}", [cyl(hx, hy, z2 + H - 0.4, 0.06, 0.05), sb.sphere(radius=0.07, center=V(hx, hy, z2 + H - 0.4))], b2, ST["fa"], None, "HEATSENSOR", {"Status": "NORMAL", "LastTest": "2026-07-15"}); link(DET, FACP, "화재감지")
 CO = make("IfcSensor", "CO-B2 일산화탄소 센서", [box(17.0, 6.5, z2 + 1.5, 0.15, 0.1, 0.2)], b2, ST["vent"], None, "GASSENSOR", {"Status": "NORMAL", "COppm": 8}); link(IDF2, CO, "통신"); link(CO, JF, "환기")
 # 주차관제: PCS(서버) → 차단기·LPR·정산기·만공차 표시·주차면 센서
-PCS = make("IfcController", "PCS-1 주차관제 서버", [box(W + 0.5, 9.0, z2, 0.6, 0.8, 1.8)], S("B2-주차관제실"), ST["park"], None, "PROGRAMMABLE", {"Status": "ONLINE", "Capacity": 18, "Occupied": 11, "TodayIn": 142, "TodayOut": 131}); link(IDF2, PCS, "통신"); link(LP2, PCS, "전기")
+PCS = make("IfcController", "PCS-1 주차관제 서버", [box(W + 0.5, 9.0, z2, 0.6, 0.8, 1.8)], S("B2-주차관제실"), ST["park"], None, "PROGRAMMABLE", {"Status": "ONLINE", "Capacity": 14, "Occupied": 9, "TodayIn": 142, "TodayOut": 131}); link(IDF2, PCS, "통신"); link(LP2, PCS, "전기")
 def barrier(tag, name, y, status):
     return make("IfcActuator", f"{tag} {name}", [box(W - 1.2, y, z2, 0.4, 0.4, 1.0), box(W - 1.1, y + 0.4, z2 + 0.9, 0.08, LANE - 0.4, 0.08)], S("B2-주차B"), ST["park"], None, "ELECTRICACTUATOR", status)
 BG_IN = barrier("BG-IN", "입구 차단기", 0.5, {"Status": "NORMAL", "Open": False, "Cycles": 41230})
@@ -268,7 +268,7 @@ BG_OUT = barrier("BG-OUT", "출구 차단기", 7.1, {"Status": "FAULT", "Open": 
 LPR_IN = make("IfcAudioVisualAppliance", "LPR-IN 입구 차번인식 카메라", [sb.sphere(radius=0.12, center=V(W - 2.0, 2.0, z2 + 2.4))], S("B2-주차B"), ST["park"], None, "CAMERA", {"Status": "ONLINE"})
 LPR_OUT = make("IfcAudioVisualAppliance", "LPR-OUT 출구 차번인식 카메라", [sb.sphere(radius=0.12, center=V(W - 2.0, 6.0, z2 + 2.4))], S("B2-주차B"), ST["park"], None, "CAMERA", {"Status": "ONLINE"})
 PAY = make("IfcElectricAppliance", "PAY-1 무인정산기", [box(W - 2.2, 3.7, z2, 0.5, 0.6, 1.6)], S("B2-주차B"), ST["park"], None, "VENDINGMACHINE", {"Status": "ONLINE", "CashLevel": 62.0})
-DISP = make("IfcAudioVisualAppliance", "DISP-1 만공차 표시판 (지상 입구)", [box(RX0 - 0.5, 8.2, 2.2, 1.2, 0.1, 0.5)], storeys["1F"], ST["park"], None, "DISPLAY", {"Status": "ONLINE", "Text": "여유 7"})
+DISP = make("IfcAudioVisualAppliance", "DISP-1 만공차 표시판 (지상 입구)", [box(RX0 - 0.5, 8.2, 2.2, 1.2, 0.1, 0.5)], storeys["1F"], ST["park"], None, "DISPLAY", {"Status": "ONLINE", "Text": "여유 5"})
 for m in (BG_IN, BG_OUT, LPR_IN, LPR_OUT, PAY, DISP): link(PCS, m, "주차관제")
 spots = [("A", 1.0 + 2.5 * i, yy) for yy in (0.5, 10.5) for i in range(4)] + [("B", 21.5 + 2.5 * i, yy) for yy in (0.5, 10.5) for i in range(3)]
 for i, (zn, sx, sy) in enumerate(spots):

@@ -98,7 +98,7 @@ function StatusBoard({ rows, modelId, gid, reload, onSelect, statusView, setStat
         <span style={{ fontSize: 11, color: abnormal.length ? '#dc2626' : '#16a34a' }}>{abnormal.length ? `이상 ${abnormal.length}` : '전부 정상'}</span>
       </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#444', marginBottom: 4 }}>
-        <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기 (정상 초록 · 경보 빨강 · 장애 주황)</label>
+        <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기 (정상 초록 · 경보 빨강 · 장애 주황 · 점유 주차면/소등 회색)</label>
       {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: 4, background: '#fff5f5' }}>
         <AlertTriangle size={12} style={{ color: r.status.Status === 'ALARM' ? '#dc2626' : '#f59e0b' }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>

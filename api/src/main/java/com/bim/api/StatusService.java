@@ -33,6 +33,14 @@ class StatusService {
 				  'ActiveAlarms', (SELECT count(*) FROM element s WHERE s.model_id = :id AND s.ifc_class = 'IfcSensor' AND s.properties->'Pset_BimStatus'->>'Status' = 'ALARM'),
 				  'Faults',       (SELECT count(*) FROM element s WHERE s.model_id = :id AND s.ifc_class = 'IfcSensor' AND s.properties->'Pset_BimStatus'->>'Status' = 'FAULT')))
 				 WHERE model_id = :id AND ifc_class = 'IfcUnitaryControlElement' AND name LIKE 'FACP%'""").param("id", id).update();
+			// 주차관제 집계: 주차면 센서(Occupied boolean) → PCS 서버 Capacity/Occupied, 만공차 표시판 Text. 수신기 집계와 같은 패턴 — 파생값은 서버가 계산
+			db.sql("""
+				WITH p AS (SELECT count(*) cap, count(*) FILTER (WHERE (properties->'Pset_BimStatus'->>'Occupied')::boolean) occ
+				             FROM element WHERE model_id = :id AND ifc_class = 'IfcSensor' AND jsonb_typeof(properties->'Pset_BimStatus'->'Occupied') = 'boolean')
+				UPDATE element e SET properties = jsonb_set(e.properties, '{Pset_BimStatus}', (e.properties->'Pset_BimStatus') ||
+				  CASE WHEN e.name LIKE 'PCS%' THEN jsonb_build_object('Capacity', p.cap, 'Occupied', p.occ)
+				       ELSE jsonb_build_object('Text', CASE WHEN p.cap - p.occ > 0 THEN '여유 ' || (p.cap - p.occ) ELSE '만차' END) END)
+				  FROM p WHERE e.model_id = :id AND p.cap > 0 AND (e.name LIKE 'PCS%' OR e.name LIKE 'DISP%')""").param("id", id).update();
 			String status = String.valueOf(patch.get("Status"));
 			Map<String, Object> wo = null;
 			if (status.equals("ALARM") || status.equals("FAULT")) {   // 자산이면 작업지시

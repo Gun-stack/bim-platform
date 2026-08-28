@@ -68,7 +68,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const s = scene.current; if (!s) return
     if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? 0xffaa00 : route.direction === 'up' ? 0x2563eb : 0x16a34a); s.setColors(m, true); return }
     if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, 0x16a34a); for (const g of power.unpowered) m.set(g, 0x374151); s.setColors(m, true); return }
-    if (statusView) { const m = new Map<string, number>(); for (const r of statusRows) m.set(r.globalId, STATUS_COLOR[r.status.Status ?? ''] ?? 0x888888); s.setColors(m, true); return }
+    if (statusView) { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? 0x64748b : st.On === false ? 0x9ca3af : STATUS_COLOR[st.Status ?? ''] ?? 0x888888) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
     if (!sysColor || colorMode) { if (!colorMode) s.setColors(undefined); return }
     const m = new Map<string, number>()
     for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, systemColor(sm))
