@@ -49,10 +49,11 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
         {TEAMS.map(t => { const k = kpi(t), Icon = t.icon, active = team === t.key; return (
-          <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} style={{ flex: 1, background: '#fff', border: '2px solid ' + (active ? t.color : '#e5e7eb'), borderRadius: 10, padding: '10px 14px', cursor: 'pointer' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Icon size={16} style={{ color: t.color }} /><b>{t.name}</b><span style={{ color: '#888', fontSize: 12 }}>{t.systems.join(' · ')}</span>
-              <span style={{ marginLeft: 'auto', color: '#888', fontSize: 12 }}>장비 {k.total} · 자산 {k.assets}{k.dead ? <b style={{ color: '#374151', marginLeft: 6 }}>무전원 {k.dead}</b> : ''}</span></div>
-            <div style={{ display: 'flex', gap: 14, marginTop: 6, fontSize: 12 }}>
+          <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} style={{ flex: '1 1 0', minWidth: 0, background: '#fff', border: '2px solid ' + (active ? t.color : '#e5e7eb'), borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><Icon size={16} style={{ color: t.color, flexShrink: 0 }} /><b style={{ whiteSpace: 'nowrap' }}>{t.name}</b>
+              <span style={{ color: '#888', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={t.systems.join(' · ')}>{t.systems.join(' · ')}</span></div>
+            <div style={{ color: '#888', fontSize: 12, marginTop: 2, whiteSpace: 'nowrap' }}>장비 {k.total} · 자산 {k.assets}{k.dead ? <b style={{ color: '#374151', marginLeft: 6 }}>무전원 {k.dead}</b> : ''}</div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12, whiteSpace: 'nowrap' }}>
               <span style={{ color: k.alarm ? '#dc2626' : '#999' }}><Siren size={12} style={{ verticalAlign: -2 }} /> 경보 <b>{k.alarm}</b></span>
               <span style={{ color: k.fault ? '#f59e0b' : '#999' }}><AlertTriangle size={12} style={{ verticalAlign: -2 }} /> 장애 <b>{k.fault}</b></span>
               <span style={{ color: k.wo ? '#1d4ed8' : '#999' }}><Wrench size={12} style={{ verticalAlign: -2 }} /> 작업지시 <b>{k.wo}</b></span>
