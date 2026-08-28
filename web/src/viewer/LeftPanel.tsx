@@ -12,7 +12,7 @@ export type SelectMode = 'set' | 'toggle' | 'range'
 export type Hidden = { nodes: Set<number>; classes: Set<string>; gids: Set<string>; solo?: { key: string; label: string; gids: Set<string> } }
 export type Opts = { openings: boolean; spaces: boolean; merged: boolean }
 
-const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', 'IfcCovering', 'IfcCurtainWall']   // 구조체 숨김 토글 대상
+export const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', 'IfcCovering', 'IfcCurtainWall']   // 구조체 숨김 토글 대상 (포커스 모드도 사용)
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 export const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 

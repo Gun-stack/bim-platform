@@ -7,7 +7,7 @@ import SystemPanel, { STATUS_COLOR, systemColor } from './SystemPanel'
 import { StatusBadge, day } from './FmPanel'
 import FmPanel from './FmPanel'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
-import LeftPanel, { type Hidden, type Opts, type SelectMode } from './LeftPanel'
+import LeftPanel, { STRUCT, type Hidden, type Opts, type SelectMode } from './LeftPanel'
 import ColorPanel from './ColorPanel'
 import ContextMenu, { type MenuItem } from './ContextMenu'
 import './viewer.css'
@@ -49,11 +49,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const space = node?.ifcClass === 'IfcSpace' ? node : undefined
     const storey = node?.ifcClass === 'IfcBuildingStorey' ? node : node?.parentId != null ? spatial.find(n => n.id === node.parentId) : undefined
     setOpts(o => ({ ...o, spaces: true })); setRoute(undefined); setPower(undefined)
-    setHidden(h => ({ ...h, solo: undefined }))
+    setHidden(h => { const c = new Set(h.classes); for (const k of STRUCT) c.add(k); return { ...h, classes: c, solo: undefined } })   // 단면 대신 외벽·슬래브 숨김
     s.select([gid])
     setFocus('ghost')
     s.preset('home')   // 위에서 비스듬히 — 단면 아래 구역이 보이는 각도
-    if (storey?.elevation != null && bounds) setClip([bounds.min[0], bounds.max[0], bounds.min[1], storey.elevation + 3.3, bounds.min[2], bounds.max[2]])
     s.fitAll(space ? [space.globalId, gid] : [gid])
     const st = statusRows.find(r => r.globalId === gid)?.status.Status
     setFocusInfo({ gid, name: el.name ?? gid, zone: space?.name ?? undefined, storey: storey?.name ?? undefined, status: st, spaceGid: space?.globalId })
@@ -226,8 +225,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <MapPinned size={14} style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#2563eb' }} />
             <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
             {focusInfo.status && <b style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#16a34a' }}>{{ ALARM: '경보', FAULT: '장애', NORMAL: '정상' }[focusInfo.status] ?? focusInfo.status}</b>}
-            <span style={{ color: '#888' }}>구역 강조 · 위층 단면</span>
-            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined); setClip(null) }} /></div>}
+            <span style={{ color: '#888' }}>구역 강조 · 구조체 숨김</span>
+            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined); setHidden(h => { const c = new Set(h.classes); for (const k of STRUCT) c.delete(k); return { ...h, classes: c } }) }} /></div>}
 
           {/* 작업지시로 진입: 배너 */}
           {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 420 }}>
