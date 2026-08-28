@@ -86,7 +86,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       if (e.spatialNodeId != null && hiddenNodes.has(e.spatialNodeId)) return false
       return true
     })
-  }, [opts.openings, opts.spaces, hiddenNodes, hidden, byGid, bounds])
+  }, [opts.openings, opts.spaces, hiddenNodes, hidden, byGid, spaceStorey, bounds])
   useEffect(() => {   // 선택 → 상세(1개) / 요약용 상세들(여러 개, 최대 20)
     const fetch1 = (gid: string) => api(`/models/${modelId}/elements/${encodeURIComponent(gid)}`) as Promise<ElementDetail>
     if (selection.length === 1) {
