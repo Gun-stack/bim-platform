@@ -87,7 +87,6 @@ export default function Viewer({ modelId }: { modelId: string }) {
       return true
     })
   }, [opts.openings, opts.spaces, hiddenNodes, hidden, byGid, bounds])
-  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {   // 선택 → 상세(1개) / 요약용 상세들(여러 개, 최대 20)
     const fetch1 = (gid: string) => api(`/models/${modelId}/elements/${encodeURIComponent(gid)}`) as Promise<ElementDetail>
     if (selection.length === 1) {
@@ -97,7 +96,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     } else setDetail(undefined)
     if (selection.length > 1) Promise.all(selection.filter(g => byGid.has(g)).slice(0, 20).map(fetch1)).then(setDetails).catch(() => setDetails([]))
     else setDetails([])
-  }, [selection])
+  }, [selection, byGid, spaceGids, modelId])
   useEffect(() => { scene.current?.setMerged(opts.merged) }, [opts.merged])
   useEffect(() => { scene.current?.setClipBox(clip) }, [clip, bounds])
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
