@@ -17,7 +17,8 @@ export default function MapPage() {
   const [features, setFeatures] = useState<Feature[]>([])
   const [models, setModels] = useState<(Model & { footprint?: unknown; mapConversion?: { source?: string } })[]>([])
   const [placing, setPlacing] = useState<{ id: string; name: string; rotation: number }>()
-  const placingRef = useRef(placing); placingRef.current = placing
+  const placingRef = useRef(placing)
+  useEffect(() => { placingRef.current = placing }, [placing])
   const [err, setErr] = useState<string>()
 
   const reload = async () => {

@@ -1,3 +1,4 @@
+/* oxlint-disable react/only-export-components, react-hooks/exhaustive-deps */
 import { useMemo, useState, type ReactNode } from 'react'
 import type React from 'react'
 import { ArrowLeft, Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
@@ -42,6 +43,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       hidden: hidden.nodes.has(n.id), solo: hidden.solo?.key === 'n:' + n.id, gids: () => g,
       children: () => [...(childrenOf.get(n.id) ?? []).map(spRow), ...(byNode.get(n.id) ?? []).map(elRow)] }
   }
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   const roots: Row[] = useMemo(() => {
     if (tab !== 'class') {
       const rows = (childrenOf.get(null) ?? []).map(spRow)
@@ -52,7 +54,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     const byClass = new Map<string, ElementRow[]>()
     for (const e of elements) (byClass.get(e.ifcClass) ?? byClass.set(e.ifcClass, []).get(e.ifcClass)!).push(e)
     return [...byClass].sort((a, b) => b[1].length - a[1].length).map(([c, es]) => ({ key: 'c:' + c, label: c, icon: classIcon(c), count: es.length, hidden: hidden.classes.has(c), solo: hidden.solo?.key === 'c:' + c, gids: () => es.map(e => e.globalId), children: () => es.map(elRow) }))
-  }, [tab, spatial, elements, hidden])
+  }, [tab, elements, hidden, byNode, childrenOf])
 
   const clone = (): Hidden => ({ nodes: new Set(hidden.nodes), classes: new Set(hidden.classes), gids: new Set(hidden.gids), solo: hidden.solo })
   const flipHidden = (h: Hidden, r: Row) => {
@@ -112,7 +114,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
         <Toggle icon={Square} label="Opening (창·문 구멍)" on={opts.openings} onClick={() => setOpts(o => ({ ...o, openings: !o.openings }))} />
         <Toggle icon={Box} label="Space 반투명" on={opts.spaces} onClick={() => setOpts(o => ({ ...o, spaces: !o.spaces }))} />
         <Toggle icon={Combine} label="재질별 병합" on={opts.merged} onClick={() => setOpts(o => ({ ...o, merged: !o.merged }))} />
-        <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕)" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) on ? h.classes.delete(c) : h.classes.add(c); setHidden(h) }} />
+        <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕)" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h) }} />
         <span style={{ flex: 1 }} />
         <Toggle icon={Eye} label="숨긴 것 모두 표시" on={false} disabled={!anyHidden} onClick={allVisible} />
       </div>
@@ -129,7 +131,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       </div>}
 
       {tab === 'system' && !q ? <div style={{ flex: 1, overflow: 'auto' }}>{systemPanel}</div> :
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }} onClick={e => { if (e.target === e.currentTarget) onSelect([], 'set') }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }} onClick={e => { if (e.target === e.currentTarget) { onSelect([], 'set') } }}>
         {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => clickRow(r, ev)} onContext={ev => onContext(ev, r.gids())} /> })
                           : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
            : flat.map(f => <TreeRow key={f.row.key} row={f.row} depth={f.depth} open={f.open} selected={rowSelected(f.row)} onToggle={toggle} onSolo={solo} onOpen={() => toggleOpen(f.row, f.depth)} onClick={ev => clickRow(f.row, ev)} onContext={ev => onContext(ev, f.row.gids())} />)}

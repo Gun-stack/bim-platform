@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { MapPinned, Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
@@ -58,9 +58,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.setMarker(gid, st === 'FAULT' ? 0xf59e0b : 0xdc2626)
   }
   const focusRef = useRef(focusOn); focusRef.current = focusOn
-  useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); scene.current?.setMarker(undefined) } }, [selSet])
-  const reloadStatus = () => api(`/models/${modelId}/status`).then(setStatusRows).catch(() => setStatusRows([]))
-  useEffect(() => { reloadStatus() }, [modelId])
+  useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])
+  const reloadStatus = useCallback(() => api(`/models/${modelId}/status`).then(setStatusRows).catch(() => setStatusRows([])), [modelId])
+  useEffect(() => { reloadStatus() }, [reloadStatus])
   useEffect(() => { api(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
   // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
   useEffect(() => {
@@ -78,8 +78,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [wo, setWo] = useState<WorkOrder>()   // ?wo= 로 열었을 때 상단 배너
   useEffect(() => { const id = new URLSearchParams(location.hash.split('?')[1] ?? '').get('wo'); if (id) api(`/work-orders/${id}`).then(setWo).catch(() => {}); else setWo(undefined) }, [modelId])
   const [assets, setAssets] = useState<Asset[]>([])
-  const reloadAssets = () => api(`/models/${modelId}/assets`).then(setAssets)
-  useEffect(() => { reloadAssets() }, [modelId])
+  const reloadAssets = useCallback(() => api(`/models/${modelId}/assets`).then(setAssets), [modelId])
+  useEffect(() => { reloadAssets() }, [reloadAssets])
   const assetByGid = useMemo(() => new Map(assets.filter(a => a.globalId).map(a => [a.globalId!, a])), [assets])
 
   useEffect(() => {

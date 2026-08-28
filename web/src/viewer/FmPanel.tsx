@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+/* oxlint-disable react/only-export-components */
+import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, ClipboardList, Plus, Tag, Wrench } from 'lucide-react'
 import { api, post, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Viewpoint } from '../api'
 
@@ -32,7 +33,7 @@ const suggestTag = (el: ElementRow, n: number) => `${el.ifcClass.replace('Ifc', 
 
 function Register({ gid, el, detail, modelId, run, err }: { gid: string; el: ElementRow; detail?: ElementDetail; modelId: string; run: (p: Promise<unknown>) => Promise<void>; err?: string }) {
   const [tag, setTag] = useState(''); const [category, setCategory] = useState(el.ifcClass.replace('Ifc', ''))
-  useEffect(() => { api(`/models/${modelId}/assets`).then((as: Asset[]) => setTag(suggestTag(el, as.length + 1))) }, [gid])
+  useEffect(() => { api(`/models/${modelId}/assets`).then((as: Asset[]) => setTag(suggestTag(el, as.length + 1))) }, [gid, modelId, el])
   const attrs = snapshot(detail)
   return (
     <form onSubmit={e => { e.preventDefault(); run(post(`/models/${modelId}/assets`, { globalId: gid, tag, category, attributes: attrs })) }}>
@@ -67,8 +68,8 @@ function Bulk({ selection, byGid, byElement, modelId, run, err }: { selection: s
 
 function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Promise<unknown>) => Promise<void>; err?: string; viewpoint: () => Viewpoint }) {
   const [d, setD] = useState<AssetDetail>()
-  const load = () => api(`/assets/${asset.id}`).then(setD)
-  useEffect(() => { load() }, [asset.id, asset.lastInspectedOn, asset.openWorkOrders])
+  const load = useCallback(() => api(`/assets/${asset.id}`).then(setD), [asset.id])
+  useEffect(() => { load() }, [load, asset.lastInspectedOn, asset.openWorkOrders])
   const [note, setNote] = useState(''); const [wo, setWo] = useState({ title: '', assignee: '', dueOn: '' }); const [showWo, setShowWo] = useState(false)
   const inspect = (result: 'OK' | 'DEFECT') => run(post(`/assets/${asset.id}/inspections`, { result, note: note || null })).then(() => setNote(''))
   const createWo = () => run(post(`/assets/${asset.id}/work-orders`, { ...wo, dueOn: wo.dueOn || null, assignee: wo.assignee || null,

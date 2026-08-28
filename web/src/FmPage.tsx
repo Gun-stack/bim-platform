@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Box, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
 import { day } from './viewer/FmPanel'
@@ -12,8 +12,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [tab, setTab] = useState<'board' | 'assets'>('board')
   const [add, setAdd] = useState<{ tag: string; category: string } | null>(null)   // 모델에 없는 자산 추가 폼
   const [err, setErr] = useState<string>()
-  const reload = () => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) })
-  useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId])
+  const reload = useCallback(() => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
+  useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
 
 
   return (

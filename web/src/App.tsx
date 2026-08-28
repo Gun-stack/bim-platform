@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { api, type Model } from './api'
 import { AlertCircle, Box, CheckCircle2, Loader2, MapPin, RotateCcw, Upload } from 'lucide-react'
-import Viewer from './viewer/Viewer'
-import FmPage from './FmPage'
-import MapPage from './MapPage'
-import MonitorPage from './MonitorPage'
+const Viewer = lazy(() => import('./viewer/Viewer'))
+const FmPage = lazy(() => import('./FmPage'))
+const MapPage = lazy(() => import('./MapPage'))
+const MonitorPage = lazy(() => import('./MonitorPage'))
 
 // 라우팅은 해시 하나. 페이지가 셋(모델·뷰어·지도) 넘어가면 react-router.
 const useHash = () => {
@@ -15,8 +15,8 @@ const useHash = () => {
 
 export default function App() {
   const h = useHash(), m = h.match(/^#\/models\/([0-9a-f-]{36})(\/fm|\/monitor)?/)
-  if (h.startsWith('#/map')) return <MapPage />
-  return m ? (m[2] === '/fm' ? <FmPage modelId={m[1]} /> : m[2] === '/monitor' ? <MonitorPage modelId={m[1]} /> : <Viewer modelId={m[1]} />) : <Models />
+  const page = h.startsWith('#/map') ? <MapPage /> : m ? (m[2] === '/fm' ? <FmPage modelId={m[1]} /> : m[2] === '/monitor' ? <MonitorPage modelId={m[1]} /> : <Viewer modelId={m[1]} />) : <Models />
+  return <Suspense fallback={<main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', color: '#666' }}><Loader2 className="spin" /> 불러오는 중…</main>}>{page}</Suspense>
 }
 
 function Models() {

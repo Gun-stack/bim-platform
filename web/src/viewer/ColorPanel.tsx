@@ -1,3 +1,4 @@
+/* oxlint-disable react/only-export-components, react/set-state-in-effect */
 import { useEffect, useMemo, useState } from 'react'
 import { Focus, X } from 'lucide-react'
 import { api, type ElementRow, type SpatialNode } from '../api'
@@ -21,6 +22,7 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
   useEffect(() => { api(`/models/${modelId}/property-keys`).then(setKeys) }, [modelId])
 
   // 값 수집: 내장(클래스·층)은 로컬, 나머지는 API
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     if (key === 'ifcClass') return setValues(elements.map(e => ({ globalId: e.globalId, value: e.ifcClass })))
     if (key === 'storey') {
@@ -30,7 +32,7 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
     }
     setValues(undefined)
     api(`/models/${modelId}/property-values?key=${encodeURIComponent(key)}`).then(setValues)
-  }, [key, elements, spatial])
+  }, [key, elements, spatial, modelId])
 
   const legend: Legend = useMemo(() => {
     if (!values) return []
@@ -42,7 +44,7 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
     const m = new Map<string, number>(); for (const l of legend) for (const g of l.gids) m.set(g, l.color)
     onChange(m)
     return () => onChange(undefined)
-  }, [legend])
+  }, [legend, onChange])
 
   // 키 목록: 내장 → 표준 Pset_* → 나머지
   const sorted = useMemo(() => [...keys].sort((a, b) => +b.key.startsWith('Pset_') - +a.key.startsWith('Pset_') || b.n - a.n), [keys])

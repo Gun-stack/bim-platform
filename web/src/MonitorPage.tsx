@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, AlertTriangle, ArrowLeft, ArrowUpDown, Box, Cable, ExternalLink, Flame, Network, PlugZap, Siren, Wrench, type LucideIcon } from 'lucide-react'
 import { api, post, type Model } from './api'
 
@@ -22,9 +22,9 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const [rows, setRows] = useState<Row[]>([]); const [power, setPower] = useState('UNKNOWN')
   const [team, setTeam] = useState<string>(); const [onlyAbnormal, setOnlyAbnormal] = useState(false); const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
-  const load = () => Promise.all([api(`/models/${modelId}/monitor`), api(`/models/${modelId}/power`).catch(() => ({ unpowered: [] }))])
-    .then(([d, pw]) => { setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setTick(new Date()) })
-  useEffect(() => { api(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId])
+  const load = useCallback(() => Promise.all([api(`/models/${modelId}/monitor`), api(`/models/${modelId}/power`).catch(() => ({ unpowered: [] }))])
+    .then(([d, pw]) => { setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setTick(new Date()) }), [modelId])
+  useEffect(() => { api(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId, load])
 
   // 팀 우선순위: 소방 > 수송 > 설비 > 통신·제어 > 전기 (MDF 는 비상전원+통신 → 통신팀, 소화펌프는 소방+비상전원 → 소방팀, UPS 는 비상전원만 → 전기팀)
   // 예외: 조명제어반은 통신 계통에도 걸리지만 전기팀

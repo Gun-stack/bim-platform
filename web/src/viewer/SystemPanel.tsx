@@ -1,3 +1,4 @@
+/* oxlint-disable react/only-export-components */
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, CheckCircle2, Droplets, Fan, Flame, Focus, Network, PlugZap, Siren, Snowflake, Thermometer, Waves, Wind, X, ArrowUpDown, Car, type LucideIcon } from 'lucide-react'
 import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
@@ -29,7 +30,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
   useEffect(() => {   // 멤버는 전부 미리 받아둔다 (색상 모드·솔로에 필요, 모델당 수백 개)
     if (!systems.length) return
     Promise.all(systems.map(s => api(`/models/${modelId}/systems/${s.id}/elements`).then((m: SystemMember[]) => [s.id, m] as const))).then(r => setMembers(new Map(r)))
-  }, [systems])
+  }, [systems, modelId, setMembers])
 
   const gid = selection.length === 1 ? selection[0] : undefined
   const inSystems = useMemo(() => systems.filter(s => (members.get(s.id) ?? []).some(m => m.globalId === gid)), [systems, members, gid])
