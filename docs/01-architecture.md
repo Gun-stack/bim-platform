@@ -75,7 +75,7 @@ worker/
   main.py        폴링 루프
   convert.py     ifcopenshell.geom iterator + serializers.gltf → glb (ADR 0005)
   extract.py     요소·Pset·공간계층 → rows
-  georef.py      IfcMapConversion / IfcSite RefLatitude·RefLongitude → EPSG:4326 풋프린트
+  georef.py      IfcMapConversion(단위 스케일·회전·EPSG, pyproj) / IfcSite RefLat·RefLong(DMS) → 4326. 풋프린트 = 기하 XY bbox
   ids.py         (M5) ifctester
 ```
 
@@ -85,6 +85,7 @@ worker/
 src/
   App.tsx        해시 라우팅: #/ 목록 · #/models/{id} 뷰어 · #/models/{id}/fm 시설관리
   FmPage.tsx     작업지시 보드 · 자산 대장 → 뷰어(?wo=&v=&sel=&clip=)
+  MapPage.tsx    #/map MapLibre + OSM 타일, 풋프린트 레이어(자동/수동 색 구분), 클릭 팝업, 미배치 모델 지도 클릭 배치
   viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·섹션박스·측정·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈/솔로 토글·검색) + ColorPanel.tsx (속성별 색상 범례) + ContextMenu.tsx (우클릭 메뉴) + FmPanel.tsx (자산 등록·점검·작업지시)
             뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip=xmin,xmax,ymin,ymax,zmin,zmax — M4 work_order.viewpoint 와 같은 필드
   map/      MapLibre, 풋프린트 레이어, 핀 배치
@@ -105,8 +106,8 @@ src/
 | GET | `/api/models/{id}/elements?ifcClass=&storey=&q=` | 요소 검색 (속성 제외, 가벼운 목록) |
 | GET | `/api/models/{id}/property-keys` · `/property-values?key=Pset.Prop` | 뷰어 색상 모드: 키 목록(상위 200)·키별 값 |
 | GET | `/api/models/{id}/elements/{globalId}` | 요소 + Pset. GlobalId 는 모델 안에서만 유일(같은 파일 재업로드 시 중복)이라 모델 스코프 |
-| PUT | `/api/models/{id}/footprint` | 수동 풋프린트/핀 |
-| GET | `/api/map/footprints?bbox=` | 지도용 GeoJSON |
+| PUT | `/api/models/{id}/footprint` | 수동 핀 {lon,lat,rotation} → 로컬 bbox 폭의 사각 풋프린트(aeqd 투영) |
+| GET | `/api/map/footprints?bbox=` | 지도용 GeoJSON FeatureCollection (출처·CRS·면적 포함) |
 | GET/POST | `/api/models/{id}/assets` | 자산 목록(연결 요소·최근 점검·열린 작업지시 수) / 등록(globalId 선택, tag 중복 409) |
 | GET/PATCH/DELETE | `/api/assets/{id}` | 자산 상세(점검·작업지시 포함) / 상태·분류 변경 / 삭제(점검·작업지시 CASCADE) |
 | POST | `/api/assets/{id}/inspections` | 점검 기록 OK·DEFECT |

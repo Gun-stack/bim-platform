@@ -106,11 +106,13 @@ class ModelController {
 	private static final String SELECT = """
 		SELECT m.id, m.name, m.status, m.ifc_schema "ifcSchema", m.glb_key "glbKey",
 		       m.element_count "elementCount", m.created_at "createdAt",
+		       ST_AsGeoJSON(m.footprint)::text footprint, m.map_conversion::text "mapConversion",
 		       j.status "jobStatus", j.progress, j.attempts, j.error
 		  FROM model m LEFT JOIN LATERAL (SELECT * FROM conversion_job WHERE model_id = m.id ORDER BY id DESC LIMIT 1) j ON true""";
 
 	private Map<String, Object> withGlbUrl(Map<String, Object> m) {
 		if (m.get("glbKey") != null) m.put("glbUrl", "/files/" + bucket + "/" + m.get("glbKey"));
+		for (var k : List.of("footprint", "mapConversion")) if (m.get(k) instanceof String s) m.put(k, Json.parse(s));
 		return m;
 	}
 

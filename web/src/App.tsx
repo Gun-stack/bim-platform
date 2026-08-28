@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api, type Model } from './api'
-import { AlertCircle, Box, CheckCircle2, Loader2, RotateCcw, Upload } from 'lucide-react'
+import { AlertCircle, Box, CheckCircle2, Loader2, MapPin, RotateCcw, Upload } from 'lucide-react'
 import Viewer from './viewer/Viewer'
 import FmPage from './FmPage'
+import MapPage from './MapPage'
 
 // 라우팅은 해시 하나. 페이지가 셋(모델·뷰어·지도) 넘어가면 react-router.
 const useHash = () => {
@@ -13,6 +14,7 @@ const useHash = () => {
 
 export default function App() {
   const h = useHash(), m = h.match(/^#\/models\/([0-9a-f-]{36})(\/fm)?/)
+  if (h.startsWith('#/map')) return <MapPage />
   return m ? (m[2] ? <FmPage modelId={m[1]} /> : <Viewer modelId={m[1]} />) : <Models />
 }
 
@@ -60,6 +62,7 @@ function Models() {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={22} /> bim-platform</h1>
         <span style={{ color: '#888' }}>IFC 업로드 → 서버 변환 → 3D 뷰어</span>
+        <a href="#/map" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', color: '#222', fontSize: 12 }}><MapPin size={13} /> 지도</a>
       </div>
 
       <label onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}

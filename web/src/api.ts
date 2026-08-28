@@ -1,6 +1,6 @@
 export type Model = {
   id: string; name: string; status: 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED'
-  ifcSchema?: string; elementCount?: number; progress: number; error?: string; glbUrl?: string
+  ifcSchema?: string; elementCount?: number; progress: number; error?: string; glbUrl?: string; createdAt?: string
 }
 export type SpatialNode = { id: number; parentId: number | null; globalId: string; ifcClass: string; name: string | null; elevation: number | null }
 export type ElementRow = { globalId: string; ifcClass: string; name: string | null; spatialNodeId: number | null }

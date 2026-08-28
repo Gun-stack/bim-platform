@@ -51,7 +51,7 @@ DATA;
 - 층 높이는 `IfcBuildingStorey.Elevation` (없는 파일도 있음: IFC4x3 샘플은 None).
 - 스키마별 차이는 유틸 함수가 흡수한다. IFC2X3/IFC4/IFC4X3 세 샘플에 extract.py 코드가 한 줄도 안 갈렸다.
 
-## 지리참조 (M3에서 상세)
+## 지리참조 (상세는 [ifc-georeferencing.md](ifc-georeferencing.md))
 
 - IFC4+: `IfcMapConversion` + `IfcProjectedCRS` (EPSG 코드, Eastings/Northings, 회전).
 - IFC2x3: `IfcSite.RefLatitude/RefLongitude` (도·분·초 튜플) 정도가 전부.

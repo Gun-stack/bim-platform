@@ -62,4 +62,10 @@ curl -X POST localhost:8080/api/models/<id>/retry                               
 
 뷰어에서 요소 선택 → "자산 · FM" 탭 → 자산 등록(IFC Pset 스냅샷) → 점검 OK/결함 → 작업지시(현재 뷰포인트 저장). `#/models/{id}/fm` 보드에서 "3D" 를 누르면 뷰어가 그 위치·선택으로 돌아간다.
 
+### 지도 (M3)
+
+![M3 지도](docs/images/m3-map.jpg)
+
+`#/map` — worker 가 IfcMapConversion(EPSG·회전·단위) 또는 IfcSite 위경도에서 풋프린트를 뽑아 PostGIS 에 저장, MapLibre 에 표시. 지리참조 없는 모델은 지도 클릭으로 배치(수동 핀 + 회전).
+
 샘플 IFC 는 `samples/README.md` 참고. 로컬 개발: `cd api && ./gradlew test` (Testcontainers, Docker 필요), `cd web && npm run dev`.

@@ -8,7 +8,7 @@ import psycopg
 from minio import Minio
 from psycopg.types.json import Jsonb
 
-from . import convert as conv, extract
+from . import convert as conv, extract, georef
 
 log = logging.getLogger("worker")
 DSN = f"postgresql://bim:bim@{os.environ.get('DB_HOST', 'localhost')}:5432/bim"
@@ -55,7 +55,10 @@ def convert(conn, job_id, model_id):
             if n % PROGRESS_EVERY == 0:
                 conn.execute("UPDATE conversion_job SET progress=%s WHERE id=%s", (min(90, n * 90 // total), job_id))
 
-        conv.to_glb(ifc, glb, progress)
+        _, bbox = conv.to_glb(ifc, glb, progress)
+        geo = georef.read(f)
+        fp = georef.footprint_wkt(geo, bbox)
+        mc = dict(geo or {}, bbox=list(bbox) if bbox else None)   # bbox 는 수동 핀 때 풋프린트 폭으로 씀
         s3.fput_object(BUCKET, glb_key, glb, content_type="model/gltf-binary")
         spatial, elems = extract.spatial_tree(f), extract.elements(f)
 
@@ -73,10 +76,11 @@ def convert(conn, job_id, model_id):
                 "INSERT INTO element (model_id, global_id, ifc_class, name, spatial_node_id, properties) "
                 "VALUES (%s,%s,%s,%s,%s,%s)",
                 [(model_id, gid, cls, name, ids.get(c), Jsonb(props)) for gid, cls, name, c, props in elems])
-        conn.execute("UPDATE model SET status='READY', glb_key=%s, ifc_schema=%s, element_count=%s WHERE id=%s",
-                     (glb_key, f.schema, len(elems), model_id))
+        conn.execute("UPDATE model SET status='READY', glb_key=%s, ifc_schema=%s, element_count=%s, map_conversion=%s, "
+                     "footprint=CASE WHEN %s::text IS NULL THEN NULL ELSE ST_GeomFromText(%s, 4326) END WHERE id=%s",
+                     (glb_key, f.schema, len(elems), Jsonb(mc), fp, fp, model_id))
         conn.execute("UPDATE conversion_job SET status='DONE', progress=100, finished_at=now() WHERE id=%s", (job_id,))
-    log.info("job %s done: %s, %d spatial, %d elements", job_id, f.schema, len(spatial), len(elems))
+    log.info("job %s done: %s, %d spatial, %d elements, georef=%s", job_id, f.schema, len(spatial), len(elems), geo["source"] if geo else None)
 
 
 def run_once(conn):
