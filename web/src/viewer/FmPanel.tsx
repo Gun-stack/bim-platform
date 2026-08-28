@@ -104,10 +104,10 @@ function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Prom
         <div style={{ color: '#888', fontSize: 11, margin: '4px 0' }}>요소에 맞춘 카메라·선택·단면이 뷰포인트로 저장됩니다{d?.inspections[0]?.result === 'DEFECT' && ' · 최근 결함 점검에 연결'}</div>
         <button disabled={!wo.title} onClick={createWo} style={btnPrimary}>생성</button>
       </div>}
-      {d?.workOrders.map(w => <div key={w.id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, padding: '4px 0', borderTop: '1px solid #eee' }}>
-        <StatusBadge s={w.status} /><span style={{ flex: 1 }}>{w.title}</span><span style={{ color: '#888' }}>{w.assignee}</span><span style={{ color: '#888' }}>{day(w.dueOn)}</span>
-        <select value={w.status} onChange={e => run(post(`/work-orders/${w.id}`, { status: e.target.value }, 'PATCH')).then(load)} style={{ fontSize: 11 }}>
-          <option value="OPEN">OPEN</option><option value="IN_PROGRESS">진행</option><option value="DONE">완료</option></select></div>)}
+      {d?.workOrders.map(w => <div key={w.id} style={{ fontSize: 12, padding: '5px 0', borderTop: '1px solid #eee' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><StatusBadge s={w.status} /><span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={w.title}>{w.title}</span>
+          <span style={{ display: 'inline-flex', gap: 2 }}>{(['OPEN', 'IN_PROGRESS', 'DONE'] as const).map(st => <button key={st} disabled={w.status === st} onClick={() => run(post(`/work-orders/${w.id}`, { status: st }, 'PATCH')).then(load)} style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ddd', borderRadius: 999, background: w.status === st ? '#eef2ff' : '#fff', color: w.status === st ? '#1d4ed8' : '#555', cursor: w.status === st ? 'default' : 'pointer' }}>{{ OPEN: '대기', IN_PROGRESS: '진행', DONE: '완료' }[st]}</button>)}</span></div>
+        <div style={{ color: '#888', fontSize: 11, marginTop: 2, paddingLeft: 2 }}>{w.assignee ? `담당 ${w.assignee}` : <span style={{ color: '#b45309' }}>미배정</span>}{w.dueOn ? ` · 기한 ${day(w.dueOn)}` : ''}{w.priority && w.priority !== 'NORMAL' ? ` · ${({ URGENT: '긴급', HIGH: '높음', LOW: '낮음' } as Record<string, string>)[w.priority] ?? w.priority}` : ''}</div></div>)}
     </div>
   )
 }

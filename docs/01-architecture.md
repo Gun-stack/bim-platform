@@ -94,7 +94,7 @@ src/
   FmBoard.tsx    지라형 칸반(드래그 낙관적 이동·되돌리기, 팀/담당/기한 필터, 드로어 편집, 생성 모달) → 뷰어(?wo=&v=&sel=&clip=)
   MonitorPage.tsx #/models/{id}/monitor 건물 요약 바 → 팀 KPI(대표 지표) → **지금 처리할 것**(경보→장애→계측 위험/무전원→주의·작업지시, 층 표시, 팀 필터) → 팀 선택 시 **핵심 장비 카드**(KEY_EQUIP 접두어) → 팀×층 격자(층 필터·층 단면 링크·이상 배지·새 경보 4초 강조·알림음) + 최근 이벤트 패널. ?kiosk=1 벽면 모드 × 층 격자 상태판, KPI, 전원 배지, 5초 폴링
   MapPage.tsx    #/map MapLibre + OSM 타일, 풋프린트 레이어(자동/수동 색 구분), 클릭 팝업, 미배치 모델 지도 클릭 배치
-  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·섹션박스·측정·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈/솔로 토글·검색) + ColorPanel.tsx (속성별 색상 범례) + ContextMenu.tsx (우클릭 메뉴) + FmPanel.tsx (자산 등록·점검·작업지시) + SystemPanel.tsx (계통 목록·색·상류/하류 추적) + StatusEditor.tsx (속성 탭 상단 '운영 상태': Status 버튼·Pset_BimStatus 필드 인라인 편집, PATCH 공용 함수는 상태판도 사용)
+  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·섹션박스·측정·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·우측 요약 카드[이름·상태·팀 계통·자산·작업지시]·추적 배너·포커스 배너) + LeftPanel.tsx (최상단 상태판[이상 목록·상태 색·정전] → 표시 토글 → 검색[클릭=선택+맞춤] → 트리 탭[층·구역 이상 배지]·눈/솔로) + ColorPanel.tsx (속성별 색상 범례) + ContextMenu.tsx (우클릭 메뉴) + FmPanel.tsx (자산 등록·점검·작업지시) + SystemPanel.tsx (계통 목록·색·상류/하류 추적) + StatusEditor.tsx (속성 탭 상단 '운영 상태': Status 버튼·Pset_BimStatus 필드 인라인 편집, PATCH 공용 함수는 상태판도 사용)
             뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip=xmin,xmax,ymin,ymax,zmin,zmax&focus=1&wo={id} — M4 work_order.viewpoint 와 같은 필드. focus 는 건물 전체 뷰 + 구역 강조 + 비콘(길찾기용)
 ```
 

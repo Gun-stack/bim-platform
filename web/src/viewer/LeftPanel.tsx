@@ -7,7 +7,7 @@ import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
 
 /** 트리 한 행. children 은 지연 계산(펼칠 때만) */
-export type Row = { key: string; gid?: string; label: string; sub?: string; icon: LucideIcon; count: number; hidden: boolean; solo: boolean; gids: () => string[]; children?: () => Row[] }
+export type Row = { key: string; gid?: string; label: string; sub?: string; icon: LucideIcon; count: number; badge?: number; hidden: boolean; solo: boolean; gids: () => string[]; children?: () => Row[] }
 export type SelectMode = 'set' | 'toggle' | 'range'
 
 /** 숨김 3종 + 솔로(이것만 보기). 보임 = (solo 없음 || gid ∈ solo) && !hidden */
@@ -18,11 +18,11 @@ export const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', '
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 export const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
-export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel }: {
+export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel, statusBoard, abnormal, onFit }: {
   model?: Model; stats: Stats; spatial: SpatialNode[]; elements: ElementRow[]
   hidden: Hidden; setHidden: (h: Hidden) => void; opts: Opts; setOpts: (f: (o: Opts) => Opts) => void
   selected: Set<string>; onSelect: (gids: string[], mode: SelectMode) => void; onContext: (e: React.MouseEvent, gids: string[]) => void
-  systemPanel?: ReactNode
+  systemPanel?: ReactNode; statusBoard?: ReactNode; abnormal: Map<string, string>; onFit: () => void   // abnormal: gid → ALARM|FAULT (트리 배지)
 }) {
   const [tab, setTab] = useState<'spatial' | 'class' | 'system'>('spatial')
   const [q, setQ] = useState('')
@@ -41,7 +41,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     hidden: hidden.gids.has(e.globalId) || hidden.classes.has(e.ifcClass), solo: hidden.solo?.key === 'e:' + e.globalId, gids: () => [e.globalId] })
   const spRow = (n: SpatialNode): Row => {
     const g = desc(n)
-    return { key: 'n:' + n.id, label: n.name ?? '(이름 없음)', sub: n.ifcClass.replace('Ifc', '') + (n.elevation != null ? ` ${n.elevation.toFixed(2)}m` : ''), icon: classIcon(n.ifcClass), count: g.length,
+    const gs = desc(n); return { badge: gs.reduce((k, g) => k + (abnormal.has(g) ? 1 : 0), 0), key: 'n:' + n.id, label: n.name ?? '(이름 없음)', sub: n.ifcClass.replace('Ifc', '') + (n.elevation != null ? ` ${n.elevation.toFixed(2)}m` : ''), icon: classIcon(n.ifcClass), count: g.length,
       hidden: hidden.nodes.has(n.id), solo: hidden.solo?.key === 'n:' + n.id, gids: () => g,
       children: () => [...(childrenOf.get(n.id) ?? []).map(spRow), ...(byNode.get(n.id) ?? []).map(elRow)] }
   }
@@ -56,7 +56,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     const byClass = new Map<string, ElementRow[]>()
     for (const e of elements) (byClass.get(e.ifcClass) ?? byClass.set(e.ifcClass, []).get(e.ifcClass)!).push(e)
     return [...byClass].sort((a, b) => b[1].length - a[1].length).map(([c, es]) => ({ key: 'c:' + c, label: ifcKo(c), sub: c.replace('Ifc', ''), icon: classIcon(c), count: es.length, hidden: hidden.classes.has(c), solo: hidden.solo?.key === 'c:' + c, gids: () => es.map(e => e.globalId), children: () => es.map(elRow) }))
-  }, [tab, elements, hidden, byNode, childrenOf])
+  }, [tab, elements, hidden, byNode, childrenOf, abnormal])
 
   const clone = (): Hidden => ({ nodes: new Set(hidden.nodes), classes: new Set(hidden.classes), gids: new Set(hidden.gids), solo: hidden.solo })
   const flipHidden = (h: Hidden, r: Row) => {
@@ -109,9 +109,10 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
           <a href={`#/models/${model?.id}/fm`} style={{ marginLeft: 10, textDecoration: 'none', color: '#2563eb' }}>시설관리 →</a>
         </div>
         <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model?.name}>{model?.name ?? '…'}</div>
-        <div style={{ color: '#777', fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · ${stats.fps} fps`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}</div>
+        <div style={{ color: '#777', fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · ${stats.fps} fps`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}{abnormal.size > 0 && <b style={{ color: '#dc2626', marginLeft: 6 }}>· 이상 {abnormal.size}</b>}</div>
       </div>
 
+      {statusBoard}
       <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: '1px solid #e5e5e5' }}>
         <Toggle icon={Square} label="Opening (창·문 구멍)" on={opts.openings} onClick={() => setOpts(o => ({ ...o, openings: !o.openings }))} />
         <Toggle icon={Box} label="Space 반투명" on={opts.spaces} onClick={() => setOpts(o => ({ ...o, spaces: !o.spaces }))} />
@@ -134,7 +135,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
 
       {tab === 'system' && !q ? <div style={{ flex: 1, overflow: 'auto' }}>{systemPanel}</div> :
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }} onClick={e => { if (e.target === e.currentTarget) { onSelect([], 'set') } }}>
-        {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => clickRow(r, ev)} onContext={ev => onContext(ev, r.gids())} /> })
+        {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => { clickRow(r, ev); if (!ev.metaKey && !ev.ctrlKey && !ev.shiftKey) setTimeout(onFit, 0) }} onContext={ev => onContext(ev, r.gids())} /> })
                           : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
            : flat.map(f => <TreeRow key={f.row.key} row={f.row} depth={f.depth} open={f.open} selected={rowSelected(f.row)} onToggle={toggle} onSolo={solo} onOpen={() => toggleOpen(f.row, f.depth)} onClick={ev => clickRow(f.row, ev)} onContext={ev => onContext(ev, f.row.gids())} />)}
       </div>}
@@ -156,6 +157,7 @@ function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick
       <Icon size={14} style={{ color: '#666', flexShrink: 0 }} />
       <span title={row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {row.label}{row.sub && <span style={{ color: '#999', marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
+      {!!row.badge && <span title={`이상 ${row.badge}`} style={{ color: '#fff', fontSize: 10, fontWeight: 700, background: '#dc2626', borderRadius: 8, padding: '0 5px' }}>{row.badge}</span>}
       {row.count > 0 && <span style={{ color: '#999', fontSize: 11, background: '#eee', borderRadius: 8, padding: '0 6px' }}>{row.count}</span>}
       <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? '#2563eb' : hov ? '#777' : 'transparent' }}>
         <Focus size={14} /></span>
