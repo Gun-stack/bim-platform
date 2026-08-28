@@ -84,7 +84,7 @@ worker/
 ```
 src/
   pages/    Models, Viewer, Map, Assets, WorkOrders
-  viewer/   Three.js 씬, glb 로더, 선택(raycast → GlobalId 매핑), 하이라이트
+  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹) + Viewer.tsx (트리·필터·검색·속성 UI)
   map/      MapLibre, 풋프린트 레이어, 핀 배치
   api/      fetch 래퍼, SSE 훅
 ```

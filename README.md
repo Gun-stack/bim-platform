@@ -50,4 +50,10 @@ curl -N localhost:8080/api/models/<id>/events                                   
 curl -X POST localhost:8080/api/models/<id>/retry                                     # FAILED 만 재등록
 ```
 
+### 3D 뷰어 (M2)
+
+![M2 뷰어](docs/images/m2-viewer.jpg)
+
+모델 목록에서 READY 모델 클릭 → `#/models/{id}`. 요소 클릭 → Pset, 층/클래스 필터, 검색, 표시 옵션(Opening·Space·재질별 병합 + draw call 카운터).
+
 샘플 IFC 는 `samples/README.md` 참고. 로컬 개발: `cd api && ./gradlew test` (Testcontainers, Docker 필요), `cd web && npm run dev`.
