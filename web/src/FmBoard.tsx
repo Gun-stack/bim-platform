@@ -2,16 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowDown, ArrowUp, Calendar, ChevronsUp, ExternalLink, Plus, Search, User, X } from 'lucide-react'
 import { post, type Asset, type Priority, type WorkOrder } from './api'
 import { StatusBadge, day } from './viewer/FmPanel'
+import { TEAMS, teamOfSystems } from './teams'
 
-/** 팀 색 — MonitorPage 의 TEAMS 와 같은 계통 매핑 (설정 한 곳으로 합치려면 공용 모듈로) */
-const TEAMS: { key: string; name: string; color: string; systems: string[] }[] = [
-  { key: 'fire', name: '소방', color: '#dc2626', systems: ['소방', '화재감지'] },
-  { key: 'trans', name: '수송', color: '#78716c', systems: ['수송', '주차관제'] },
-  { key: 'mech', name: '설비', color: '#2563eb', systems: ['공조', '냉난방수', '환기', '급수', '급탕', '배수', '가스'] },
-  { key: 'comm', name: '통신', color: '#4f46e5', systems: ['통신'] },
-  { key: 'elec', name: '전기', color: '#f59e0b', systems: ['전기', '비상전원'] },
-]
-const teamOf = (w: WorkOrder) => TEAMS.find(t => (w.systems ?? []).some(s => t.systems.includes(s)))
+const teamOf = (w: WorkOrder) => teamOfSystems(w.systems)
 const PRIO: Record<Priority, { label: string; color: string; icon?: typeof ArrowUp }> = {
   URGENT: { label: '긴급', color: '#b91c1c', icon: ChevronsUp }, HIGH: { label: '높음', color: '#ea580c', icon: ArrowUp }, NORMAL: { label: '보통', color: '#2563eb' }, LOW: { label: '낮음', color: '#6b7280', icon: ArrowDown } }
 const COLS: WorkOrder['status'][] = ['OPEN', 'IN_PROGRESS', 'DONE']
@@ -47,7 +40,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload }: { mode
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative' }}><Search size={13} style={{ position: 'absolute', left: 8, top: 8, color: '#999' }} />
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="제목 · 자산 · 담당" style={{ ...inp, paddingLeft: 26, width: 220 }} /></div>
-        <div style={{ display: 'flex', gap: 4 }}>{TEAMS.map(t => <button key={t.key} onClick={() => setTeam(team === t.key ? undefined : t.key)} style={{ ...chip, borderColor: team === t.key ? t.color : '#ddd', background: team === t.key ? t.color : '#fff', color: team === t.key ? '#fff' : '#444' }}>{t.name}</button>)}</div>
+        <div style={{ display: 'flex', gap: 4 }}>{TEAMS.map(t => <button key={t.key} onClick={() => setTeam(team === t.key ? undefined : t.key)} style={{ ...chip, borderColor: team === t.key ? t.color : '#ddd', background: team === t.key ? t.color : '#fff', color: team === t.key ? '#fff' : '#444' }}>{t.short}</button>)}</div>
         <select value={assignee ?? ''} onChange={e => setAssignee(e.target.value || undefined)} style={inp}><option value="">담당자 전체</option>{assignees.map(a => <option key={a}>{a}</option>)}</select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#b91c1c' }}><input type="checkbox" checked={onlyOverdue} onChange={e => setOnlyOverdue(e.target.checked)} /> 기한 초과만</label>
         <span style={{ marginLeft: 'auto', color: '#888', fontSize: 12 }}>{visible.length} / {wos.length}</span>
@@ -86,7 +79,7 @@ function Card({ w, dragging, busy, onOpen, viewerUrl, onDragStart, onDragEnd, on
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {Pi && <Pi size={13} style={{ color: pr.color, flexShrink: 0 }} aria-label={pr.label} />}
         <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</span>
-        {t && <span style={{ fontSize: 10, color: t.color, border: '1px solid ' + t.color, borderRadius: 4, padding: '0 4px' }}>{t.name}</span>}
+        {t && <span style={{ fontSize: 10, color: t.color, border: '1px solid ' + t.color, borderRadius: 4, padding: '0 4px' }}>{t.short}</span>}
       </div>
       <div style={{ color: '#666', fontSize: 12, margin: '3px 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.assetTag} · {w.storey}{w.zone ? ` ${w.zone.split('-').pop()}` : ''} · {w.elementName?.split(':')[0]}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#888' }}>
@@ -108,7 +101,7 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: '#0003', zIndex: 40 }}>
       <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 440, background: '#fff', boxShadow: '-4px 0 20px #0002', padding: 18, overflow: 'auto', fontSize: 13 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><StatusBadge s={w.status} />{t && <span style={{ fontSize: 11, color: t.color, border: '1px solid ' + t.color, borderRadius: 4, padding: '0 5px' }}>{t.name}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><StatusBadge s={w.status} />{t && <span style={{ fontSize: 11, color: t.color, border: '1px solid ' + t.color, borderRadius: 4, padding: '0 5px' }}>{t.short}</span>}
           <span style={{ color: '#999', fontSize: 11 }}>{w.id.slice(0, 8)}</span><X size={16} style={{ marginLeft: 'auto', cursor: 'pointer', color: '#666' }} onClick={onClose} /></div>
         <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} style={{ ...inp, width: '100%', fontSize: 15, fontWeight: 600, marginBottom: 10 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>

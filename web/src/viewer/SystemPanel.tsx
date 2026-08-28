@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, CheckCircle2, Droplets, Fan, Flame, Focus, Network, PlugZap, Siren, Snowflake, Thermometer, Waves, Wind, X, ArrowUpDown, Car, type LucideIcon } from 'lucide-react'
 import { patchStatus, statusPatchFor } from './StatusEditor'
+import { TEAMS } from '../teams'
 import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
 
 /** 계통별 색 (ColorPanel 팔레트와 별개로 의미색 고정) */
@@ -43,14 +44,19 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
     <div style={{ padding: '4px 6px' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', fontSize: 12, color: '#444' }}>
         <input type="checkbox" checked={colorMode} onChange={e => setColorMode(e.target.checked)} /> 계통별 색으로 보기</label>
-      {systems.map(s => { const Icon = SYSTEM_ICON[s.name] ?? SYSTEM_ICON[s.predefinedType ?? ''] ?? Cable, c = systemColor(s); return (
-        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 6px', borderRadius: 5 }}>
+      {groupByTeam(systems).map(([team, ss]) => <div key={team?.key ?? 'etc'}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 6px 2px', fontSize: 11, fontWeight: 600, color: team?.color ?? '#888' }}>
+          {team && <team.icon size={12} />}{team?.name ?? '기타'}<span style={{ fontWeight: 400, color: '#aaa' }}>{ss.reduce((n, s) => n + (s.memberCount ?? 0), 0)}</span>
+          {team && <span title={`${team.name} 계통만 보기`} onClick={() => onSolo(team.name, ss.flatMap(s => (members.get(s.id) ?? []).map(m => m.globalId)), 'team:' + team.key)} style={{ marginLeft: 'auto', cursor: 'pointer', color: '#999', display: 'grid', placeItems: 'center' }}><Focus size={12} /></span>}
+        </div>
+      {ss.map(s => { const Icon = SYSTEM_ICON[s.name] ?? SYSTEM_ICON[s.predefinedType ?? ''] ?? Cable, c = systemColor(s); return (
+        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 6px 0 14px', borderRadius: 5 }}>
           <span style={{ width: 12, height: 12, borderRadius: 3, background: hex(c), flexShrink: 0 }} />
           <Icon size={14} style={{ color: hex(c) }} />
           <span style={{ flex: 1 }}>{s.name}</span>
           <span style={{ color: '#999', fontSize: 11 }}>{s.memberCount} · 연결 {s.connectionCount}</span>
           <span title="이 계통만 보기" onClick={() => onSolo(`계통 ${s.name}`, (members.get(s.id) ?? []).map(m => m.globalId), 'sys:' + s.id)} style={{ cursor: 'pointer', color: '#777', display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
-        </div>) })}
+        </div>) })}</div>)}
 
       <div style={{ borderTop: '1px solid #e5e5e5', margin: '8px 0' }} />
       <StatusBoard rows={statusRows} modelId={modelId} gid={gid} reload={reloadStatus} onSelect={g => onFocus(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} />
@@ -124,6 +130,12 @@ function RouteRow({ n, onClick }: { n: { depth: number; name: string | null; ifc
     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={n.name ?? ''}>{n.name}</span>
     <span style={{ color: '#999', fontSize: 11 }}>{n.spatialName}</span>
   </div>
+}
+/** 계통을 팀 순서(TEAMS)로 묶고, 팀 안에서는 TEAMS.systems 에 적힌 순서(원천 계통 먼저). 어느 팀에도 없는 계통은 '기타' */
+const groupByTeam = (systems: System[]) => {
+  const groups = TEAMS.map(t => [t, t.systems.map(n => systems.find(s => s.name === n)).filter(Boolean) as System[]] as const).filter(([, ss]) => ss.length)
+  const rest = systems.filter(s => !TEAMS.some(t => t.systems.includes(s.name)))
+  return rest.length ? [...groups, [undefined, rest] as const] : groups
 }
 const groupBy = <T,>(xs: T[], k: (x: T) => string) => xs.reduce((m, x) => ((m[k(x)] ??= []).push(x), m), {} as Record<string, T[]>)
 const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, flex: 1, justifyContent: 'center' }
