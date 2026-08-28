@@ -7,7 +7,7 @@ flowchart LR
   subgraph browser
     WEB[web<br/>React + TS + Vite<br/>Three.js / MapLibre]
   end
-  WEB -- REST / SSE --> API[api<br/>Spring Boot 3 WebFlux<br/>Java 17]
+  WEB -- REST / SSE --> API[api<br/>Spring Boot 4 WebFlux<br/>Java 25]
   API --> PG[(postgis<br/>PostgreSQL 16 + PostGIS)]
   API --> S3[(minio<br/>S3 호환)]
   WORKER[ifc-worker<br/>Python + IfcOpenShell] -- 폴링 --> PG
@@ -18,7 +18,7 @@ flowchart LR
 | 서비스 | 이미지 | 역할 |
 |---|---|---|
 | `web` | node 빌드 → nginx 정적 서빙 | UI. API 프록시(`/api`), MinIO 프록시(`/files`) |
-| `api` | eclipse-temurin:17 | 모델/요소/공간/지도/FMS API, SSE 진행상태, 잡 등록 |
+| `api` | eclipse-temurin:25 | 모델/요소/공간/지도/FMS API, SSE 진행상태, 잡 등록 |
 | `ifc-worker` | python:3.12 + IfcOpenShell 0.8.x (자체 빌드) | IFC → glb, 요소/속성/공간계층/지리참조 추출, (M5) IDS 검증 |
 | `postgis` | postgis/postgis:16-3.4 | 메타데이터, 요소 속성(jsonb), 공간 데이터, 잡 큐 |
 | `minio` | minio/minio | IFC 원본, glb, 썸네일 |

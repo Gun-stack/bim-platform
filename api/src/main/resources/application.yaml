@@ -1,0 +1,18 @@
+spring:
+  application.name: api
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:localhost}:5432/bim
+    username: bim
+    password: bim
+  flyway:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/bim
+    user: bim
+    password: bim
+  codec.max-in-memory-size: 1MB
+  webflux.multipart.max-disk-usage-per-part: 500MB
+s3:
+  endpoint: ${S3_ENDPOINT:http://localhost:9000}
+  access-key: minio
+  secret-key: minio123
+  bucket: bim
+management.endpoints.web.exposure.include: health

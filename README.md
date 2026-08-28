@@ -7,7 +7,7 @@ IFC 모델을 업로드하면 서버에서 변환하고, 웹에서 3D로 보고,
 ## 무엇을 보여주려는가
 
 - **BIM 데이터 파이프라인**: IFC → IfcOpenShell 변환 → glTF + 속성 DB (서버 사이드, 대용량 대응)
-- **플랫폼 백엔드**: Java 17 / Spring Boot 3 WebFlux, PostgreSQL + PostGIS, MinIO
+- **플랫폼 백엔드**: Java 25 / Spring Boot 4 WebFlux, PostgreSQL + PostGIS, MinIO
 - **3D 웹 뷰어**: React + Three.js, 요소 선택·속성·공간 계층
 - **GIS 통합**: IFC 지리참조 → PostGIS 풋프린트 → MapLibre 지도
 - **FMS 통합**: 요소 → 자산 → 점검 → 작업지시 (COBie / BCF 개념 반영)

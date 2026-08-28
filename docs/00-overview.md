@@ -27,7 +27,7 @@ BIM 서비스 기업 이직용 포트폴리오. 다음 경험을 **하나의 동
 
 | 결정 | 선택 | ADR |
 |---|---|---|
-| 백엔드 언어 | Java 17 + Spring Boot 3 (WebFlux) | [0001](adr/0001-java-api-plus-python-worker.md) |
+| 백엔드 언어 | Java 25 + Spring Boot 4 (WebFlux) | [0001](adr/0001-java-api-plus-python-worker.md) |
 | IFC 처리 | Python + IfcOpenShell 사이드카 워커 | [0001](adr/0001-java-api-plus-python-worker.md) |
 | 3D 포맷 | 서버에서 glTF(glb) 변환, 프론트 Three.js | [0002](adr/0002-server-gltf-over-browser-parsing.md) |
 | 잡 큐 | PostgreSQL 테이블 폴링 (`FOR UPDATE SKIP LOCKED`) | [0003](adr/0003-db-table-queue.md) |

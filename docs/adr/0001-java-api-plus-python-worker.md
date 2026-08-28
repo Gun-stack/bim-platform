@@ -8,7 +8,7 @@ BIM 기하 엔진(OpenCASCADE 기반 IfcOpenShell)과 IFC 도구 생태계(IDS, 
 
 ## 결정
 
-- `api`: Java 17 + Spring Boot 3 WebFlux. 모든 HTTP 계약, 스키마(Flyway), 도메인 로직 소유.
+- `api`: Java 25 + Spring Boot 4 WebFlux. 모든 HTTP 계약, 스키마(Flyway), 도메인 로직 소유.
 - `ifc-worker`: Python 3.12 + IfcOpenShell. IFC 파싱·변환·추출만 담당. HTTP 없음, DB 큐와 MinIO로만 통신.
 
 ## 대안
@@ -21,3 +21,9 @@ BIM 기하 엔진(OpenCASCADE 기반 IfcOpenShell)과 IFC 도구 생태계(IDS, 
 
 - 컨테이너 1개 추가, 언어 2개. 경계는 DB 테이블(`conversion_job`)과 오브젝트 키 규약뿐.
 - 면접 설명: "플랫폼은 Java, 도메인 특화 연산은 해당 생태계 언어의 사이드카".
+
+## 추기 (2026-08-28, M0): 버전 상향
+
+- **Spring Boot 4.1.1**: 초안은 3이었으나 Initializr가 3.x 생성을 더 이상 제공하지 않음(3.5 OSS 지원 종료). 요구사항 "최신 동향 반영"에도 부합.
+- **Java 25**: 2025-09 LTS. 17은 이력서 경력 표기일 뿐 신규 프로젝트에서 고집할 이유 없음. Boot 4 + 최신 LTS 조합이 면접에서 "지금 시작한다면 무엇을 쓰나"에 대한 답. 런타임 이미지 `eclipse-temurin:25-jre`에는 curl이 없어 헬스체크용으로 추가.
+- 데이터 접근은 R2DBC, Flyway 마이그레이션만 JDBC. PostGIS geometry는 R2DBC 타입 매핑 없이 SQL에서 `ST_AsGeoJSON` / `ST_GeomFromGeoJSON` 텍스트로 다룬다.
