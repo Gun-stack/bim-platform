@@ -27,6 +27,7 @@
 | **react-arborist** ([비교](https://reactscript.com/best-tree-view/)) | 가상화 트리, 체크박스, 드래그 | 요소 수천 개 트리에 필요. 지금(≤600)은 불필요 |
 | **shadcn/ui** ([Tree 템플릿](https://www.shadcn.io/template/mrlightful-shadcn-tree-view)) | Radix + Tailwind 컴포넌트 복사 방식 | 패널·버튼·셀렉트·툴팁 통일. Tailwind 도입 비용 있음 |
 | **@react-three/fiber + drei** ([R3F](https://github.com/pmndrs/react-three-fiber), [drei](https://github.com/pmndrs/drei)) | Three 를 React 트리로. drei 의 `GizmoHelper/GizmoViewcube`(NavCube), `Html`(3D 라벨), `Bounds`(핏) | 우리는 `scene.ts` 클래스 방식. R3F 로 갈아타면 병합·픽킹 코드를 다시 짜야 함 → **안 감**. NavCube 만 직접 구현(작은 서브씬) |
+| **lucide-react** | 아이콘 세트 (MIT, 트리셰이킹) | 툴바 아이콘. 유니코드 글리프는 폰트마다 달라 보여 교체 |
 | lil-gui / Tweakpane | 디버그용 슬라이더 패널 | 표시 옵션 프로토타입에 편함. 제품 UI 는 아님 |
 | three.js editor ([threejs.org/editor](https://threejs.org/editor/)) | 씬 트리 + 속성 패널 UI 의 기본형 | 레이아웃 참고만 |
 

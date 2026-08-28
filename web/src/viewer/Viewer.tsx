@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
+import { ArrowLeft, Check, Combine, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
 import { api, type ElementDetail, type ElementRow, type Model, type SpatialNode } from '../api'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
 
@@ -106,7 +107,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     <Group orientation="horizontal" style={{ height: '100vh', fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={260} minSize={180} collapsible collapsedSize={0}>
         <aside style={{ overflow: 'auto', height: '100%', padding: 10, boxSizing: 'border-box' }}>
-          <a href="#/">← 모델 목록</a>
+          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#2563eb' }}><ArrowLeft size={14} /> 모델 목록</a>
           <h3 style={{ margin: '8px 0 2px' }}>{model?.name ?? '…'}</h3>
           <div style={{ color: '#666' }}>{model?.ifcSchema} · 요소 {model?.elementCount} · draw calls <b>{stats.calls}</b> · {stats.fps} fps</div>
 
@@ -149,25 +150,25 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: '#fff', padding: '6px 10px', borderRadius: 6, boxShadow: '0 1px 4px #0003', display: 'flex', gap: 6, alignItems: 'center' }}>
               <span>단면 <b>{clip.toFixed(2)}m</b></span>
               <input type="range" min={bounds.min[1]} max={bounds.max[1]} step={0.05} value={clip} onChange={e => setClip(+e.target.value)} style={{ width: 180 }} />
-              {storeys.filter(st => st.elevation != null).map(st => <button key={st.id} onClick={() => setClip(st.elevation! + 1.5)} title="층 바닥 +1.5m">{st.name}</button>)}
+              {storeys.filter(st => st.elevation != null).map(st => <button key={st.id} onClick={() => setClip(st.elevation! + 1.5)} title="층 바닥 +1.5m" style={{ whiteSpace: 'nowrap' }}>{st.name}</button>)}
             </div>
           )}
 
           {/* 하단 툴바 */}
-          <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 2, background: '#fff', padding: 4, borderRadius: 8, boxShadow: '0 1px 4px #0003' }}>
-            <Tool icon="⌂" label="홈" onClick={() => scene.current?.preset('home')} />
-            <Tool icon="⤢" label="핏 (더블클릭)" onClick={() => scene.current?.fit(scene.current.selected)} />
-            <Tool icon="▦" label="평면" onClick={() => scene.current?.preset('top')} />
-            <Tool icon="▭" label="정면" onClick={() => scene.current?.preset('front')} />
+          <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 2, background: '#fff', padding: 4, borderRadius: 10, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d' }}>
+            <Tool icon={Home} label="홈" onClick={() => scene.current?.preset('home')} />
+            <Tool icon={Maximize} label="핏 (더블클릭)" onClick={() => scene.current?.fit(scene.current.selected)} />
+            <Tool icon={Grid2x2} label="평면" onClick={() => scene.current?.preset('top')} />
+            <Tool icon={RectangleHorizontal} label="정면" onClick={() => scene.current?.preset('front')} />
             <Gap />
-            <Tool icon="◐" label="격리 (선택 외 반투명)" active={focus === 'ghost'} disabled={!selected} onClick={() => setFocus(focus === 'ghost' ? 'none' : 'ghost')} />
-            <Tool icon="◌" label="나머지 숨김" active={focus === 'hide'} disabled={!selected} onClick={() => setFocus(focus === 'hide' ? 'none' : 'hide')} />
-            <Tool icon="⟲" label="전체 표시" disabled={focus === 'none'} onClick={() => setFocus('none')} />
+            <Tool icon={Focus} label="격리 (선택 외 반투명)" active={focus === 'ghost'} disabled={!selected} onClick={() => setFocus(focus === 'ghost' ? 'none' : 'ghost')} />
+            <Tool icon={EyeOff} label="나머지 숨김" active={focus === 'hide'} disabled={!selected} onClick={() => setFocus(focus === 'hide' ? 'none' : 'hide')} />
+            <Tool icon={RotateCcw} label="전체 표시" disabled={focus === 'none'} onClick={() => setFocus('none')} />
             <Gap />
-            <Tool icon="⊟" label="수평 단면" active={clip != null} disabled={!bounds} onClick={() => setClip(clip == null ? bounds!.max[1] - 0.01 : null)} />
-            <Tool icon="⧉" label="재질별 병합" active={opts.merged} onClick={() => setOpts({ ...opts, merged: !opts.merged })} />
+            <Tool icon={Scissors} label="수평 단면" active={clip != null} disabled={!bounds} onClick={() => setClip(clip == null ? bounds!.max[1] - 0.01 : null)} />
+            <Tool icon={Combine} label="재질별 병합" active={opts.merged} onClick={() => setOpts({ ...opts, merged: !opts.merged })} />
             <Gap />
-            <Tool icon={copied ? '✓' : '⛓'} label="뷰포인트 URL 복사" onClick={share} />
+            <Tool icon={copied ? Check : Link} label="뷰포인트 URL 복사" onClick={share} />
           </div>
         </div>
       </Panel>
@@ -202,11 +203,15 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function Tool({ icon, label, onClick, active, disabled }: { icon: string; label: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
-  return <button title={label} onClick={onClick} disabled={disabled}
-    style={{ width: 32, height: 32, fontSize: 16, border: 0, borderRadius: 6, cursor: disabled ? 'default' : 'pointer', background: active ? '#2563eb' : 'transparent', color: active ? '#fff' : disabled ? '#bbb' : '#222' }}>{icon}</button>
+function Tool({ icon: Icon, label, onClick, active, disabled }: { icon: LucideIcon; label: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
+  const [hov, setHov] = useState(false)
+  return <button title={label} aria-label={label} onClick={onClick} disabled={disabled} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}
+    style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', border: 0, borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
+             background: active ? '#2563eb' : hov && !disabled ? '#eef2ff' : 'transparent', color: active ? '#fff' : disabled ? '#c5c5c5' : '#333', transition: 'background .12s' }}>
+    <Icon size={18} strokeWidth={1.8} /></button>
 }
-const Gap = () => <span style={{ width: 1, background: '#ddd', margin: '4px 4px' }} />
+
+const Gap = () => <span style={{ width: 1, background: '#e3e3e3', margin: '6px 4px' }} />
 
 function Tree({ nodes, parent, depth, storey, onStorey, onFocus }: {
   nodes: SpatialNode[]; parent: number | null; depth: number; storey?: number; onStorey: (id: number) => void; onFocus: (gid: string) => void
