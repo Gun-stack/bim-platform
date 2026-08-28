@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, Box, Building2, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Box, Building2, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
 
@@ -82,10 +82,6 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
         <span style={{ flex: 1 }} />
         <Toggle icon={Eye} label="숨긴 것 모두 표시" on={false} disabled={!anyHidden} onClick={allVisible} />
       </div>
-
-      {hidden.solo && <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '8px 12px 0', padding: '4px 8px', background: '#eef2ff', color: '#2563eb', borderRadius: 6, fontSize: 12 }}>
-        <Focus size={13} /> 이것만 보기: <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{hidden.solo.label}</b>
-        <X size={13} style={{ cursor: 'pointer' }} onClick={() => setHidden({ ...clone(), solo: undefined })} /></div>}
 
       <div style={{ position: 'relative', margin: '8px 12px 4px' }}>
         <Search size={14} style={{ position: 'absolute', left: 8, top: 8, color: '#999' }} />
