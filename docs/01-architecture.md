@@ -106,13 +106,20 @@ src/
 | GET | `/api/models/{id}/elements/{globalId}` | 요소 + Pset. GlobalId 는 모델 안에서만 유일(같은 파일 재업로드 시 중복)이라 모델 스코프 |
 | PUT | `/api/models/{id}/footprint` | 수동 풋프린트/핀 |
 | GET | `/api/map/footprints?bbox=` | 지도용 GeoJSON |
-| CRUD | `/api/assets`, `/api/inspections`, `/api/work-orders` | FMS |
+| GET/POST | `/api/models/{id}/assets` | 자산 목록(연결 요소·최근 점검·열린 작업지시 수) / 등록(globalId 선택, tag 중복 409) |
+| GET/PATCH/DELETE | `/api/assets/{id}` | 자산 상세(점검·작업지시 포함) / 상태·분류 변경 / 삭제(점검·작업지시 CASCADE) |
+| POST | `/api/assets/{id}/inspections` | 점검 기록 OK·DEFECT |
+| GET | `/api/models/{id}/work-orders?status=` | 작업지시 보드 |
+| POST | `/api/assets/{id}/work-orders` | 작업지시 생성 (viewpoint jsonb = 뷰어 URL 과 같은 필드) |
+| GET/PATCH | `/api/work-orders/{id}` | 상세 / 상태·담당·기한 변경 |
 
 ## glb ↔ 요소 매핑
 
 glb 노드 이름 = IFC GlobalId (serializer `use-element-guids`, ADR 0005). 프론트는 raycast 히트 노드의 이름으로 `/api/models/{id}/elements/{globalId}` 조회. 별도 ID 매핑 테이블 없음.
 
 ## 에러 처리
+
+- DB 제약(CHECK/UNIQUE/FK) 위반 → `ApiErrors` 가 400 으로 매핑. 상태 enum 검증을 앱이 아니라 DB 에 두는 결정([02-data-model](02-data-model.md))의 짝.
 
 - 변환 실패 → `model.status=FAILED`, `conversion_job.error` 에 stderr 마지막 2KB. UI에 표시, 재시도 버튼(잡 재등록)
 - worker 크래시·hang → `RUNNING` 인데 `started_at` 10분 경과한 잡은 다시 PENDING. 기동 시가 아니라 **매 폴링 회전마다** 실행 (IfcOpenShell이 대형 파일에서 멈추는 경우 컨테이너는 살아 있음). 재시도 횟수 3회 초과 시 FAILED
