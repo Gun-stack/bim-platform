@@ -47,6 +47,9 @@ export default function App() {
     catch (e) { setErr((e as Error).message) }
   }
 
+  const retry = (id: string) => api(`/models/${id}/retry`, { method: 'POST' })
+    .then((u: Model) => setModels(ms => ms.map(x => x.id === u.id ? u : x))).catch(e => setErr(e.message))
+
   return (
     <main style={{ fontFamily: 'system-ui', maxWidth: 720, margin: '2rem auto' }}>
       <h1>bim-platform</h1>
@@ -61,7 +64,8 @@ export default function App() {
             <td align="center">{m.ifcSchema ?? '-'}</td>
             <td align="center">{m.elementCount ?? '-'}</td>
             <td>{m.status === 'FAILED'
-              ? <code style={{ color: 'crimson', whiteSpace: 'pre-wrap', fontSize: 12 }}>{m.error?.trim().split('\n').at(-1)}</code>
+              ? <><code style={{ color: 'crimson', whiteSpace: 'pre-wrap', fontSize: 12 }}>{m.error?.trim().split('\n').at(-1)}</code>
+                  {' '}<button onClick={() => retry(m.id)}>재시도</button></>
               : <progress value={m.progress} max={100} style={{ width: '100%' }} />}</td>
           </tr>))}
         </tbody>

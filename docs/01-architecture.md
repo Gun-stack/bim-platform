@@ -98,6 +98,7 @@ src/
 | POST | `/api/projects/{pid}/models` | IFC 업로드 |
 | GET | `/api/models/{id}` | 상태, glb URL, 스키마, 풋프린트 |
 | GET | `/api/models/{id}/events` | SSE 진행 상태 |
+| POST | `/api/models/{id}/retry` | FAILED 모델 잡 재등록 |
 | GET | `/api/models/{id}/spatial` | 공간 계층 트리 |
 | GET | `/api/models/{id}/elements?class=&storey=&q=` | 요소 검색 |
 | GET | `/api/elements/{globalId}` | 요소 + Pset |

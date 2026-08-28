@@ -36,12 +36,18 @@ docker compose up -d --build --wait
 docker compose down -v   # 볼륨까지 초기화
 ```
 
-### 업로드 확인 (M1-1)
+### 업로드 확인 (M1)
+
+![M1 업로드 페이지](docs/images/m1-upload.jpg)
+
+`http://localhost:5173` 에서 IFC 선택 → 진행률(SSE) → READY 면 glb 링크, FAILED 면 에러 + 재시도.
 
 ```bash
 PID=$(curl -s -X POST localhost:8080/api/projects -H 'content-type: application/json' -d '{"name":"demo"}' | jq -r .id)
 curl -F file=@samples/Duplex_A_20110907.ifc localhost:8080/api/projects/$PID/models   # 202, {id,...}
 curl localhost:8080/api/models/<id>                                                   # status, jobStatus, progress, error
+curl -N localhost:8080/api/models/<id>/events                                         # SSE, READY/FAILED 에서 종료
+curl -X POST localhost:8080/api/models/<id>/retry                                     # FAILED 만 재등록
 ```
 
 샘플 IFC 는 `samples/README.md` 참고. 로컬 개발: `cd api && ./gradlew test` (Testcontainers, Docker 필요), `cd web && npm run dev`.

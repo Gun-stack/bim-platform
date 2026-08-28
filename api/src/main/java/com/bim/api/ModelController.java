@@ -70,6 +70,18 @@ class ModelController {
 		return find(id);
 	}
 
+	/** FAILED 모델의 잡 재등록. 이전 잡 행은 이력으로 남긴다 (conversion_job 1:N). */
+	@PostMapping("/models/{id}/retry")
+	Map<String, Object> retry(@PathVariable UUID id) {
+		var m = find(id);
+		if (!"FAILED".equals(m.get("status"))) throw new ProjectController.BadRequest("not FAILED: " + m.get("status"));
+		tx.executeWithoutResult(st -> {
+			db.sql("UPDATE model SET status='UPLOADED' WHERE id=:id").param("id", id).update();
+			db.sql("INSERT INTO conversion_job (model_id) VALUES (:id)").param("id", id).update();
+		});
+		return find(id);
+	}
+
 	/** 1초 폴링 → SSE. 종료 상태(READY/FAILED)면 마지막 이벤트 후 닫는다. 가상 스레드라 클라이언트당 스레드 비용 무시. */
 	@GetMapping("/models/{id}/events")
 	SseEmitter events(@PathVariable UUID id) {

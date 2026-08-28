@@ -20,7 +20,8 @@ def to_glb(ifc_path, glb_path, on_progress=None):
     ser.setFile(f)
     ser.setUnitNameAndMagnitude("METER", 1.0)
     ser.writeHeader()
-    it = geom.iterator(s, f, multiprocessing.cpu_count())
+    # 스레드당 메모리 ~+250MB (ifcopenshell-geom.md). 컨테이너 메모리 제한 시 GEOM_THREADS 로 낮춘다.
+    it = geom.iterator(s, f, int(os.environ.get("GEOM_THREADS", multiprocessing.cpu_count())))
     n = 0
     if it.initialize():
         while True:
