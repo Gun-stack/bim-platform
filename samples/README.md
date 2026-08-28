@@ -21,6 +21,6 @@ curl -sL -o example-project-location.ifc "https://media.githubusercontent.com/me
 
 ## mep-building.ifc (생성)
 
-`gen/gen_mep.py` 가 IfcOpenShell API 로 만든 가상 건물. 지리참조 없음, 상대좌표. 재생성: `docker compose exec ifc-worker python /tmp/gen_mep.py out.ifc` (컨테이너에 복사 후). 내용은 [docs/study/mep-systems.md](../docs/study/mep-systems.md).
+`gen/gen_mep.py` 가 IfcOpenShell API 로 만든 가상 건물. 지리참조 없음, 상대좌표. 재생성: `docker compose cp samples/gen/gen_mep.py ifc-worker:/tmp/ && docker compose exec ifc-worker sh -c 'cd /tmp && python gen_mep.py mep-building.ifc' && docker compose cp ifc-worker:/tmp/mep-building.ifc samples/` (호스트 python 에 IfcOpenShell 이 없어 워커 컨테이너에서 실행). 현재 14계통 404요소 470연결(B2 주차장·램프·에스컬레이터·슬래브 개구부 포함). 내용은 [docs/study/mep-systems.md](../docs/study/mep-systems.md).
 
 `gen/bms_sim.py <modelId>` — 상태 API 시뮬레이터. `--interval 3 --ticks 0` 기본(무한), `--seed` 로 재현.

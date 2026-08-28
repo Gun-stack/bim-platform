@@ -17,6 +17,8 @@ RETURNING *;
 
 worker는 2초 간격 폴링. 진행률은 같은 행의 `progress` 갱신. `RUNNING` 인데 `started_at` 이 10분 넘은 잡은 매 폴링 회전에서 `PENDING` 으로 복구 (기동 시에만 하면 hang된 잡을 못 잡는다).
 
+**갱신 (2026-08-28, V5)**: `started_at` 기준 회수는 오래 걸리는 정상 변환도 회수해 버린다 → `heartbeat_at`(worker 가 30초마다 갱신) 기준으로 바꾸고, 잡을 잡을 때 `lease_owner`(worker 인스턴스 uuid) 를 기록해 진행률·완료·실패 UPDATE 는 owner 일치 시에만. 회수된 잡을 원래 worker 가 뒤늦게 덮어쓰는 경합을 막는다. 모델당 활성 잡(PENDING/RUNNING)은 부분 unique 인덱스로 1개.
+
 ## 대안
 
 - Redis Streams / RabbitMQ: 컨테이너 +1, 별도 장애 지점. 처리량이 필요할 때.

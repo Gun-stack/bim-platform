@@ -34,19 +34,19 @@ sequenceDiagram
   participant S as minio
   participant P as postgis
   participant K as ifc-worker
-  W->>A: POST /api/models (multipart IFC)
-  A->>S: put ifc/{modelId}.ifc
+  W->>A: POST /api/projects/{pid}/models (multipart IFC)
+  A->>S: put models/{modelId}/source.ifc
   A->>P: insert model(UPLOADED), conversion_job(PENDING)
-  A-->>W: 201 {modelId}
+  A-->>W: 202 {id, status}
   W->>A: GET /api/models/{id}/events (SSE)
-  K->>P: SELECT job FOR UPDATE SKIP LOCKED → RUNNING
-  K->>S: get ifc
+  K->>P: SELECT job FOR UPDATE SKIP LOCKED → RUNNING (lease_owner, heartbeat 30s)
+  K->>S: get source.ifc
   K->>K: IfcOpenShell: geom → glb, 요소/Pset/공간계층/지리참조 추출
-  K->>S: put gltf/{modelId}.glb
+  K->>S: put glb/{modelId}.glb
   K->>P: bulk insert element, spatial_node; update model(READY, footprint)
   K->>P: job DONE (progress 0→100 중간 갱신)
   A-->>W: SSE progress / READY
-  W->>S: GET /files/bim/glb/{id}.glb (nginx 프록시, 익명 읽기)
+  W->>S: GET /files/glb/{id}.glb (nginx → bim/glb/ 만 프록시, 익명 읽기)
 ```
 
 진행률은 worker가 `conversion_job.progress`를 갱신하고 api가 1초 간격 폴링해 SSE로 내보낸다. LISTEN/NOTIFY는 필요해지면 교체.
@@ -77,22 +77,22 @@ worker/
   convert.py     ifcopenshell.geom iterator + serializers.gltf → glb (ADR 0005)
   extract.py     요소·Pset·공간계층·계통(IfcSystem)·흐름 연결(IfcRelConnectsElements) → rows
   georef.py      IfcMapConversion(단위 스케일·회전·EPSG, pyproj) / IfcSite RefLat·RefLong(DMS) → 4326. 풋프린트 = 기하 XY bbox
-  ids.py         (M5) ifctester
+tests/           pytest — lease 회수, 재시도 정합성
 ```
+(M5 IDS 검증 `ids.py` 는 아직 없음)
 
 ### web (Vite + React + TS)
 
 ```
 src/
-  App.tsx        해시 라우팅: #/ 목록 · #/models/{id} 뷰어 · #/models/{id}/fm 시설관리
+  main.tsx / App.tsx  해시 라우팅: #/ 목록·업로드(SSE) · #/models/{id} 뷰어 · /fm 시설관리 · /monitor 모니터링 · #/map 지도. 페이지는 React.lazy 분할
+  api.ts         fetch 래퍼(api/post), 공용 타입(Model·Asset·WorkOrder·System…)
   FmPage.tsx     시설관리 페이지(탭: 작업지시 보드 · 자산 대장)
   FmBoard.tsx    지라형 칸반(드래그 낙관적 이동·되돌리기, 팀/담당/기한 필터, 드로어 편집, 생성 모달) → 뷰어(?wo=&v=&sel=&clip=)
-  MonitorPage.tsx #/models/{id}/monitor 팀(전기·소방·설비 ↔ 계통 이름 매핑) × 층 격자 상태판, KPI, 전원 배지, 5초 폴링
+  MonitorPage.tsx #/models/{id}/monitor 팀 5개(전기·소방·설비·통신제어·수송 ↔ 계통 이름 매핑, TEAMS 상수 — FmBoard 에도 같은 표가 있음) × 층 격자 상태판, KPI, 전원 배지, 5초 폴링
   MapPage.tsx    #/map MapLibre + OSM 타일, 풋프린트 레이어(자동/수동 색 구분), 클릭 팝업, 미배치 모델 지도 클릭 배치
   viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·섹션박스·측정·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈/솔로 토글·검색) + ColorPanel.tsx (속성별 색상 범례) + ContextMenu.tsx (우클릭 메뉴) + FmPanel.tsx (자산 등록·점검·작업지시) + SystemPanel.tsx (계통 목록·색·상류/하류 추적)
-            뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip=xmin,xmax,ymin,ymax,zmin,zmax — M4 work_order.viewpoint 와 같은 필드
-  map/      MapLibre, 풋프린트 레이어, 핀 배치
-  api/      fetch 래퍼, SSE 훅
+            뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip=xmin,xmax,ymin,ymax,zmin,zmax&focus=1&wo={id} — M4 work_order.viewpoint 와 같은 필드. focus 는 건물 전체 뷰 + 구역 강조 + 비콘(길찾기용)
 ```
 
 ## API 개요 (v1)

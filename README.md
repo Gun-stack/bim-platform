@@ -2,7 +2,7 @@
 
 IFC 모델을 업로드하면 서버에서 변환하고, 웹에서 3D로 보고, 지도 위에 배치하고, 시설관리(FMS) 자산·점검·작업지시로 연결하는 **개인 BIM 미니 플랫폼**.
 
-> 상태: M0 골격 완료 (2026-08-28). `docs/` 부터 읽으세요.
+> 상태 (2026-08-28): M0 골격 · M1 변환 · M2 뷰어 · M3 지도 · M4 FMS · M6 설비 계통 완료, 이후 정비(변환 잡 lease, 서비스 분리, 규모 측정·보안) 완료. M5(IDS·COBie·3D Tiles·CI)는 보류. `docs/` 부터 읽으세요.
 
 ## 무엇을 보여주려는가
 
@@ -10,7 +10,8 @@ IFC 모델을 업로드하면 서버에서 변환하고, 웹에서 3D로 보고,
 - **플랫폼 백엔드**: Java 25 / Spring Boot 4 MVC (가상 스레드), PostgreSQL + PostGIS, MinIO
 - **3D 웹 뷰어**: React + Three.js, 요소 선택·속성·공간 계층
 - **GIS 통합**: IFC 지리참조 → PostGIS 풋프린트 → MapLibre 지도
-- **FMS 통합**: 요소 → 자산 → 점검 → 작업지시 (COBie / BCF 개념 반영)
+- **FMS 통합**: 요소 → 자산 → 점검 → 작업지시 칸반 (COBie / BCF 개념 반영)
+- **설비 계통**: 연결 그래프 추적(상류/하류), 운영 상태·경보 → 작업지시 자동, 팀×층 모니터링, 정전 시나리오
 - **전부 Docker Compose** 한 번으로 기동
 
 ## 문서
@@ -22,6 +23,7 @@ IFC 모델을 업로드하면 서버에서 변환하고, 웹에서 3D로 보고,
 | 3 | [docs/02-data-model.md](docs/02-data-model.md) | 테이블/ERD |
 | 4 | [docs/03-tech-radar.md](docs/03-tech-radar.md) | BIM 오픈소스 조사표 (2026-08) |
 | 5 | [docs/04-milestones.md](docs/04-milestones.md) | 마일스톤별 범위와 학습 주제 |
+| 6 | [docs/05-scale-and-security.md](docs/05-scale-and-security.md) | 2만 요소 측정 결과, 외부 배포 보안 조치 |
 | — | [docs/adr/](docs/adr/) | 아키텍처 결정 기록 |
 | — | [docs/study/](docs/study/) | 개발하며 남기는 학습 노트 |
 
@@ -57,11 +59,17 @@ curl -X POST localhost:8080/api/models/<id>/retry                               
 
 모델 목록에서 READY 모델 클릭 → `#/models/{id}`. 요소 클릭 → Pset, 층/클래스 필터, 검색, 표시 옵션(Opening·Space·재질별 병합 + draw call 카운터), 섹션 박스(X/Y/Z, 층 스냅), 측정, 격리/숨김, 호버 툴팁, 뷰 프리셋·더블클릭 핏, 뷰포인트 URL 공유. 리사이즈 패널, 하단 아이콘 툴바, XYZ 축 기즈모, 트리 숨김/솔로, 다중 선택(Cmd·Shift), 우클릭 메뉴, 속성별 색상(클래스·층·Pset 값).
 
+### 지도 (M3)
+
+![M3 지도](docs/images/m3-map.png)
+
+`#/map` — worker 가 IfcMapConversion(EPSG·회전·단위) 또는 IfcSite 위경도에서 풋프린트를 뽑아 PostGIS 에 저장, MapLibre 에 표시. 지리참조 없는 모델은 지도 클릭으로 배치(수동 핀 + 회전).
+
 ### 시설관리 (M4)
 
-![M4 작업지시 보드](docs/images/m4-board.jpg)
+![M4 작업지시 보드](docs/images/m4-board.png)
 
-뷰어에서 요소 선택 → "자산 · FM" 탭 → 자산 등록(IFC Pset 스냅샷) → 점검 OK/결함 → 작업지시(현재 뷰포인트 저장). `#/models/{id}/fm` 보드에서 "3D" 를 누르면 뷰어가 그 위치·선택으로 돌아간다.
+뷰어에서 요소 선택 → "자산 · FM" 탭 → 자산 등록(IFC Pset 스냅샷) → 점검 OK/결함 → 작업지시(현재 뷰포인트 저장). `#/models/{id}/fm` 보드는 지라형 칸반(대기·진행·완료 드래그, 낙관적 이동 + 되돌리기, 팀·담당·기한초과 필터, 우선순위, 드로어 편집). 카드의 "3D" 를 누르면 뷰어가 그 위치·선택으로 돌아간다.
 
 ### 설비 계통 (M6)
 
@@ -72,13 +80,15 @@ curl -X POST localhost:8080/api/models/<id>/retry                               
 ![M6 모니터링](docs/images/m6-monitor.png)
 ![M6 모니터링 정전](docs/images/m6-monitor-blackout.png)
 ![M6 경보 포커스](docs/images/m6-focus.png)
+![M6 에스컬레이터·슬래브 개구부](docs/images/m6-escalator.png)
+![M6 B2 주차장·주차관제](docs/images/m6-b2-parking.png)
 
-`samples/mep-building.ifc` — `samples/gen/gen_mep.py` 로 만든 가상 업무동 36×16m(B2 주차장: 주차A/B 14면·동측 확장 차량 램프 2단·주차관제실, B1: 변전실·통신실·방재실·펌프실·기계실·수조실, 지상 3층 A/B 구역, 옥상). **14계통 404요소 470연결**: 전기(수변전·MCC·태양광·EV)·비상전원(발전기·ATS·UPS)·화재감지(수신기·중계기·감지기·방송)·급수·급탕·배수·소방(펌프·알람밸브·스프링클러·소화전·가스계)·공조(AHU·OAU·VAV·디퓨저·댐퍼)·냉난방수(냉동기·냉각탑·보일러·히트펌프·열교환기·FCU)·환기(급배기·제연·제트팬·ERV)·가스·통신(MDF/IDF·BMS·DDC·CCTV·출입)·**주차관제**(수송팀: PCS 서버 → 입·출구 차단기·LPR 카메라·무인정산기·만공차 표시판·주차면 센서 14, 출구 차단기 FAULT 예시)·수송(EL/ES/DW — 에스컬레이터는 30° 경사 트러스+난간+랜딩, 2F 슬래브 개구부; 샤프트·덤웨이터도 IfcOpeningElement 로 슬래브 관통). 장비 195개에 운영 상태(`Pset_BimStatus`). 뷰어 "계통" 탭에서 계통별 색, 요소 선택 → **상류(원천까지) / 하류(말단까지)** 추적, **상태판**(경보/장애 목록, API 로 상태 갱신 → 수신기 집계·작업지시 자동), **정전 시나리오**(발전기 절체 시 전원 있음/없음을 흐름 그래프로 계산). `#/models/{id}/monitor` **모니터링**: 팀(전기·소방·설비) × 층 격자에 장비 상태·자산·작업지시, 5초 갱신. `python3 samples/gen/bms_sim.py <modelId>` 로 BMS 시뮬레이션(경보·장애·펌프·수위·정전).
+`samples/mep-building.ifc` — `samples/gen/gen_mep.py` 로 만든 가상 업무동 36×16m(B2 주차장: 주차A/B 14면·동측 확장 차량 램프 2단·주차관제실, B1: 변전실·통신실·방재실·펌프실·기계실·수조실, 지상 3층 A/B 구역, 옥상). **14계통 404요소 470연결**: 전기(수변전·MCC·태양광·EV)·비상전원(발전기·ATS·UPS)·화재감지(수신기·중계기·감지기·방송)·급수·급탕·배수·소방(펌프·알람밸브·스프링클러·소화전·가스계)·공조(AHU·OAU·VAV·디퓨저·댐퍼)·냉난방수(냉동기·냉각탑·보일러·히트펌프·열교환기·FCU)·환기(급배기·제연·제트팬·ERV)·가스·통신(MDF/IDF·BMS·DDC·CCTV·출입)·**주차관제**(수송팀: PCS 서버 → 입·출구 차단기·LPR 카메라·무인정산기·만공차 표시판·주차면 센서 14, 출구 차단기 FAULT 예시)·수송(EL/ES/DW — 에스컬레이터는 30° 경사 트러스+난간+랜딩, 2F 슬래브 개구부; 샤프트·덤웨이터도 IfcOpeningElement 로 슬래브 관통). 장비 195개에 운영 상태(`Pset_BimStatus`). 뷰어 "계통" 탭에서 계통별 색, 요소 선택 → **상류(원천까지) / 하류(말단까지)** 추적, **상태판**(경보/장애 목록, API 로 상태 갱신 → 수신기 집계·작업지시 자동), **정전 시나리오**(발전기 절체 시 전원 있음/없음을 흐름 그래프로 계산). `#/models/{id}/monitor` **모니터링**: 팀(전기·소방·설비·통신제어·수송) × 층 격자에 장비 상태·자산·작업지시, 5초 갱신. `python3 samples/gen/bms_sim.py <modelId>` 로 BMS 시뮬레이션(경보·장애·펌프·수위·정전).
 
-### 지도 (M3)
+샘플 IFC 는 `samples/README.md` 참고(`.ifc` 는 git 에 없음 — 다운로드 또는 `gen_mep.py` 로 생성).
 
-![M3 지도](docs/images/m3-map.png)
+## 개발
 
-`#/map` — worker 가 IfcMapConversion(EPSG·회전·단위) 또는 IfcSite 위경도에서 풋프린트를 뽑아 PostGIS 에 저장, MapLibre 에 표시. 지리참조 없는 모델은 지도 클릭으로 배치(수동 핀 + 회전).
-
-샘플 IFC 는 `samples/README.md` 참고. 로컬 개발: `cd api && ./gradlew test` (Testcontainers, Docker 필요), `cd web && npm run dev`.
+- api: `cd api && ./gradlew test` (Testcontainers, Docker 필요) · worker: `cd ifc-worker && pytest` · web: `cd web && npm run dev`
+- 코드 수정 후 컨테이너 반영: `docker compose up -d --build api ifc-worker web` (이미지 빌드형, 볼륨 마운트 아님)
+- 자동 UI 테스트는 없고 헤드리스 Chrome 으로 수동 검증 — [01-architecture](docs/01-architecture.md#테스트)

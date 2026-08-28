@@ -33,7 +33,7 @@ IFC 는 프로젝트마다 단위가 다르다(`IfcUnitAssignment`, mm 가 흔�
 ## 무엇이 기하에 포함되나
 
 iterator 기본은 `IfcProduct` 중 `Representation` 이 있는 것 전부 — **IfcOpeningElement(창문 구멍 볼륨)·IfcSpace(방 볼륨)도 포함**. Duplex: 기본 286 → `exclude=["IfcOpeningElement","IfcSpace"]` 215.
-DB `element` 는 `IfcElement` 에서 Opening 을 뺀 것(218)이라 glb 노드 > element 행. 뷰어에서 이름으로 못 찾는 노드는 그 차이다. M2 에서 Opening 제외, Space 는 반투명 토글로 결정 예정.
+DB `element` 는 `IfcElement` 에서 Opening 을 뺀 것(218)이라 glb 노드 > element 행. 뷰어에서 이름으로 못 찾는 노드는 그 차이다. M2 결정: Opening·Space 모두 glb 에는 남기고 뷰어 표시 토글(기본 숨김/반투명)로 처리 — 변환을 다시 안 해도 되게.
 
 ## 성능·메모리 (example-project-location.ifc, 3.0MB, 570 요소, 167k 삼각형)
 
