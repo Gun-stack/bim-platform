@@ -26,7 +26,10 @@ class MonitorController {
 			       a.id "assetId", a.tag "assetTag", a.status "assetStatus",
 			       (SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id) "lastInspectedOn",
 			       (SELECT result FROM inspection i WHERE i.asset_id = a.id ORDER BY inspected_on DESC, id DESC LIMIT 1) "lastResult",
-			       (SELECT count(*) FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE') "openWorkOrders"
+			       (SELECT count(*) FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE') "openWorkOrders",
+			       (SELECT w.assignee FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE' ORDER BY w.created_at DESC LIMIT 1) "woAssignee",
+			       (SELECT w.due_on FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE' ORDER BY w.created_at DESC LIMIT 1) "woDueOn",
+			       (SELECT w.status FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE' ORDER BY w.created_at DESC LIMIT 1) "woStatus"
 			  FROM element e
 			  JOIN element_system es0 ON es0.element_id = e.id
 			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id
@@ -43,5 +46,22 @@ class MonitorController {
 			}).toList();
 		var power = db.sql("SELECT properties->'Pset_BimStatus'->>'Source' FROM element WHERE model_id = :id AND ifc_class = 'IfcSwitchingDevice' LIMIT 1").param("id", id).query(String.class).optional().orElse(null);
 		return Map.of("power", power == null ? "UNKNOWN" : power, "rows", rows);
+	}
+
+	/** 최근 이벤트: 상태 변경(Pset_BimStatus.UpdatedAt — 상태 API 를 거친 것만 시각이 있다) + 작업지시 생성/변경. 최신순 limit */
+	@GetMapping("/monitor/events")
+	List<Map<String, Object>> events(@PathVariable UUID id, @RequestParam(defaultValue = "30") int limit) {
+		return db.sql("""
+			SELECT * FROM (
+			  SELECT (e.properties->'Pset_BimStatus'->>'UpdatedAt')::timestamptz at, 'STATUS' kind, e.global_id "globalId", e.name,
+			         e.properties->'Pset_BimStatus'->>'Status' status, coalesce(st.name, sn.name) storey, NULL::text "woTitle", NULL::text "woStatus"
+			    FROM element e LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
+			   WHERE e.model_id = :id AND e.properties->'Pset_BimStatus'->>'UpdatedAt' IS NOT NULL
+			  UNION ALL
+			  SELECT coalesce(w.updated_at, w.created_at), 'WORK_ORDER', el.global_id, el.name, NULL, coalesce(st.name, sn.name), w.title, w.status
+			    FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element el ON el.id = a.element_id
+			    LEFT JOIN spatial_node sn ON sn.id = el.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
+			   WHERE a.model_id = :id) x
+			 ORDER BY at DESC NULLS LAST LIMIT :n""").param("id", id).param("n", Math.min(limit, 200)).query().listOfRows();
 	}
 }

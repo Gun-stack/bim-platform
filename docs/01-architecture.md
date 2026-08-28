@@ -91,7 +91,7 @@ src/
   teams.ts       팀 ↔ 계통 매핑 한 곳(순서 = 표시·우선순위). 모니터 격자, FM 보드 색, 뷰어 계통 탭 묶음이 공유
   FmPage.tsx     시설관리 페이지(탭: 작업지시 보드 · 자산 대장)
   FmBoard.tsx    지라형 칸반(드래그 낙관적 이동·되돌리기, 팀/담당/기한 필터, 드로어 편집, 생성 모달) → 뷰어(?wo=&v=&sel=&clip=)
-  MonitorPage.tsx #/models/{id}/monitor 팀 5개(teams.ts) × 층 격자 상태판, KPI, 전원 배지, 5초 폴링
+  MonitorPage.tsx #/models/{id}/monitor 건물 요약 바 → 팀 KPI(대표 지표) → 팀×층 격자(층 필터·층 단면 링크·이상 배지·새 경보 4초 강조·알림음) + 최근 이벤트 패널. ?kiosk=1 벽면 모드 × 층 격자 상태판, KPI, 전원 배지, 5초 폴링
   MapPage.tsx    #/map MapLibre + OSM 타일, 풋프린트 레이어(자동/수동 색 구분), 클릭 팝업, 미배치 모델 지도 클릭 배치
   viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·섹션박스·측정·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈/솔로 토글·검색) + ColorPanel.tsx (속성별 색상 범례) + ContextMenu.tsx (우클릭 메뉴) + FmPanel.tsx (자산 등록·점검·작업지시) + SystemPanel.tsx (계통 목록·색·상류/하류 추적) + StatusEditor.tsx (속성 탭 상단 '운영 상태': Status 버튼·Pset_BimStatus 필드 인라인 편집, PATCH 공용 함수는 상태판도 사용)
             뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip=xmin,xmax,ymin,ymax,zmin,zmax&focus=1&wo={id} — M4 work_order.viewpoint 와 같은 필드. focus 는 건물 전체 뷰 + 구역 강조 + 비콘(길찾기용)
@@ -124,6 +124,7 @@ src/
 | GET | `/api/models/{id}/systems` · `/systems/{sid}/elements` | 설비 계통 목록·멤버 |
 | GET | `/api/models/{id}/elements/{globalId}/route?dir=up\|down&scope=system\|all` | 흐름 추적 (재귀 CTE, 원천까지 / 말단까지). 기본은 출발 요소의 계통 안으로 제한 |
 | GET/PATCH | `/api/models/{id}/status` · `/elements/{globalId}/status` | 런타임 상태(Pset_BimStatus jsonb 병합 — 키 하나씩 보내도 됨. 파생값은 서버 집계: 수신기 ActiveAlarms/Faults ← 감지기, 주차관제 PCS Capacity/Occupied·표시판 Text ← 주차면 센서 Occupied. 자산이면 작업지시 자동) |
+| GET | `/api/models/{id}/monitor/events?limit=` | 최근 이벤트: 상태 변경(UpdatedAt 있는 것) + 작업지시 생성/변경, 최신순 |
 | POST | `/api/models/{id}/status/sync` | 이미 ALARM/FAULT 인데 열린 작업지시가 없는 자산 요소에 작업지시 생성(규칙 동일). 자산 일괄 등록 뒤 자동 호출, FM 보드 배너에서 수동 |
 | GET | `/api/models/{id}/monitor?segments=` | 모니터링: 계통 장비 × 층/구역 × 상태 × 자산 × 작업지시 (배관·트레이 제외) |
 | GET/POST | `/api/models/{id}/power[?source=UTILITY\|GENERATOR]` | 전원 상태 조회 / 정전 시나리오(ATS·발전기 상태 변경) — 전원 있음/없음 집합 |

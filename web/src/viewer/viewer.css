@@ -11,3 +11,10 @@
 .row-trash { opacity: 0; transition: opacity .15s; }
 .model-row:hover .row-trash, .row-trash:focus-visible { opacity: 1; }
 .row-trash:hover { color: #b91c1c !important; background: #fef2f2 !important; }
+
+/* 모니터: 새 경보·장애 행 4초 강조, 요약 바 펄스. 1200px 미만이면 이벤트 패널을 격자 아래로 */
+@keyframes fresh { 0%, 100% { box-shadow: 0 0 0 0 #dc262600 } 50% { box-shadow: 0 0 0 3px #dc262680 } }
+.fresh { animation: fresh 1s ease-in-out 4; }
+@keyframes pulse { 50% { filter: brightness(0.93) } }
+.pulse { animation: pulse 0.8s ease-in-out 5; }
+@media (max-width: 1599px) { .monitor-body { flex-direction: column } .monitor-events { width: auto !important; position: static !important; max-height: 320px !important } }
