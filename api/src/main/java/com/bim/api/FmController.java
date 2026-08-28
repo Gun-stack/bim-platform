@@ -152,7 +152,7 @@ class FmController {
 	record WorkOrderPatch(String status, String assignee, LocalDate dueOn) {}
 	@PatchMapping("/work-orders/{id}")
 	Map<String, Object> patchWorkOrder(@PathVariable UUID id, @RequestBody WorkOrderPatch p) {
-		db.sql("UPDATE work_order SET status = coalesce(:s, status), assignee = coalesce(:a, assignee), due_on = coalesce(:d, due_on) WHERE id = :id")
+		db.sql("UPDATE work_order SET status = coalesce(:s, status), assignee = coalesce(:a, assignee), due_on = coalesce(:d, due_on), updated_at = now() WHERE id = :id")
 			.param("s", p.status()).param("a", p.assignee()).param("d", p.dueOn()).param("id", id).update();
 		return workOrder(id);
 	}

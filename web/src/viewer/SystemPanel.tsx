@@ -87,7 +87,7 @@ function StatusBoard({ rows, modelId, gid, reload, onSelect, statusView, setStat
   const sel = gid ? rows.find(r => r.globalId === gid) : undefined
   const setStatus = (Status: string) => { if (!gid) return; setBusy(true); setMsg(undefined)
     post(`/models/${modelId}/elements/${encodeURIComponent(gid)}/status`, Status === 'ALARM' ? { Status, AlarmAt: new Date().toISOString().slice(0, 16) } : { Status }, 'PATCH')
-      .then(r => { if (r.workOrder) setMsg(r.workOrder.existing ? `열린 작업지시 있음 — 재사용 (${r.workOrder.assetTag})` : `작업지시 자동 생성 (${r.workOrder.assetTag})`) }).then(reload).catch(e => setMsg(e.message)).finally(() => setBusy(false)) }
+      .then(r => { const w = r.workOrder; if (!w) return; setMsg(w.suppressedBy ? `상위 장비 이상(${w.suppressedBy.name}) — 작업지시 억제` : w.reopened ? `10분 내 완료된 작업지시 다시 열림 (${w.assetTag})` : w.existing ? `열린 작업지시 있음 — 재사용 (${w.assetTag})` : `작업지시 자동 생성 (${w.assetTag})`) }).then(reload).catch(e => setMsg(e.message)).finally(() => setBusy(false)) }
   const togglePower = () => { setBusy(true); post(`/models/${modelId}/power?source=${power?.source === 'GENERATOR' ? 'UTILITY' : 'GENERATOR'}`, {}).then((p: PowerResult) => setPower(p.source === 'GENERATOR' ? p : undefined)).then(reload).finally(() => setBusy(false)) }
   return (
     <div style={{ padding: '0 6px' }}>

@@ -39,12 +39,31 @@ class StatusController {
 			if (status.equals("ALARM") || status.equals("FAULT")) {   // 자산이면 작업지시
 				var asset = db.sql("SELECT a.id, a.tag FROM asset a JOIN element e ON e.id = a.element_id WHERE e.model_id = :id AND e.global_id = :gid")
 					.param("id", id).param("gid", globalId).query().listOfRows().stream().findFirst().orElse(null);
-				if (asset != null) {
-					// 중복 억제: 같은 자산에 열린 작업지시(OPEN/IN_PROGRESS)가 있으면 새로 만들지 않고 재사용. DONE 뒤 재발이면 새로 생성.
+				// 상위 장비 억제: 같은 계통 상류에 이미 이상 상태인 장비가 있으면 원인은 그쪽 — 하위 요소는 작업지시를 만들지 않는다
+				var cause = db.sql("""
+					WITH RECURSIVE r AS (
+					  SELECT e.id, 0 depth, ARRAY[e.id] path FROM element e WHERE e.model_id = :id AND e.global_id = :gid
+					  UNION ALL
+					  SELECT e.id, r.depth + 1, r.path || e.id FROM r JOIN connection c ON c.to_element_id = r.id JOIN element e ON e.id = c.from_element_id
+					    JOIN element_system es ON es.element_id = e.id AND es.system_id IN (SELECT es0.system_id FROM element_system es0 JOIN element e0 ON e0.id = es0.element_id WHERE e0.model_id = :id AND e0.global_id = :gid)
+					   WHERE NOT e.id = ANY(r.path) AND r.depth < 10)
+					SELECT e.global_id, e.name FROM r JOIN element e ON e.id = r.id
+					 WHERE r.depth > 0 AND e.properties->'Pset_BimStatus'->>'Status' IN ('ALARM', 'FAULT', 'OFFLINE', 'TRIPPED')
+					 ORDER BY r.depth LIMIT 1""").param("id", id).param("gid", globalId).query().listOfRows().stream().findFirst().orElse(null);
+				if (cause != null) {
+					wo = Map.of("suppressedBy", Map.of("globalId", cause.get("global_id"), "name", cause.get("name")));
+				} else if (asset != null) {
+					// 중복 억제: 같은 자산에 열린 작업지시(OPEN/IN_PROGRESS)가 있으면 재사용. 시간창: 10분 내 DONE 된 같은 원인이면 다시 연다(플래핑). 그 외 신규.
 					var open = db.sql("SELECT id FROM work_order WHERE asset_id = :a AND status <> 'DONE' ORDER BY created_at DESC LIMIT 1")
 						.param("a", asset.get("id")).query(UUID.class).optional();
+					var recent = open.isPresent() ? java.util.Optional.<UUID>empty() : db.sql("""
+						SELECT id FROM work_order WHERE asset_id = :a AND status = 'DONE' AND title LIKE :t AND updated_at > now() - interval '10 minutes'
+						 ORDER BY updated_at DESC LIMIT 1""").param("a", asset.get("id")).param("t", (status.equals("ALARM") ? "경보 확인: " : "장애 점검: ") + "%").query(UUID.class).optional();
 					if (open.isPresent()) {
 						wo = Map.of("id", open.get(), "assetTag", asset.get("tag"), "existing", true);
+					} else if (recent.isPresent()) {
+						db.sql("UPDATE work_order SET status = 'OPEN', updated_at = now() WHERE id = :w").param("w", recent.get()).update();
+						wo = Map.of("id", recent.get(), "assetTag", asset.get("tag"), "existing", true, "reopened", true);
 					} else {
 						var name = db.sql("SELECT name FROM element WHERE model_id = :id AND global_id = :gid").param("id", id).param("gid", globalId).query(String.class).single();
 						UUID wid = db.sql("""
