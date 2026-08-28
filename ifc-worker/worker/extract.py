@@ -35,13 +35,31 @@ def elements(f):
     return rows
 
 
+def systems(f):
+    """[(global_id, name, predefined_type, [member global_ids])] — IfcSystem/IfcDistributionSystem 과 IfcRelAssignsToGroup"""
+    out = []
+    for s in f.by_type("IfcSystem"):
+        members = [o.GlobalId for rel in (s.IsGroupedBy or ()) for o in rel.RelatedObjects if o.is_a("IfcElement")]
+        out.append((s.GlobalId, s.Name, getattr(s, "PredefinedType", None), members))
+    return out
+
+
+def connections(f):
+    """[(from_global_id, to_global_id)] — IfcRelConnectsElements. Relating=상류, Related=하류 (gen_mep.py 규약)"""
+    return [(r.RelatingElement.GlobalId, r.RelatedElement.GlobalId) for r in f.by_type("IfcRelConnectsElements")
+            if r.is_a() == "IfcRelConnectsElements" and r.RelatingElement.is_a("IfcElement") and r.RelatedElement.is_a("IfcElement")]
+
+
 if __name__ == "__main__":
     f = ifcopenshell.open(sys.argv[1])
     sp, el = spatial_tree(f), elements(f)
     assert sp and el and sp[0][1] is None
     ids = {r[0] for r in sp}
     assert all(r[1] in ids for r in sp[1:]), "child before parent"
+    sy, co = systems(f), connections(f)
     print(f"{f.schema}: {len(sp)} spatial nodes, {len(el)} elements, "
-          f"{sum(1 for r in el if r[3] not in ids)} without container")
+          f"{sum(1 for r in el if r[3] not in ids)} without container, {len(sy)} systems, {len(co)} connections")
+    for g, name, pt, m in sy:
+        print("  ", name, pt, len(m), "members")
     for r in sp[:6]:
         print("  ", r[2], r[3], r[4])

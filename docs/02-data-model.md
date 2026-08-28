@@ -5,6 +5,10 @@ erDiagram
   project ||--o{ model : has
   model ||--o{ element : contains
   model ||--o{ spatial_node : contains
+  model ||--o{ system : has
+  system ||--o{ element_system : members
+  element ||--o{ element_system : in
+  element ||--o{ connection : upstream_of
   model ||--o{ conversion_job : queued_by
   spatial_node ||--o{ spatial_node : parent
   spatial_node ||--o{ element : located_in
@@ -49,6 +53,23 @@ erDiagram
     text ifc_class "IfcSite|IfcBuilding|IfcBuildingStorey|IfcSpace"
     text name
     real elevation
+  }
+  system {
+    bigint id PK
+    uuid model_id FK
+    text global_id
+    text name "전기 | 급수 | 배수 | 소방"
+    text predefined_type "IfcDistributionSystemEnum"
+  }
+  element_system {
+    bigint element_id FK
+    bigint system_id FK
+  }
+  connection {
+    bigint id PK
+    uuid model_id FK
+    bigint from_element_id FK "상류"
+    bigint to_element_id FK "하류"
   }
   conversion_job {
     bigint id PK
@@ -102,5 +123,6 @@ erDiagram
 - **인덱스**: `element(model_id, ifc_class)`, `element(model_id, global_id)` unique, `model USING GIST(footprint)`, `conversion_job(status)`.
 - **ifc_schema 정규화**: 헤더 `FILE_SCHEMA`는 `IFC4X3_ADD2` 처럼 접미가 붙지만 IfcOpenShell `file.schema` 가 이미 `IFC2X3` / `IFC4` / `IFC4X3` 로 정규화해 준다(M0 확인). worker는 그 값을 그대로 저장.
 - **제약은 DB에**: status/result 류는 전부 `CHECK`, `asset UNIQUE(model_id, tag)`, `element UNIQUE(model_id, global_id)`. 앱 코드에서 enum 검증 안 함.
+- **계통·연결(M6)**: `IfcSystem`/`IfcDistributionSystem` 의 `IfcRelAssignsToGroup` 멤버 → `element_system`, `IfcRelConnectsElements`(Relating=상류, Related=하류) → `connection`. 경로 추적은 `WITH RECURSIVE` 로 상류/하류 그래프 탐색. 요소가 여러 계통에 속할 수 있어 N:M.
 - **삭제 전파**: 소유 관계(model→element 등)는 `ON DELETE CASCADE`, 참조 관계(`element.spatial_node_id`, `asset.element_id`, `work_order.inspection_id`)는 `SET NULL`.
 - **마이그레이션**: Flyway (api 기동 시, `api/src/main/resources/db/migration`). worker는 스키마를 소유하지 않는다. **이 문서와 V1 SQL은 1:1** — 둘 중 하나 바꾸면 나머지도.

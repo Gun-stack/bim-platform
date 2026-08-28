@@ -61,9 +61,11 @@ def convert(conn, job_id, model_id):
         mc = dict(geo or {}, bbox=list(bbox) if bbox else None)   # bbox 는 수동 핀 때 풋프린트 폭으로 씀
         s3.fput_object(BUCKET, glb_key, glb, content_type="model/gltf-binary")
         spatial, elems = extract.spatial_tree(f), extract.elements(f)
+        systems, conns = extract.systems(f), extract.connections(f)
 
     with conn.transaction():  # 재시도 시 이전 결과 덮어쓰기
         conn.execute("DELETE FROM element WHERE model_id=%s", (model_id,))
+        conn.execute("DELETE FROM system WHERE model_id=%s", (model_id,))
         conn.execute("DELETE FROM spatial_node WHERE model_id=%s", (model_id,))
         ids = {}
         for gid, parent, cls, name, elev in spatial:
@@ -76,11 +78,22 @@ def convert(conn, job_id, model_id):
                 "INSERT INTO element (model_id, global_id, ifc_class, name, spatial_node_id, properties) "
                 "VALUES (%s,%s,%s,%s,%s,%s)",
                 [(model_id, gid, cls, name, ids.get(c), Jsonb(props)) for gid, cls, name, c, props in elems])
+        # 계통·연결 (M6). element id 는 global_id 로 되찾는다
+        eid = dict(conn.execute("SELECT global_id, id FROM element WHERE model_id=%s", (model_id,)).fetchall())
+        for gid, name, ptype, members in systems:
+            sid = conn.execute("INSERT INTO system (model_id, global_id, name, predefined_type) VALUES (%s,%s,%s,%s) RETURNING id",
+                               (model_id, gid, name, ptype)).fetchone()[0]
+            with conn.cursor() as cur:
+                cur.executemany("INSERT INTO element_system (element_id, system_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                                [(eid[m], sid) for m in members if m in eid])
+        with conn.cursor() as cur:
+            cur.executemany("INSERT INTO connection (model_id, from_element_id, to_element_id) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
+                            [(model_id, eid[a], eid[b]) for a, b in conns if a in eid and b in eid])
         conn.execute("UPDATE model SET status='READY', glb_key=%s, ifc_schema=%s, element_count=%s, map_conversion=%s, "
                      "footprint=CASE WHEN %s::text IS NULL THEN NULL ELSE ST_GeomFromText(%s, 4326) END WHERE id=%s",
                      (glb_key, f.schema, len(elems), Jsonb(mc), fp, fp, model_id))
         conn.execute("UPDATE conversion_job SET status='DONE', progress=100, finished_at=now() WHERE id=%s", (job_id,))
-    log.info("job %s done: %s, %d spatial, %d elements, georef=%s", job_id, f.schema, len(spatial), len(elems), geo["source"] if geo else None)
+    log.info("job %s done: %s, %d spatial, %d elements, %d systems, %d connections, georef=%s", job_id, f.schema, len(spatial), len(elems), len(systems), len(conns), geo["source"] if geo else None)
 
 
 def run_once(conn):
