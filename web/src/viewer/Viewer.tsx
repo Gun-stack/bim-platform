@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
-import { api, type ElementDetail, type ElementRow, type Model, type SpatialNode } from '../api'
+import { api, type Asset, type ElementDetail, type ElementRow, type Model, type SpatialNode, type Viewpoint } from '../api'
+import FmPanel from './FmPanel'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
 import LeftPanel, { type Hidden, type Opts, type SelectMode } from './LeftPanel'
 import ColorPanel from './ColorPanel'
@@ -32,8 +33,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [copied, setCopied] = useState(false)
   const [colorMode, setColorMode] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number }>()
+  const [tab, setTab] = useState<'props' | 'fm'>('props')
+  const [assets, setAssets] = useState<Asset[]>([])
+  const reloadAssets = () => api(`/models/${modelId}/assets`).then(setAssets)
+  useEffect(() => { reloadAssets() }, [modelId])
+  const assetByGid = useMemo(() => new Map(assets.filter(a => a.globalId).map(a => [a.globalId!, a])), [assets])
 
   useEffect(() => {
+    setErr(undefined)
     Promise.all([api(`/models/${modelId}`), api(`/models/${modelId}/spatial`), api(`/models/${modelId}/elements`)])
       .then(([m, s, e]) => { setModel(m); setSpatial(s); setElements(e) }).catch(e => setErr(e.message))
   }, [modelId])
@@ -133,11 +140,12 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }
   const onSelect = (gids: string[], mode: SelectMode) => scene.current?.select(gids, mode === 'toggle' ? 'toggle' : 'set')
 
+  const viewpoint = (): Viewpoint => { const s = scene.current!; const v = s.getView(); return { v: [...v.p, ...v.t], sel: s.selected.length ? s.selected : undefined, clip: clip ? clip.map(n => +n.toFixed(2)) : undefined } }
   const share = () => {   // 현재 카메라·선택·단면 → URL
     const s = scene.current; if (!s) return
-    const v = s.getView(), p = new URLSearchParams({ v: [...v.p, ...v.t].join(',') })
-    if (s.selected.length) p.set('sel', s.selected.join(','))
-    if (clip) p.set('clip', clip.map(n => n.toFixed(2)).join(','))
+    const vp = viewpoint(), p = new URLSearchParams({ v: vp.v!.join(',') })
+    if (vp.sel) p.set('sel', vp.sel.join(','))
+    if (vp.clip) p.set('clip', vp.clip.join(','))
     history.replaceState(null, '', `#/models/${modelId}?${p}`)
     navigator.clipboard?.writeText(location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
   }
@@ -215,11 +223,19 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
       <Panel defaultSize={340} minSize={200} collapsible collapsedSize={0}>
         <aside style={{ overflow: 'auto', height: '100%', padding: 12, boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid #e5e5e5', marginBottom: 10 }}>
+            {(['props', 'fm'] as const).map(t => <button key={t} onClick={() => setTab(t)}
+              style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
+              {t === 'props' ? '속성' : `자산 · FM${selection.length === 1 && assetByGid.has(selection[0]) ? ' ●' : ''}`}</button>)}
+          </div>
+          {tab === 'fm' && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpoint} />}
+          {tab === 'props' && <>
           {!selection.length && <p style={{ color: '#888' }}>요소를 클릭하면 속성이 표시됩니다.<br /><span style={{ fontSize: 12 }}>Cmd/Ctrl+클릭: 추가 선택 · Shift+클릭(트리): 범위 · Esc: 해제</span></p>}
           {selection.length === 1 && detail && !('properties' in detail) && <p>glb 노드 <code>{detail.globalId}</code> — {detail.kind === 'space' ? 'IfcSpace (spatial_node)' : 'IfcOpeningElement (element 테이블 제외)'}</p>}
           {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: '#a60', fontSize: 12 }}>이 요소는 glb 에 형상이 없습니다 (IFC 에 Representation 없음 또는 변환 시 제외).</p>}
           {selection.length === 1 && detail && 'properties' in detail && <Props e={detail} />}
           {selection.length > 1 && <MultiProps selection={selection} byGid={byGid} details={details} />}
+          </>}
         </aside>
       </Panel>
     </Group>

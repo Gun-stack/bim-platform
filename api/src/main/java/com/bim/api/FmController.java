@@ -94,8 +94,8 @@ class FmController {
 	@GetMapping("/models/{id}/work-orders")
 	List<Map<String, Object>> workOrders(@PathVariable UUID id, @RequestParam(required = false) String status) {
 		return db.sql("""
-			SELECT w.id, w.title, w.status, w.assignee, w.due_on "dueOn", w.viewpoint::text viewpoint, w.created_at "createdAt",
-			       a.id "assetId", a.tag "assetTag", e.global_id "globalId", e.ifc_class "ifcClass"
+			SELECT w.id, w.title, w.status, w.assignee, w.due_on "dueOn", w.inspection_id "inspectionId", w.viewpoint::text viewpoint, w.created_at "createdAt",
+			       a.id "assetId", a.tag "assetTag", e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName"
 			  FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element e ON e.id = a.element_id
 			 WHERE a.model_id = :id AND (:s::text IS NULL OR w.status = :s)
 			 ORDER BY CASE w.status WHEN 'OPEN' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END, w.due_on NULLS LAST, w.created_at DESC""")
