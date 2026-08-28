@@ -327,7 +327,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {!selection.length && <p style={{ color: '#888' }} title="Cmd/Ctrl+클릭: 추가 선택 · Shift+클릭(트리): 범위 · Esc: 해제 · 더블클릭: 맞춤">요소를 클릭하면 속성이 표시됩니다. <span style={{ color: '#bbb', cursor: 'help' }}>단축키 ?</span></p>}
           {selection.length === 1 && detail && !('properties' in detail) && <p style={{ color: '#666' }}>{detail.kind === 'space' ? '공간(구역) 형상입니다. 구역 정보는 왼쪽 공간 트리에서 확인하세요.' : '개구부 형상입니다 (요소 아님).'}</p>}
           {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: '#a60', fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
-          {selection.length === 1 && detail && 'properties' in detail && <><StatusEditor modelId={modelId} e={detail} reload={reloadStatus} /><Props e={detail} /></>}
+          {selection.length === 1 && detail && 'properties' in detail && <><StatusEditor key={detail.globalId} modelId={modelId} e={detail} reload={reloadStatus} /><Props e={detail} /></>}
           {selection.length > 1 && <MultiProps selection={selection} byGid={byGid} details={details} />}
           </>}
         </aside>

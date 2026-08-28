@@ -32,7 +32,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const [team, setTeam] = useState<string>(); const [storeyF, setStoreyF] = useState<string>(); const [mode, setMode] = useState<'abnormal' | 'equipment' | 'all'>(kiosk ? 'abnormal' : 'equipment'); const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
   const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true })
-  const [flash, setFlash] = useState<Set<string>>(new Set()); const [sound, setSound] = useState(false); const prevAbn = useRef<Set<string> | null>(null); const soundRef = useRef(false); soundRef.current = sound
+  const [flash, setFlash] = useState<Set<string>>(new Set()); const [sound, setSound] = useState(false); const prevAbn = useRef<Set<string> | null>(null); const soundRef = useRef(false); useEffect(() => { soundRef.current = sound }, [sound])
   const load = useCallback(() => Promise.all([api(`/models/${modelId}/monitor`), api(`/models/${modelId}/power`).catch(() => ({ unpowered: [] })), api(`/models/${modelId}/monitor/events`).catch(() => [])])
     .then(([d, pw, ev]) => {
       const abn = new Set<string>((d.rows as Row[]).filter(isAbn).map(r => r.globalId))

@@ -21,7 +21,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload }: { mode
   const [pending, setPending] = useState<Record<string, WorkOrder['status']>>({})   // 낙관적 상태: 서버 응답 전 카드를 먼저 옮김
   const [toast, setToast] = useState<{ msg: string; undo?: () => void; error?: boolean }>()
   const [folded, setFolded] = useState<Set<WorkOrder['status']>>(() => { try { return new Set(JSON.parse(localStorage.getItem('fm.foldedCols') ?? '["DONE"]')) } catch { return new Set<WorkOrder['status']>(['DONE']) } })   // 접힌 열 — 완료는 쌓이기만 하니 기본 접힘
-  const fold = (s: WorkOrder['status']) => setFolded(f => { const n = new Set(f); n.has(s) ? n.delete(s) : n.add(s); try { localStorage.setItem('fm.foldedCols', JSON.stringify([...n])) } catch { /* 저장 불가 환경 */ } return n })
+  const fold = (s: WorkOrder['status']) => setFolded(f => { const n = new Set(f); if (n.has(s)) n.delete(s); else n.add(s); try { localStorage.setItem('fm.foldedCols', JSON.stringify([...n])) } catch { /* 저장 불가 환경 */ } return n })
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(undefined), toast.error ? 6000 : 4000); return () => clearTimeout(t) }, [toast])
   const wos = useMemo(() => server.map(w => pending[w.id] ? { ...w, status: pending[w.id] } : w), [server, pending])
   const assignees = useMemo(() => [...new Set(wos.map(w => w.assignee).filter(Boolean) as string[])].sort(), [wos])
