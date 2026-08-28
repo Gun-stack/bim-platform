@@ -73,7 +73,7 @@ com.bim.api
 ```
 worker/
   main.py        폴링 루프
-  convert.py     ifcopenshell.geom → glb (IfcConvert 서브프로세스 또는 geom iterator)
+  convert.py     ifcopenshell.geom iterator + serializers.gltf → glb (ADR 0005)
   extract.py     요소·Pset·공간계층 → rows
   georef.py      IfcMapConversion / IfcSite RefLatitude·RefLongitude → EPSG:4326 풋프린트
   ids.py         (M5) ifctester
@@ -107,7 +107,7 @@ src/
 
 ## glb ↔ 요소 매핑
 
-IfcConvert `--use-element-guids` 로 glb 노드 이름 = IFC GlobalId. 프론트는 raycast 히트 노드의 이름으로 `/api/elements/{globalId}` 조회. 별도 ID 매핑 테이블 없음.
+glb 노드 이름 = IFC GlobalId (serializer `use-element-guids`, ADR 0005). 프론트는 raycast 히트 노드의 이름으로 `/api/elements/{globalId}` 조회. 별도 ID 매핑 테이블 없음.
 
 ## 에러 처리
 
