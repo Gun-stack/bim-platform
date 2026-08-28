@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
-import { api, type Asset, type ElementDetail, type ElementRow, type Model, type SpatialNode, type Viewpoint } from '../api'
+import { api, type Asset, type ElementDetail, type ElementRow, type Model, type SpatialNode, type Viewpoint, type WorkOrder } from '../api'
+import { StatusBadge, day } from './FmPanel'
 import FmPanel from './FmPanel'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
 import LeftPanel, { type Hidden, type Opts, type SelectMode } from './LeftPanel'
@@ -33,7 +34,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [copied, setCopied] = useState(false)
   const [colorMode, setColorMode] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number }>()
-  const [tab, setTab] = useState<'props' | 'fm'>('props')
+  const [tab, setTab] = useState<'props' | 'fm'>(() => new URLSearchParams(location.hash.split('?')[1] ?? '').has('fm') || new URLSearchParams(location.hash.split('?')[1] ?? '').has('wo') ? 'fm' : 'props')
+  const [wo, setWo] = useState<WorkOrder>()   // ?wo= 로 열었을 때 상단 배너
+  useEffect(() => { const id = new URLSearchParams(location.hash.split('?')[1] ?? '').get('wo'); if (id) api(`/work-orders/${id}`).then(setWo).catch(() => {}); else setWo(undefined) }, [modelId])
   const [assets, setAssets] = useState<Asset[]>([])
   const reloadAssets = () => api(`/models/${modelId}/assets`).then(setAssets)
   useEffect(() => { reloadAssets() }, [modelId])
@@ -166,6 +169,12 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
           {colorMode && <ColorPanel modelId={modelId} elements={elements} spatial={spatial} onChange={m => scene.current?.setColors(m)}
             onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
+
+          {/* 작업지시로 진입: 배너 */}
+          {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 420 }}>
+            <StatusBadge s={wo.status} /><b>{wo.title}</b><span style={{ color: '#666' }}>{wo.assetTag} · {wo.assignee ?? '미배정'}{wo.dueOn && ` · ~${day(wo.dueOn)}`}</span>
+            <a href={`#/models/${modelId}/fm`} style={{ color: '#2563eb', marginLeft: 4 }}>보드</a>
+            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => setWo(undefined)} /></div>}
 
           {/* 솔로 칩: 패널이 아니라 캔버스 위에 — 트리 레이아웃이 밀리지 않게 */}
           {hidden.solo && <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 999, fontSize: 12, boxShadow: '0 2px 8px #0003', maxWidth: 320 }}>

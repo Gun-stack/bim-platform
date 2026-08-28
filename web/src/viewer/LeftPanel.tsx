@@ -94,7 +94,10 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   return (
     <aside style={{ height: '100%', display: 'flex', flexDirection: 'column', fontSize: 13, background: '#fafafa' }}>
       <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #e5e5e5' }}>
-        <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#2563eb', fontSize: 12 }}><ArrowLeft size={13} /> 모델 목록</a>
+        <div style={{ display: 'flex', fontSize: 12 }}>
+          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#2563eb' }}><ArrowLeft size={13} /> 모델 목록</a>
+          <a href={`#/models/${model?.id}/fm`} style={{ marginLeft: 'auto', textDecoration: 'none', color: '#2563eb' }}>시설관리 →</a>
+        </div>
         <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model?.name}>{model?.name ?? '…'}</div>
         <div style={{ color: '#777', fontSize: 12 }}>{model?.ifcSchema} · 요소 {model?.elementCount} · {stats.calls} calls · {stats.triangles.toLocaleString()} tri · {stats.fps} fps</div>
       </div>
