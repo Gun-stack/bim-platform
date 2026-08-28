@@ -7,7 +7,7 @@ import sys
 import ifcopenshell
 import ifcopenshell.api as api
 import ifcopenshell.api.root, ifcopenshell.api.unit, ifcopenshell.api.context, ifcopenshell.api.project
-import ifcopenshell.api.geometry, ifcopenshell.api.spatial, ifcopenshell.api.aggregate, ifcopenshell.api.system, ifcopenshell.api.pset, ifcopenshell.api.style
+import ifcopenshell.api.geometry, ifcopenshell.api.spatial, ifcopenshell.api.aggregate, ifcopenshell.api.system, ifcopenshell.api.pset, ifcopenshell.api.style, ifcopenshell.api.feature
 from ifcopenshell.util.shape_builder import ShapeBuilder, V
 
 W, D, H = 36.0, 16.0, 3.5
@@ -53,6 +53,15 @@ def rep(items, st=None):
 def box(x, y, z, w, d, h): return sb.extrude(sb.rectangle(size=V(w, d), position=V(x, y)), magnitude=h, position=V(0, 0, z))
 def pipe(points, r=0.05): return sb.create_swept_disk_solid(sb.polyline([V(*p) for p in points]), r)
 def cyl(x, y, z, r, h): return sb.extrude(sb.circle(radius=r, center=V(x, y)), magnitude=h, position=V(0, 0, z))
+def ramp(x, y, z, w, d, run, rise):
+    """경사 부재: 바닥 직사각형(w×d)을 (0,run,rise) 방향으로 밀어낸 평행육면체(에스컬레이터 트러스·난간)"""
+    L = (run ** 2 + rise ** 2) ** 0.5
+    return sb.extrude(sb.rectangle(size=V(w, d), position=V(x, y)), magnitude=L, position=V(0, 0, z), extrusion_vector=V(0, run / L, rise / L))
+def void(host, x, y, z, w, d, h, name="개구부"):
+    """슬래브 개구부(IfcOpeningElement + IfcRelVoidsElement). 변환기(geom.iterator)가 호스트에서 빼 준다"""
+    op = api.root.create_entity(f, ifc_class="IfcOpeningElement", name=name)
+    api.geometry.assign_representation(f, product=op, representation=rep([box(x, y, z, w, d, h)]))
+    api.geometry.edit_object_placement(f, product=op); api.feature.add_feature(f, feature=op, element=host)
 
 def make(cls, name, items, container, st=None, psets=None, ptype=None, status=None):
     el = api.root.create_entity(f, ifc_class=cls, name=name, predefined_type=ptype)
@@ -84,11 +93,14 @@ def chain(sysname, *els):
 
 NORMAL = {"Status": "NORMAL"}
 # ---------- 구조 ----------
-storeys, spaces = {}, {}
+storeys, spaces, slabs = {}, {}, {}
 for name, z in FLOORS + [("RF", RF)]:
     st = api.root.create_entity(f, ifc_class="IfcBuildingStorey", name=name); st.Elevation = z
     api.aggregate.assign_object(f, relating_object=bld, products=[st]); storeys[name] = st
-    make("IfcSlab", f"{name} 바닥", [box(0, 0, z - 0.2, W, D, 0.2)], st, ST["slab"], ptype="ROOF" if name == "RF" else "FLOOR")
+    slabs[name] = make("IfcSlab", f"{name} 바닥", [box(0, 0, z - 0.2, W, D, 0.2)], st, ST["slab"], ptype="ROOF" if name == "RF" else "FLOOR")
+    if name != "B1":   # 샤프트(EPS·PS·DS·EV)는 슬래브를 관통 → 개구부
+        for label, (x, y, w, d) in (("EPS", EPS), ("PS", PS), ("DS", DS), ("EV", ELV)):
+            void(slabs[name], x, y, z - 0.25, w, d, 0.3, f"{name} {label} 개구부")
     if name == "RF":
         make("IfcWall", "옥상 파라펫", [box(0, 0, z, W, 0.2, 1.0), box(0, D - 0.2, z, W, 0.2, 1.0), box(0, 0, z, 0.2, D, 1.0), box(W - 0.2, 0, z, 0.2, D, 1.0)], st, ST["wall"])
         continue
@@ -215,8 +227,18 @@ riser_fp = make("IfcPipeSegment", "소화 입상관", [pipe([(px + 0.3, py, zb +
 riser_ww = make("IfcPipeSegment", "배수 입상관", [pipe([(px, py - 0.3, top), (px, py - 0.3, zb + 0.3)], 0.075)], b1, ST["ww"], None, "RIGIDSEGMENT"); link(riser_ww, WW_B1, "배수")
 # 수송
 ELEV = make("IfcTransportElement", "EL-1 승객용 엘리베이터 15인승", [box(ELV[0] + 0.3, ELV[1] + 0.3, zb, ELV[2] - 0.6, ELV[3] - 0.6, RF - zb + 1.5)], b1, ST["trans"], None, "ELEVATOR", {"Status": "NORMAL", "Floor": "1F", "Direction": "IDLE", "RunCount": 184320})
-ESC = make("IfcTransportElement", "ES-1 에스컬레이터 1F↔2F", [box(2.0, 9.0, 0.0, 1.2, 6.0, 0.4), box(3.4, 9.0, 0.0, 1.2, 6.0, 0.4)], S("1F-A"), ST["trans"], None, "ESCALATOR", {"Status": "RUNNING"})
+# 에스컬레이터: 1F(z=0) y=7.5 → 2F(z=3.5) y=13.5, 경사 30°(rise 3.5 / run 6.0). 상·하행 2대 나란히. 2F 슬래브에 개구부(머리 높이 2.1m 확보 지점부터 상부 랜딩 끝까지)
+ESC_RUN, ESC_RISE, ESC_Y = 6.0, H, 7.5
+esc_items = []
+for x in (2.0, 3.4):
+    esc_items += [ramp(x, ESC_Y, -0.3, 1.2, 0.8, ESC_RUN, ESC_RISE),                       # 트러스(디딤판 포함, 두께 0.4)
+                  ramp(x, ESC_Y, 0.9, 0.06, 0.8, ESC_RUN, ESC_RISE), ramp(x + 1.14, ESC_Y, 0.9, 0.06, 0.8, ESC_RUN, ESC_RISE),   # 양쪽 난간
+                  box(x, ESC_Y - 1.2, 0.0, 1.2, 1.2, 0.05), box(x, ESC_Y + ESC_RUN + 0.8, ESC_RISE, 1.2, 1.0, 0.05)]           # 하부·상부 랜딩
+ESC = make("IfcTransportElement", "ES-1 에스컬레이터 1F↔2F", esc_items, S("1F-A"), ST["trans"], None, "ESCALATOR", {"Status": "RUNNING"})
+esc_y0 = ESC_Y + ESC_RUN * (ESC_RISE - 2.1) / ESC_RISE
+void(slabs["2F"], 1.7, esc_y0, H - 0.25, 3.2, ESC_Y + ESC_RUN + 1.8 - esc_y0, 0.3, "2F 에스컬레이터 개구부")
 DW = make("IfcTransportElement", "DW-1 덤웨이터", [box(ELV[0] - 1.2, ELV[1] + 0.6, 0.0, 0.9, 0.9, top - 0.0)], storeys["1F"], ST["trans"], None, "ELEVATOR", {"Status": "NORMAL"})
+for n_ in ("2F", "3F"): void(slabs[n_], ELV[0] - 1.2, ELV[1] + 0.6, storeys[n_].Elevation - 0.25, 0.9, 0.9, 0.3, f"{n_} 덤웨이터 개구부")
 for m in (ELEV, ESC, DW): link(EMDB if m is ELEV else MDB, m, "수송")
 ELMR = make("IfcElectricDistributionBoard", "EL-1 기계실 제어반", [box(ELV[0], ELV[1] - 0.8, RF, 1.0, 0.5, 1.6)], S("RF-옥상"), ST["trans"], None, "DISTRIBUTIONBOARD", {"Status": "NORMAL"}); link(ELMR, ELEV, "수송"); link(EMDB, ELMR, "비상전원")
 
