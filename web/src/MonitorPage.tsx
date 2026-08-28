@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, AlertTriangle, ArrowLeft, Box, Car, ExternalLink, Layers, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowLeft, Box, Car, ExternalLink, Gauge, Layers, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
 import { api, post, type Model } from './api'
 import { TEAMS } from './teams'
 import { day } from './viewer/FmPanel'
+import { readings, inlineReadings, LEVEL_COLOR } from './readings'
 
 type Row = { globalId: string; ifcClass: string; name: string; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
   status: (Record<string, unknown> & { Status?: string }) | null; assetId: string | null; assetTag: string | null; assetStatus: string | null; lastResult: string | null; openWorkOrders: number
@@ -10,7 +11,8 @@ type Row = { globalId: string; ifcClass: string; name: string; storey: string | 
 type Ev = { at: string | null; kind: 'STATUS' | 'WORK_ORDER'; globalId: string | null; name: string | null; status: string | null; storey: string | null; woTitle: string | null; woStatus: string | null }
 
 const STATUS: Record<string, { label: string; color: string }> = { NORMAL: { label: '정상', color: '#16a34a' }, ONLINE: { label: '온라인', color: '#16a34a' }, RUNNING: { label: '운전', color: '#16a34a' }, STANDBY: { label: '대기(정상)', color: '#64748b' }, TRANSFERRED: { label: '절체', color: '#ea580c' }, ALARM: { label: '경보', color: '#dc2626' }, FAULT: { label: '장애', color: '#f59e0b' }, OFFLINE: { label: '오프라인', color: '#f59e0b' } }
-const rank = (r: Row, dead = false) => ({ ALARM: 0, FAULT: 1, OFFLINE: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (dead ? 2 : r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : 9))
+const worst = (r: Row) => inlineReadings(r.status, r.name).reduce((m, x) => x.level === 'crit' ? 'crit' : m === 'crit' ? m : x.level === 'warn' ? 'warn' : m, 'ok' as 'ok' | 'warn' | 'crit')
+const rank = (r: Row, dead = false) => ({ ALARM: 0, FAULT: 1, OFFLINE: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (dead ? 2 : worst(r) === 'crit' ? 2 : worst(r) === 'warn' ? 3 : r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : 9))
 const isAbn = (r: Row) => r.status?.Status === 'ALARM' || r.status?.Status === 'FAULT'
 const kiosk = new URLSearchParams(location.hash.split('?')[1] ?? '').has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대·이상만
 
@@ -46,7 +48,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
     comm: () => `UPS ${val('UPS-1', 'LoadPercent') ?? '—'}% · 온라인 ${rows.filter(r => teamOf(r)?.key === 'comm' && r.status?.Status === 'ONLINE').length}/${rows.filter(r => teamOf(r)?.key === 'comm' && r.status).length}`,
     elec: () => `변압기 ${val('TR-1', 'LoadPercent') ?? '—'}% · 발전기 ${STATUS[String(val('EG-1', 'Status'))]?.label ?? '—'} · 태양광 ${val('PV-1', 'OutputKW') ?? '—'}kW`,
   } as Record<string, () => string>)[t.key]?.()
-  const tot = { alarm: rows.filter(r => r.status?.Status === 'ALARM').length, fault: rows.filter(r => r.status?.Status === 'FAULT').length, wo: rows.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), dead: unpowered.size, noAsset: rows.filter(r => !r.assetId).length, unassigned: rows.filter(r => r.openWorkOrders && !r.woAssignee).length }
+  const tot = { alarm: rows.filter(r => r.status?.Status === 'ALARM').length, fault: rows.filter(r => r.status?.Status === 'FAULT').length, wo: rows.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), dead: unpowered.size, noAsset: rows.filter(r => !r.assetId).length, unassigned: rows.filter(r => r.openWorkOrders && !r.woAssignee).length, reading: rows.filter(r => !isAbn(r) && worst(r) !== 'ok').length }
   const abnByStorey = (st: string) => rows.filter(r => r.storey === st && isAbn(r)).length
   const storeyClip = (st: string) => { const i = storeyList.findIndex(e => e[0] === st); const z0 = storeyList[i][1], z1 = i > 0 ? storeyList[i - 1][1] : z0 + 3.5; return `#/models/${modelId}?clip=-999,999,-999,999,${(z0 - 0.3).toFixed(1)},${(z1 - 0.05).toFixed(1)}` }
   const fs = kiosk ? 1.25 : 1
@@ -67,6 +69,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       <div className={flash.size ? 'pulse' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 16px', marginBottom: 12, borderRadius: 10, background: tot.alarm ? '#fef2f2' : tot.fault ? '#fffbeb' : '#f0fdf4', border: '1px solid ' + (tot.alarm ? '#fecaca' : tot.fault ? '#fde68a' : '#bbf7d0'), fontSize: 13 * fs }}>
         <b style={{ fontSize: 15 * fs, color: tot.alarm ? '#b91c1c' : tot.fault ? '#b45309' : '#15803d' }}>{tot.alarm ? `경보 ${tot.alarm}건` : tot.fault ? `장애 ${tot.fault}건 · 경보 없음` : '건물 정상'}</b>
         <Stat icon={Siren} label="경보" n={tot.alarm} color="#dc2626" /><Stat icon={AlertTriangle} label="장애" n={tot.fault} color="#f59e0b" />
+        <Stat icon={Gauge} label="계측 주의" n={tot.reading} color="#b45309" />
         <Stat icon={Wrench} label="열린 작업지시" n={tot.wo} color="#1d4ed8" sub={tot.unassigned ? `미배정 ${tot.unassigned}` : undefined} />
         <Stat icon={PlugZap} label={power === 'GENERATOR' ? '정전 — 비상발전' : power === 'UTILITY' ? '한전 수전' : '전원 —'} n={tot.dead} color={power === 'GENERATOR' ? '#c2410c' : '#15803d'} sub={tot.dead ? '무전원' : '정상'} />
         <Stat icon={Car} label="주차" n={`${val('PCS', 'Occupied') ?? '—'}/${val('PCS', 'Capacity') ?? '—'}`} color="#0f766e" sub={val('DISP', 'Text') as string | undefined} />
@@ -128,22 +131,24 @@ const Stat = ({ icon: Icon, label, n, color, sub }: { icon: typeof Siren; label:
 
 function RowView({ r, modelId, dead, fresh, fs }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number }) {
   const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : s ? STATUS[s] : undefined
-  const abnormal = isAbn(r)
+  const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
   return (
-    <a href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey} — 클릭: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
-       style={{ display: 'grid', gridTemplateColumns: '10px minmax(60px, 1fr) minmax(0, auto) auto', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 5, textDecoration: 'none', color: '#222', fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? '#fef2f2' : '#fffbeb') : dead ? '#f3f4f6' : 'transparent', opacity: dead ? 0.7 : 1 }}>
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? '#d1d5db' }} />
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: '#999', marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
-      <span style={{ color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {r.openWorkOrders ? <b style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309' }} title={`작업지시 ${r.openWorkOrders}건`}>WO {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
-          : r.assetTag ? <><Box size={10} style={{ verticalAlign: -1 }} /> {r.assetTag}</> : ''}
-        {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: '#b91c1c', marginLeft: 4 }}>결함</b> : ''}</span>
-      <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{extra(r)}{st?.label ?? ''}</b>
+    <a href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
+       style={{ display: 'block', padding: '3px 6px', borderRadius: 5, textDecoration: 'none', color: '#222', fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? '#fef2f2' : '#fffbeb') : dead ? '#f3f4f6' : worst(r) === 'crit' ? '#fff1f2' : worst(r) === 'warn' ? '#fffbeb' : 'transparent', opacity: dead ? 0.7 : 1 }}>
+      <span style={{ display: 'grid', gridTemplateColumns: '10px minmax(60px, 1fr) minmax(0, auto) auto', alignItems: 'center', gap: 6 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? '#d1d5db' }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: '#999', marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
+        <span style={{ color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {r.openWorkOrders ? <b style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309' }} title={`작업지시 ${r.openWorkOrders}건`}>WO {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
+            : r.assetTag ? <><Box size={10} style={{ verticalAlign: -1 }} /> {r.assetTag}</> : ''}
+          {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: '#b91c1c', marginLeft: 4 }}>결함</b> : ''}</span>
+        <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}</b>
+      </span>
+      {rs.length > 0 && <span style={{ display: 'block', paddingLeft: 16, marginTop: 1, fontSize: 11 * fs, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {rs.slice(0, 3).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700, marginRight: 8 }}>{x.label} {x.text}</span>)}{rs.length > 3 && <span style={{ color: '#bbb' }}>+{rs.length - 3}</span>}</span>}
     </a>
   )
 }
-/** 상태 옆 보조값: 부하·수위·개폐·연료 */
-const extra = (r: Row) => { const s = r.status ?? {}; const v = s.LoadPercent != null ? `${s.LoadPercent}% ` : s.LevelPercent != null ? `수위 ${s.LevelPercent}% ` : s.FuelLevel != null ? `연료 ${s.FuelLevel}% ` : s.RoomTemp != null ? `${s.RoomTemp}°C ` : s.SupplyTemp != null ? `급기 ${s.SupplyTemp}°C ` : s.OutletTemp != null ? `${s.OutletTemp}°C ` : s.SpeedPercent != null ? `${s.SpeedPercent}% ` : s.FanSpeed != null && typeof s.FanSpeed === 'number' ? `팬 ${s.FanSpeed}% ` : s.ChargePercent != null ? `충전 ${s.ChargePercent}% ` : s.Floor != null ? `${s.Floor} ` : s.Open === false ? '닫힘 ' : s.Breaker === 'OPEN' ? '트립 ' : ''; return <span style={{ color: '#888', fontWeight: 400, marginRight: 4 }}>{v}</span> }
 /** 알림음: 외부 파일 없이 WebAudio 로 짧은 비프 2회 */
 const beep = () => { try { const c = new AudioContext(); [0, 0.25].forEach(t => { const o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(0.15, c.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + t + 0.18); o.start(c.currentTime + t); o.stop(c.currentTime + t + 0.2) }) } catch { /* 자동재생 차단 등 — 무시 */ } }
 const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', textDecoration: 'none', color: '#222', fontSize: 12 }

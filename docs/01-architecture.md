@@ -88,6 +88,7 @@ src/
   main.tsx / App.tsx  해시 라우팅: #/ 목록·업로드(SSE) · #/models/{id} 뷰어 · /fm 시설관리 · /monitor 모니터링 · #/map 지도. 페이지는 React.lazy 분할
   api.ts         fetch 래퍼(api/post), 공용 타입(Model·Asset·WorkOrder·System…)
   ifcNames.ts    IFC 클래스 한글 라벨(클래스 탭·자산 분류·검색)
+  readings.ts    Pset_BimStatus 계측값 사전(라벨·단위·주의/위험 범위, 집수정류는 수위 반전) — 모니터 행 둘째 줄·툴팁·요약 '계측 주의'·속성 패널 라벨
   teams.ts       팀 ↔ 계통 매핑 한 곳(순서 = 표시·우선순위). 모니터 격자, FM 보드 색, 뷰어 계통 탭 묶음이 공유
   FmPage.tsx     시설관리 페이지(탭: 작업지시 보드 · 자산 대장)
   FmBoard.tsx    지라형 칸반(드래그 낙관적 이동·되돌리기, 팀/담당/기한 필터, 드로어 편집, 생성 모달) → 뷰어(?wo=&v=&sel=&clip=)

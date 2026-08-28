@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Siren, WifiOff } from 'lucide-react'
 import { post, type ElementDetail } from '../api'
 import { STATUS_COLOR } from './SystemPanel'
+import { READINGS, readings, LEVEL_COLOR } from '../readings'
 
 /** 상태 PATCH 공용: 결과의 작업지시 정보를 사람 말로. 상태판(SystemPanel)과 속성 패널이 같이 쓴다 */
 export const patchStatus = (modelId: string, gid: string, patch: Record<string, unknown>) =>
@@ -40,7 +41,7 @@ export default function StatusEditor({ modelId, e, reload }: { modelId: string; 
       </div>
       {fields.length > 0 && <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}><tbody>
         {fields.map(([k, v]) => <tr key={k} style={{ borderTop: '1px solid #eee' }}>
-          <td style={{ color: '#666', padding: '3px 4px', whiteSpace: 'nowrap', width: '45%' }}>{k}</td>
+          <td style={{ color: '#666', padding: '3px 4px', whiteSpace: 'nowrap', width: '45%' }} title={k}>{READINGS[k]?.label ?? k}{READINGS[k]?.unit ? <span style={{ color: '#aaa' }}> ({READINGS[k].unit})</span> : ''}{(() => { const lv = readings({ [k]: v }, e.name)[0]?.level; return lv && lv !== 'ok' ? <b style={{ color: LEVEL_COLOR[lv], marginLeft: 4 }}>{lv === 'crit' ? '위험' : '주의'}</b> : null })()}</td>
           <td style={{ padding: '2px 4px' }}><Field k={k} v={v} busy={busy} onSave={val => send({ [k]: val })} /></td></tr>)}
       </tbody></table>}
       {msg && <div style={{ color: '#2563eb', marginTop: 6 }}>{msg}</div>}
