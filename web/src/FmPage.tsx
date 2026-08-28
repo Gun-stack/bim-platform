@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Box, ClipboardList, ExternalLink, Tag, Wrench } from 'lucide-react'
+import { ArrowLeft, Box, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
 import { StatusBadge, day } from './viewer/FmPanel'
 
@@ -9,6 +9,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [wos, setWos] = useState<WorkOrder[]>([])
   const [tab, setTab] = useState<'board' | 'assets'>('board')
+  const [add, setAdd] = useState<{ tag: string; category: string } | null>(null)   // 모델에 없는 자산 추가 폼
+  const [err, setErr] = useState<string>()
   const reload = () => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) })
   useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId])
 
@@ -60,7 +62,19 @@ export default function FmPage({ modelId }: { modelId: string }) {
         </div>)}
       </div>}
 
-      {tab === 'assets' && <div style={{ border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
+      {tab === 'assets' && <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ color: '#888', fontSize: 12 }}>모델 요소는 뷰어에서 등록. 준공 후 설치한 장비(CCTV·소화기 등)는 여기서 요소 없이 추가.</span>
+          <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={{ ...btn, marginLeft: 'auto' }}><Plus size={12} /> 자산 추가</button>
+        </div>
+        {add && <form onSubmit={e => { e.preventDefault(); setErr(undefined); post(`/models/${modelId}/assets`, add).then(() => { setAdd(null); reload() }).catch(e => setErr(e.message)) }}
+                      style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, background: '#f5f5f5', borderRadius: 8, marginBottom: 8 }}>
+          <input value={add.tag} onChange={e => setAdd({ ...add, tag: e.target.value })} placeholder="태그 * (예: CCTV-01)" required style={inp} />
+          <input value={add.category} onChange={e => setAdd({ ...add, category: e.target.value })} placeholder="분류" style={inp} />
+          <button type="submit" style={{ ...btn, background: '#2563eb', color: '#fff', border: 0 }}>등록</button>
+          {err && <span style={{ color: '#b91c1c', fontSize: 12 }}>{err}</span>}
+        </form>}
+        <div style={{ border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '120px 110px 1fr 90px 110px 90px 80px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
           <span>태그</span><span>분류</span><span>연결 요소</span><span>상태</span><span>최근 점검</span><span>작업지시</span><span /></div>
         {assets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 110px 1fr 90px 110px 90px 80px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #eee' }}>
@@ -72,7 +86,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <span style={{ textAlign: 'right' }}>{a.globalId && <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}><ExternalLink size={12} /> 3D</a>}</span>
         </div>)}
         {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>자산이 없습니다. 뷰어에서 요소를 선택해 "자산 · FM" 탭에서 등록하세요.</div>}
-      </div>}
+        </div>
+      </>}
     </main>
   )
 }
@@ -80,4 +95,5 @@ export default function FmPage({ modelId }: { modelId: string }) {
 const Stat = ({ icon: Icon, label, value, sub }: { icon: typeof Tag; label: string; value: number; sub: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1px solid #e5e5e5', borderRadius: 10, minWidth: 160 }}>
     <Icon size={18} style={{ color: '#2563eb' }} /><div><div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div><div style={{ fontSize: 12, color: '#888' }}>{label} · {sub}</div></div></div>)
+const inp = { padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }
 const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, color: '#222', textDecoration: 'none' }

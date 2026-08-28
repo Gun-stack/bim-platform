@@ -144,6 +144,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const onSelect = (gids: string[], mode: SelectMode) => scene.current?.select(gids, mode === 'toggle' ? 'toggle' : 'set')
 
   const viewpoint = (): Viewpoint => { const s = scene.current!; const v = s.getView(); return { v: [...v.p, ...v.t], sel: s.selected.length ? s.selected : undefined, clip: clip ? clip.map(n => +n.toFixed(2)) : undefined } }
+  /** 작업지시용: 선택 요소가 있으면 먼저 그쪽으로 핏한 뒤 저장 — 홈 뷰가 저장되는 일 방지 */
+  const viewpointForWorkOrder = (): Viewpoint => { if (scene.current?.selected.length) scene.current.fit(); return viewpoint() }
   const share = () => {   // 현재 카메라·선택·단면 → URL
     const s = scene.current; if (!s) return
     const vp = viewpoint(), p = new URLSearchParams({ v: vp.v!.join(',') })
@@ -237,7 +239,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
               style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
               {t === 'props' ? '속성' : `자산 · FM${selection.length === 1 && assetByGid.has(selection[0]) ? ' ●' : ''}`}</button>)}
           </div>
-          {tab === 'fm' && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpoint} />}
+          {tab === 'fm' && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpointForWorkOrder} />}
           {tab === 'props' && <>
           {!selection.length && <p style={{ color: '#888' }}>요소를 클릭하면 속성이 표시됩니다.<br /><span style={{ fontSize: 12 }}>Cmd/Ctrl+클릭: 추가 선택 · Shift+클릭(트리): 범위 · Esc: 해제</span></p>}
           {selection.length === 1 && detail && !('properties' in detail) && <p>glb 노드 <code>{detail.globalId}</code> — {detail.kind === 'space' ? 'IfcSpace (spatial_node)' : 'IfcOpeningElement (element 테이블 제외)'}</p>}
