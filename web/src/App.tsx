@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type Model } from './api'
+import { AlertCircle, Box, CheckCircle2, Loader2, RotateCcw, Upload } from 'lucide-react'
 import Viewer from './viewer/Viewer'
 
 // 라우팅은 해시 하나. 페이지가 셋(모델·뷰어·지도) 넘어가면 react-router.
@@ -18,6 +19,8 @@ function Models() {
   const [pid, setPid] = useState<string>()
   const [models, setModels] = useState<Model[]>([])
   const [err, setErr] = useState<string>()
+  const [drag, setDrag] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   // 프로젝트 하나로 시작. 목록·선택 UI 는 M3(지도) 에서.
   useEffect(() => {
@@ -28,53 +31,85 @@ function Models() {
   }, [])
 
   // 진행 중인 모델마다 SSE 구독. 종료 상태면 서버가 닫는다.
+  const activeKey = models.filter(m => m.status === 'UPLOADED' || m.status === 'PROCESSING').map(m => m.id).join()
   useEffect(() => {
-    const active = models.filter(m => m.status === 'UPLOADED' || m.status === 'PROCESSING')
-    const sources = active.map(m => {
-      const es = new EventSource(`/api/models/${m.id}/events`)
-      es.addEventListener('status', e => {
-        const u: Model = JSON.parse((e as MessageEvent).data)
-        setModels(ms => ms.map(x => x.id === u.id ? u : x))
-      })
+    const sources = activeKey.split(',').filter(Boolean).map(id => {
+      const es = new EventSource(`/api/models/${id}/events`)
+      es.addEventListener('status', e => { const u: Model = JSON.parse((e as MessageEvent).data); setModels(ms => ms.map(x => x.id === u.id ? u : x)) })
       es.onerror = () => es.close()
       return es
     })
     return () => sources.forEach(s => s.close())
-  }, [models.map(m => m.id + m.status).join()])
+  }, [activeKey])
 
-  const upload = async (file: File) => {
-    setErr(undefined)
-    const fd = new FormData(); fd.append('file', file)
-    try {
-      const m = await api(`/projects/${pid}/models`, { method: 'POST', body: fd })
-      setModels(ms => [{ progress: 0, ...m }, ...ms])
+  const upload = async (files: FileList | File[]) => {
+    setErr(undefined); setBusy(true)
+    for (const file of Array.from(files)) {
+      const fd = new FormData(); fd.append('file', file)
+      try { const m = await api(`/projects/${pid}/models`, { method: 'POST', body: fd }); setModels(ms => [{ progress: 0, ...m }, ...ms]) }
+      catch (e) { setErr(`${file.name}: ${(e as Error).message}`) }
     }
-    catch (e) { setErr((e as Error).message) }
+    setBusy(false)
   }
-
   const retry = (id: string) => api(`/models/${id}/retry`, { method: 'POST' })
     .then((u: Model) => setModels(ms => ms.map(x => x.id === u.id ? u : x))).catch(e => setErr(e.message))
 
   return (
-    <main style={{ fontFamily: 'system-ui', maxWidth: 720, margin: '2rem auto' }}>
-      <h1>bim-platform</h1>
-      <input type="file" accept=".ifc" disabled={!pid} onChange={e => e.target.files?.[0] && upload(e.target.files[0])} />
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
-      <table style={{ width: '100%', marginTop: '1rem', borderCollapse: 'collapse' }}>
-        <thead><tr><th align="left">모델</th><th>상태</th><th>스키마</th><th>요소</th><th align="left">진행</th></tr></thead>
-        <tbody>{models.map(m => (
-          <tr key={m.id} style={{ borderTop: '1px solid #ddd' }}>
-            <td>{m.status === 'READY' ? <a href={`#/models/${m.id}`}>{m.name}</a> : m.name}</td>
-            <td align="center">{m.status}</td>
-            <td align="center">{m.ifcSchema ?? '-'}</td>
-            <td align="center">{m.elementCount ?? '-'}</td>
-            <td>{m.status === 'FAILED'
-              ? <><code style={{ color: 'crimson', whiteSpace: 'pre-wrap', fontSize: 12 }}>{m.error?.trim().split('\n').at(-1)}</code>
-                  {' '}<button onClick={() => retry(m.id)}>재시도</button></>
-              : <progress value={m.progress} max={100} style={{ width: '100%' }} />}</td>
-          </tr>))}
-        </tbody>
-      </table>
+    <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 860, margin: '0 auto', padding: '32px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
+        <h1 style={{ margin: 0, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={22} /> bim-platform</h1>
+        <span style={{ color: '#888' }}>IFC 업로드 → 서버 변환 → 3D 뷰어</span>
+      </div>
+
+      <label onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
+             onDrop={e => { e.preventDefault(); setDrag(false); upload(e.dataTransfer.files) }}
+             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '28px 16px', border: '2px dashed ' + (drag ? '#2563eb' : '#cfd4dc'), borderRadius: 10,
+                      background: drag ? '#eef2ff' : '#fafafa', color: '#555', cursor: pid ? 'pointer' : 'default', transition: 'all .12s' }}>
+        {busy ? <Loader2 size={26} className="spin" style={{ color: '#2563eb' }} /> : <Upload size={26} style={{ color: '#2563eb' }} />}
+        <b>IFC 파일을 끌어다 놓거나 클릭해서 선택</b>
+        <span style={{ color: '#888', fontSize: 12 }}>IFC2x3 · IFC4 · IFC4x3 — 최대 500MB, 여러 개 가능</span>
+        <input type="file" accept=".ifc" multiple disabled={!pid} onChange={e => e.target.files && upload(e.target.files)} style={{ display: 'none' }} />
+      </label>
+      {err && <p style={{ color: '#b91c1c', display: 'flex', gap: 6, alignItems: 'center' }}><AlertCircle size={14} /> {err}</p>}
+
+      <div style={{ marginTop: 20, border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 200px 90px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
+          <span>모델</span><span>상태</span><span>스키마</span><span style={{ textAlign: 'right' }}>요소</span><span>진행</span><span /></div>
+        {models.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>아직 모델이 없습니다. 위에서 IFC 를 올려보세요 — <code>samples/</code> 에 예제 4개가 있습니다.</div>}
+        {models.map(m => <Row key={m.id} m={m} onRetry={() => retry(m.id)} />)}
+      </div>
     </main>
+  )
+}
+
+const STATUS: Record<Model['status'], { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
+  UPLOADED: { label: '대기', color: '#666', bg: '#eee', icon: Loader2 },
+  PROCESSING: { label: '변환 중', color: '#1d4ed8', bg: '#dbe4ff', icon: Loader2 },
+  READY: { label: 'READY', color: '#15803d', bg: '#dcfce7', icon: CheckCircle2 },
+  FAILED: { label: '실패', color: '#b91c1c', bg: '#fee2e2', icon: AlertCircle },
+}
+
+function Row({ m, onRetry }: { m: Model; onRetry: () => void }) {
+  const st = STATUS[m.status], Icon = st.icon, running = m.status === 'UPLOADED' || m.status === 'PROCESSING'
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 200px 90px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: '1px solid #eee' }}>
+      <div style={{ overflow: 'hidden' }}>
+        <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>{m.name}</div>
+        <div style={{ color: '#999', fontSize: 11 }}>{m.id.slice(0, 8)} · {new Date((m as any).createdAt).toLocaleString()}</div>
+      </div>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: st.bg, color: st.color, fontSize: 12, width: 'fit-content' }}>
+        <Icon size={12} className={running ? 'spin' : undefined} /> {st.label}</span>
+      <span>{m.ifcSchema ?? '—'}</span>
+      <span style={{ textAlign: 'right' }}>{m.elementCount?.toLocaleString() ?? '—'}</span>
+      <div>
+        {m.status === 'FAILED'
+          ? <code title={m.error} style={{ color: '#b91c1c', fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.error?.trim().split('\n').at(-1)}</code>
+          : <div style={{ height: 6, background: '#eee', borderRadius: 3, overflow: 'hidden' }}><div style={{ width: `${m.progress}%`, height: '100%', background: m.status === 'READY' ? '#22c55e' : '#2563eb', transition: 'width .3s' }} /></div>}
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        {m.status === 'READY' && <a href={`#/models/${m.id}`} style={{ display: 'inline-block', padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 12 }}>뷰어 열기</a>}
+        {m.status === 'FAILED' && <button onClick={onRetry} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12 }}><RotateCcw size={12} /> 재시도</button>}
+      </div>
+    </div>
   )
 }
