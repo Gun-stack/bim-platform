@@ -34,7 +34,8 @@ services:
       minio: { condition: service_healthy }
     entrypoint: >
       sh -c "mc alias set local http://minio:9000 minio minio123 &&
-             mc mb --ignore-existing local/bim"
+             mc mb --ignore-existing local/bim &&
+             mc anonymous set download local/bim/glb"   # glb 만 공개 읽기, source.ifc 는 비공개
 
   api:
     build: ./api

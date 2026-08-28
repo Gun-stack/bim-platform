@@ -12,7 +12,7 @@ flowchart LR
   API --> S3[(minio<br/>S3 호환)]
   WORKER[ifc-worker<br/>Python + IfcOpenShell] -- 폴링 --> PG
   WORKER --> S3
-  WEB -. glb / presigned URL .-> S3
+  WEB -. glb (nginx /files → bim/glb 익명 읽기) .-> S3
 ```
 
 | 서비스 | 이미지 | 역할 |
@@ -46,7 +46,7 @@ sequenceDiagram
   K->>P: bulk insert element, spatial_node; update model(READY, footprint)
   K->>P: job DONE (progress 0→100 중간 갱신)
   A-->>W: SSE progress / READY
-  W->>S: GET glb (presigned 또는 프록시)
+  W->>S: GET /files/bim/glb/{id}.glb (nginx 프록시, 익명 읽기)
 ```
 
 진행률은 worker가 `conversion_job.progress`를 갱신하고 api가 1초 간격 폴링해 SSE로 내보낸다. LISTEN/NOTIFY는 필요해지면 교체.
@@ -63,7 +63,7 @@ com.bim.api
   geo/        프로젝트 위치, 풋프린트 GeoJSON, 수동 핀
   fm/         asset, inspection, work_order
   job/        conversion_job 등록/조회
-  storage/    MinIO 클라이언트 (presigned URL)
+  storage/    MinIO 클라이언트 (S3 SDK). glb 는 `bim/glb/` 프리픽스 익명 읽기라 presigned 불필요, source.ifc 는 비공개
 ```
 
 멀티모듈은 안 한다. 패키지 하나가 커지면 그때 분리.
