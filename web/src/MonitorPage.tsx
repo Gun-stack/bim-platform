@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, AlertTriangle, ArrowLeft, Box, Car, ExternalLink, Gauge, Layers, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowLeft, Box, Car, ExternalLink, Gauge, Layers, Users, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
 import { api, post, type Model } from './api'
 import { TEAMS } from './teams'
 import { day } from './viewer/FmPanel'
+import { Section, useSections } from './Section'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
 
 type Row = { globalId: string; ifcClass: string; name: string; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
@@ -30,6 +31,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const [rows, setRows] = useState<Row[]>([]); const [power, setPower] = useState('UNKNOWN'); const [events, setEvents] = useState<Ev[]>([])
   const [team, setTeam] = useState<string>(); const [storeyF, setStoreyF] = useState<string>(); const [mode, setMode] = useState<'abnormal' | 'equipment' | 'all'>(kiosk ? 'abnormal' : 'equipment'); const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
+  const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true })
   const [flash, setFlash] = useState<Set<string>>(new Set()); const [sound, setSound] = useState(false); const prevAbn = useRef<Set<string> | null>(null); const soundRef = useRef(false); soundRef.current = sound
   const load = useCallback(() => Promise.all([api(`/models/${modelId}/monitor`), api(`/models/${modelId}/power`).catch(() => ({ unpowered: [] })), api(`/models/${modelId}/monitor/events`).catch(() => [])])
     .then(([d, pw, ev]) => {
@@ -66,8 +68,6 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
         {!kiosk && <a href="#/" style={{ color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={14} /> 모델 목록</a>}
         <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}><Activity size={18} /> {model?.name ?? '…'} <span style={{ color: '#888', fontWeight: 400 }}>설비 모니터링</span></h1>
-        <span style={{ display: 'inline-flex', border: '1px solid #ddd', borderRadius: 6, overflow: 'hidden', fontSize: 12 * fs }}>
-          {([['abnormal', '이상만'], ['equipment', '장비'], ['all', '전체']] as const).map(([k, l]) => <button key={k} onClick={() => setMode(k)} style={{ padding: '4px 10px', border: 0, cursor: 'pointer', background: mode === k ? '#1f2937' : '#fff', color: mode === k ? '#fff' : '#444', fontSize: 'inherit' }}>{l}</button>)}</span>
         <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: sound ? '#1f2937' : '#999', cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} style={{ display: 'none' }} />{sound ? <Volume2 size={14} /> : <VolumeX size={14} />} 알림음</label>
         <span style={{ marginLeft: 'auto', color: '#888', fontSize: 12 * fs }}>갱신 {tick.toLocaleTimeString()} · 5초</span>
         {!kiosk && <><a href={`#/models/${modelId}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a><a href={`#/models/${modelId}/fm`} style={btn}><Wrench size={13} /> 시설관리</a></>}
@@ -85,7 +85,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         <span style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto', color: '#888', fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? new Date(events[0].at).toLocaleTimeString() : '—'}</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+      <Section title="팀 현황" icon={Users} count={team ? `${TEAMS.find(t => t.key === team)!.name} 선택 중 — 클릭해서 해제` : '카드를 누르면 그 팀만'} open={sec.teams} onToggle={() => toggleSec('teams')} pad={10}>
+      <div style={{ display: 'flex', gap: 12 }}>
         {TEAMS.map(t => { const k = kpi(t), Icon = t.icon, active = team === t.key; return (
           <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} style={{ flex: '1 1 0', minWidth: 0, background: '#fff', border: '2px solid ' + (active ? t.color : '#e5e7eb'), borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><Icon size={16} style={{ color: t.color, flexShrink: 0 }} /><b style={{ whiteSpace: 'nowrap' }}>{t.name}</b>
@@ -99,21 +100,19 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             <div style={{ color: '#555', fontSize: 11.5 * fs, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={metric(t)}>{metric(t)}</div>
           </div>) })}
       </div>
+      </Section>
 
       {/* 1) 지금 처리할 것 — 층·팀 격자보다 먼저. 경보 → 장애 → 계측 위험/무전원 → 주의·작업지시 순 */}
       {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (
-        <div style={{ background: '#fff', border: '1px solid ' + (todo.some(isAbn) ? '#fecaca' : '#e5e7eb'), borderRadius: 10, padding: '8px 12px', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: todo.length ? 6 : 0 }}><Siren size={14} style={{ color: todo.some(isAbn) ? '#dc2626' : '#9ca3af' }} /><b>지금 처리할 것</b><span style={{ color: '#888', fontSize: 12 * fs }}>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}</span>
-            {!todo.length && <span style={{ color: '#16a34a', fontSize: 12 * fs }}>이상·미처리 없음</span>}</div>
+        <Section title="지금 처리할 것" icon={Siren} color={todo.some(isAbn) ? '#dc2626' : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}{!todo.length && <span style={{ color: '#16a34a', marginLeft: 6 }}>이상·미처리 없음</span>}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
           {todo.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '2px 14px' }}>
             {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: '#6b7280', fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} /></div>)}
             {todo.length > 12 && <div style={{ color: '#888', fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
-        </div>) })()}
+        </Section>) })()}
 
       {/* 2) 핵심 장비 — 팀을 골랐을 때 그 팀의 원천 장비를 카드로 (격자 순서와 무관하게 늘 같은 자리) */}
       {team && (() => { const t = TEAMS.find(x => x.key === team)!; const keys = KEY_EQUIP[team] ?? []; const eq = keys.map(k => rows.find(r => r.name?.startsWith(k))).filter(Boolean) as Row[]; return eq.length ? (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color: t.color, fontWeight: 600 }}><t.icon size={14} /> {t.name} 핵심 장비</div>
+        <Section title={`${t.name} 핵심 장비`} icon={t.icon} color={t.color} count={`${eq.length}대 · 이상 ${eq.filter(r => isAbn(r) || worst(r) !== 'ok').length}`} open={sec.key} onToggle={() => toggleSec('key')} pad={10}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
             {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: '#374151' } : st ? STATUS[st] : undefined, rs = inlineReadings(r.status, r.name), w = worst(r); return (
               <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: '#222', background: isAbn(r) ? (st === 'ALARM' ? '#fef2f2' : '#fffbeb') : w === 'crit' ? '#fff1f2' : w === 'warn' ? '#fffbeb' : '#fff', border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? '#fecaca' : '#fde68a') : '#e5e7eb'), borderLeft: '4px solid ' + (sc?.color ?? '#d1d5db'), borderRadius: 8, padding: '8px 10px' }}>
@@ -122,9 +121,11 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
                 {rs.length > 0 && <div style={{ fontSize: 11.5 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 500 : 700 }}>{x.text}</b></span>)}</div>}
               </a>) })}
           </div>
-        </div>) : null })()}
+        </Section>) : null })()}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color: '#6b7280', fontSize: 12 * fs }}><Layers size={13} /> 층 × 팀 전체 현황{team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}{storeyF ? ` · ${storeyF}` : ''}</div>
+      <Section title="층 × 팀 전체 현황" icon={Layers} color="#6b7280" count={`${storeys.length}개 층 · ${visibleTeams.length}개 팀${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open={sec.grid} onToggle={() => toggleSec('grid')} pad={10}
+        right={<span style={{ display: 'inline-flex', border: '1px solid #ddd', borderRadius: 6, overflow: 'hidden', fontSize: 12 * fs }}>
+          {([['abnormal', '이상만'], ['equipment', '장비'], ['all', '전체']] as const).map(([k, l]) => <button key={k} onClick={() => setMode(k)} style={{ padding: '3px 9px', border: 0, cursor: 'pointer', background: mode === k ? '#1f2937' : '#fff', color: mode === k ? '#fff' : '#444', fontSize: 'inherit' }}>{l}</button>)}</span>}>
       <div className="monitor-body" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}><div style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleTeams.length}, minmax(210px, 1fr))`, gap: 10, minWidth: 64 + visibleTeams.length * 220 }}>
           <div /> {visibleTeams.map(t => <div key={t.key} style={{ fontWeight: 600, color: t.color, display: 'flex', alignItems: 'center', gap: 6 }}><t.icon size={14} /> {t.name}</div>)}
@@ -155,6 +156,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             </a>) })}
         </div>
       </div>
+      </Section>
     </main>
   )
 }

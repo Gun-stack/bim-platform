@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import type React from 'react'
-import { ArrowLeft, Box, ChevronDown, ChevronUp, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
+import { ArrowLeft, Box, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
+import { Section, useSections } from './Section'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
 import { day } from './viewer/FmPanel'
 import { ifcKo } from './ifcNames'
@@ -11,9 +11,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [model, setModel] = useState<Model>()
   const [assets, setAssets] = useState<Asset[]>([])
   const [wos, setWos] = useState<WorkOrder[]>([])
-  // 접이식 섹션: 보드는 기본 펼침, 자산 대장은 접힘. 상태는 브라우저에 기억
-  const [open, setOpen] = useState<Record<'board' | 'assets', boolean>>(() => { try { return { board: true, assets: false, ...JSON.parse(localStorage.getItem('fm.sections') ?? '{}') } } catch { return { board: true, assets: false } } })
-  const toggle = (k: 'board' | 'assets') => setOpen(o => { const n = { ...o, [k]: !o[k] }; try { localStorage.setItem('fm.sections', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } return n })
+  const [open, toggle] = useSections('fm.sections', { board: true, assets: false })
   const [add, setAdd] = useState<{ tag: string; category: string } | null>(null)   // 모델에 없는 자산 추가 폼
   const [err, setErr] = useState<string>()
   const [abnormal, setAbnormal] = useState<{ name: string; assetTag?: string }[]>([]); const [syncMsg, setSyncMsg] = useState<string>()
@@ -80,14 +78,6 @@ export default function FmPage({ modelId }: { modelId: string }) {
   )
 }
 
-/** 접이식 섹션: 헤더(제목·건수·화살표) 클릭으로 펼침/접힘 */
-const Section = ({ title, icon: Icon, count, open, onToggle, children }: { title: string; icon: typeof Tag; count: string; open: boolean; onToggle: () => void; children: React.ReactNode }) => (
-  <section style={{ border: '1px solid #e5e5e5', borderRadius: 10, marginBottom: 14, background: '#fff' }}>
-    <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', cursor: 'pointer', userSelect: 'none', borderBottom: open ? '1px solid #eee' : 'none' }}>
-      <Icon size={15} style={{ color: '#2563eb' }} /><b style={{ fontSize: 14 }}>{title}</b><span style={{ color: '#888', fontSize: 12 }}>{count}</span>
-      <span style={{ marginLeft: 'auto', color: '#999', display: 'inline-flex' }}>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span></div>
-    {open && <div style={{ padding: 14 }}>{children}</div>}
-  </section>)
 const Stat = ({ icon: Icon, label, value, sub }: { icon: typeof Tag; label: string; value: number; sub: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1px solid #e5e5e5', borderRadius: 10, minWidth: 160 }}>
     <Icon size={18} style={{ color: '#2563eb' }} /><div><div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div><div style={{ fontSize: 12, color: '#888' }}>{label} · {sub}</div></div></div>)
