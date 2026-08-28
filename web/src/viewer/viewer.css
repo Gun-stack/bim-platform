@@ -1,0 +1,5 @@
+/* 겹친 range 두 개(섹션 박스 min/max): 트랙은 통과, thumb 만 클릭 */
+.dual { pointer-events: none; -webkit-appearance: none; appearance: none; height: 20px; }
+.dual::-webkit-slider-runnable-track { height: 4px; background: #ddd; border-radius: 2px; }
+.dual::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: #2563eb; border: 2px solid #fff; box-shadow: 0 0 0 1px #2563eb; cursor: pointer; }
+.dual.hi::-webkit-slider-runnable-track { background: transparent; }

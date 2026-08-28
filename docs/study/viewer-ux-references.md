@@ -41,6 +41,6 @@
    - **숨김 + 솔로**: 행마다 눈(숨김 토글)과 ◎(이것만 보기). Alt+눈 클릭 = 솔로. 모델은 `Hidden{nodes,classes,gids,solo?}`, 보임 = (solo 없음 || gid ∈ solo) && !hidden. 솔로는 숨김 위의 임시 렌즈라 해제하면 숨김이 복원되고, 숨긴 행을 솔로하면 그 행 숨김은 자동 해제. 헤더에 "이것만 보기: X ✕" 칩. 툴바 "나머지 숨김" 도 같은 솔로 모델(격리=반투명만 별도).
 5. ✅ **속성 색상 모드** — 툴바 팔레트 → 캔버스 좌상단 카드(`ColorPanel.tsx`). 키: 클래스·층(로컬) + `GET /property-keys`(Pset.속성, 상위 200, 표준 Pset_* 우선) → `GET /property-values?key=` → 값별 범례(Tableau 팔레트 12색 순환, 값 없음은 회색) → 범례 클릭 = 그 값만 보기(솔로 모델 재사용, key `v:`). scene 은 `setColors(Map<gid,hex>)` 로 재질만 교체, 병합 모드와도 호환(색상 = 재질 그룹).
 6. ✅ **우클릭 컨텍스트 메뉴** — `ContextMenu.tsx`. 캔버스(히트 요소가 선택 밖이면 먼저 선택)·트리 행(행 범위가 선택 밖이면 먼저 선택) 공통, 대상은 항상 선택 집합. 항목: 맞춤 / 격리 / 선택만 보기 / 숨김 / 숨긴 것 모두 표시 / GlobalId 복사 / 선택 해제. 화면 밖 보정, 바깥 클릭·Esc·휠로 닫힘.
-7. 섹션 박스(3축), 측정(F), 2D 평면 모드 — 그다음.
+7. ✅ **섹션 박스 + 측정** — 섹션: `renderer.clippingPlanes` 6개(축마다 min/max), 카드에 X/Y/Z 듀얼 슬라이더(native range 두 개 겹침, thumb 만 pointer-events) + 층 버튼(Y max = 바닥 +1.5m) + 초기화, URL `clip=` 6값. 측정: 툴 모드에서 면 위 두 점(raycast, 클리핑 평면 밖 히트 무시) → `Line` + 끝점 구 + 거리 `Sprite`(CanvasTexture, sizeAttenuation off), 목록에 Δx/Δy/Δz, Esc 종료, 휴지통으로 전부 삭제. 2D 평면 모드는 안 함(평면 프리셋 + Y 절단으로 충분).
 
 **안 할 것**: 엔진 교체(xeokit/That Open/R3F). 이유는 [3d-formats.md](3d-formats.md) 와 동일 — 지금 코드가 이미 병합·픽킹·단면을 갖고 있고, 포트폴리오 가치는 "직접 구현" 에 있다.

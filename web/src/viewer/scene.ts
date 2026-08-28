@@ -31,10 +31,19 @@ export class Scene3D {
   private focusSet: Focus
   private colors?: Map<string, number>   // 색상 모드: gid → hex. 없는 요소는 회색
   private colorMats = new Map<number, THREE.Material>()
-  private clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0)
+  // 섹션 박스: 축마다 min/max 두 평면. Plane(normal, c): normal·p + c >= 0 인 쪽만 남긴다
+  private clipPlanes = [
+    new THREE.Plane(new THREE.Vector3(1, 0, 0), 0), new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0),
+    new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Plane(new THREE.Vector3(0, -1, 0), 0),
+    new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)]
   private box = new THREE.Box3()
   onPick?: (gids: string[]) => void
   onContext?: (x: number, y: number) => void
+  /** 측정 모드. 클릭마다 점을 찍고 두 점이 모이면 onMeasure */
+  measuring = false
+  onMeasure?: (m: { a: number[]; b: number[]; d: number }) => void
+  private measurePt?: THREE.Vector3
+  private measureGroup = new THREE.Group()
 
   private el: HTMLElement
   private ro: ResizeObserver
@@ -54,6 +63,7 @@ export class Scene3D {
     this.renderer.domElement.addEventListener('pointerdown', e => down.set(e.clientX, e.clientY))
     this.renderer.domElement.addEventListener('pointerup', e => {
       if (down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 3) return  // 드래그는 회전/팬
+      if (this.measuring && e.button === 0) return this.measureClick(e.clientX, e.clientY)
       const gid = this.pick(e.clientX, e.clientY)
       if (e.button === 2) {   // 우클릭: contextmenu 이벤트는 OrbitControls 의 pointer capture·macOS 순서 문제로 신뢰 못 함 → pointerup 에서 연다
         if (gid && !this.picked.has(gid)) this.select([gid])
@@ -83,7 +93,7 @@ export class Scene3D {
       this.kind.set(gid, classify(gid))
       if (this.kind.get(gid) === 'space') m.material = SPACE
     })
-    this.scene.add(gltf.scene)
+    this.scene.add(gltf.scene); this.scene.add(this.measureGroup)
     this.box.setFromObject(gltf.scene)
     this.preset('home')
     this.apply()
@@ -136,10 +146,11 @@ export class Scene3D {
   /** 격리(나머지 반투명) / 숨김. undefined 면 복원 */
   setFocus(f: Focus) { this.focusSet = f; this.apply() }
 
-  /** 수평 절단: y 이상을 잘라낸다. null 이면 해제 */
-  setClip(y: number | null) {
-    this.clipPlane.constant = y ?? 0
-    this.renderer.clippingPlanes = y == null ? [] : [this.clipPlane]
+  /** 섹션 박스 [xmin,xmax,ymin,ymax,zmin,zmax]. null 이면 해제 */
+  setClipBox(b: number[] | null) {
+    if (!b) { this.renderer.clippingPlanes = []; return }
+    for (let a = 0; a < 3; a++) { this.clipPlanes[a * 2].constant = -b[a * 2]; this.clipPlanes[a * 2 + 1].constant = b[a * 2 + 1] }
+    this.renderer.clippingPlanes = this.clipPlanes
   }
 
   bounds() { return { min: this.box.min.toArray(), max: this.box.max.toArray() } }
@@ -168,6 +179,34 @@ export class Scene3D {
     const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2
     const dir = this.camera.position.clone().sub(this.controls.target).normalize()
     this.controls.target.copy(c); this.camera.position.copy(c).addScaledVector(dir, r / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 1.1); this.controls.update()
+  }
+
+  private measureClick(x: number, y: number) {
+    const hit = this.hitPoint(x, y); if (!hit) return
+    if (!this.measurePt) { this.measurePt = hit; this.measureGroup.add(this.dot(hit)); return }
+    const a = this.measurePt, b = hit; this.measurePt = undefined
+    this.measureGroup.add(this.dot(b))
+    this.measureGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: 0xff3333, depthTest: false })))
+    const d = a.distanceTo(b)
+    this.measureGroup.add(this.label(`${d.toFixed(2)} m`, a.clone().lerp(b, 0.5)))
+    this.onMeasure?.({ a: a.toArray(), b: b.toArray(), d })
+  }
+  clearMeasures() { this.measurePt = undefined; this.measureGroup.clear() }
+  private dot(p: THREE.Vector3) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3333, depthTest: false })); m.position.copy(p); m.renderOrder = 10; return m }
+  private label(text: string, p: THREE.Vector3) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 64
+    const g = c.getContext('2d')!; g.fillStyle = '#222'; g.beginPath(); g.roundRect(8, 8, 240, 48, 10); g.fill()
+    g.fillStyle = '#fff'; g.font = 'bold 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 128, 33)
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, sizeAttenuation: false }))
+    sp.scale.set(0.16, 0.04, 1); sp.position.copy(p); sp.renderOrder = 11; return sp
+  }
+  /** 보이는 면 위의 3D 점 (단면 평면도 존중) */
+  private hitPoint(x: number, y: number) {
+    const r = this.renderer.domElement.getBoundingClientRect(), ray = new THREE.Raycaster()
+    ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), this.camera)
+    const targets = this.merged ? this.merged.children : this.meshes.filter(m => m.visible)
+    const planes = this.renderer.clippingPlanes
+    return ray.intersectObjects(targets, false).find(h => planes.every(p => p.distanceToPoint(h.point) >= 0))?.point
   }
 
   /** 호버용: 픽킹만, 선택 안 함 */

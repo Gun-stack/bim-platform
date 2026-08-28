@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { Check, Combine, Copy, Eye, Palette, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
+import { Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
 import { api, type ElementDetail, type ElementRow, type Model, type SpatialNode } from '../api'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
 import LeftPanel, { type Hidden, type Opts, type SelectMode } from './LeftPanel'
 import ColorPanel from './ColorPanel'
 import ContextMenu, { type MenuItem } from './ContextMenu'
+import './viewer.css'
 
 export default function Viewer({ modelId }: { modelId: string }) {
   const canvas = useRef<HTMLDivElement>(null)
@@ -22,7 +23,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [hidden, setHidden] = useState<Hidden>({ nodes: new Set(), classes: new Set(), gids: new Set() })
   const [stats, setStats] = useState<Stats>({ calls: 0, triangles: 0, fps: 0 })
   const [err, setErr] = useState<string>()
-  const [clip, setClip] = useState<number | null>(null)
+  const [clip, setClip] = useState<number[] | null>(null)   // [xmin,xmax,ymin,ymax,zmin,zmax]
+  const [measuring, setMeasuring] = useState(false)
+  const [measures, setMeasures] = useState<{ a: number[]; b: number[]; d: number }[]>([])
   const [bounds, setBounds] = useState<{ min: number[]; max: number[] }>()
   const [focus, setFocus] = useState<'none' | 'ghost'>('none')
   const [hover, setHover] = useState<{ x: number; y: number; text: string }>()
@@ -53,7 +56,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       setBounds(s.bounds())
       const vp = readViewpoint()   // URL 뷰포인트 복원
       if (vp?.v) s.setView(vp.v)
-      if (vp?.clip != null) setClip(vp.clip)
+      if (vp?.clip) setClip(vp.clip)
       if (vp?.sel) s.select(vp.sel.split(','))
     }).catch(e => setErr(String(e)))
     let pending = false   // 호버 툴팁: 프레임당 1회
@@ -67,6 +70,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     }
     canvas.current.addEventListener('pointermove', onMove)
     s.onContext = (x, y) => setMenu({ x, y })
+    s.onMeasure = m => setMeasures(ms => [...ms, m])
     const t = setInterval(() => setStats(s.stats()), 500)
     return () => { clearInterval(t); canvas.current?.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null }
   }, [model?.glbUrl, elements.length])
@@ -93,7 +97,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
     else setDetails([])
   }, [selection])
   useEffect(() => { scene.current?.setMerged(opts.merged) }, [opts.merged])
-  useEffect(() => { scene.current?.setClip(clip) }, [clip, bounds])
+  useEffect(() => { scene.current?.setClipBox(clip) }, [clip, bounds])
+  useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
+  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && setMeasuring(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
   useEffect(() => {   // 격리(반투명) — 선택 집합 기준. "나머지 숨김" 은 트리 솔로와 같은 모델
     scene.current?.setFocus(focus !== 'ghost' || !selection.length ? undefined : { mode: 'ghost', gids: selSet })
   }, [focus, selSet])
@@ -129,7 +135,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const s = scene.current; if (!s) return
     const v = s.getView(), p = new URLSearchParams({ v: [...v.p, ...v.t].join(',') })
     if (s.selected.length) p.set('sel', s.selected.join(','))
-    if (clip != null) p.set('clip', clip.toFixed(2))
+    if (clip) p.set('clip', clip.map(n => n.toFixed(2)).join(','))
     history.replaceState(null, '', `#/models/${modelId}?${p}`)
     navigator.clipboard?.writeText(location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
   }
@@ -158,12 +164,28 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
           {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems()} onClose={() => setMenu(undefined)} />}
 
-          {/* 단면 슬라이더: 단면 모드일 때만 */}
-          {clip != null && bounds && (
-            <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: '#fff', padding: '6px 10px', borderRadius: 6, boxShadow: '0 1px 4px #0003', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span>단면 <b>{clip.toFixed(2)}m</b></span>
-              <input type="range" min={bounds.min[1]} max={bounds.max[1]} step={0.05} value={clip} onChange={e => setClip(+e.target.value)} style={{ width: 180 }} />
-              {storeys.filter(st => st.elevation != null).map(st => <button key={st.id} onClick={() => setClip(st.elevation! + 1.5)} title="층 바닥 +1.5m" style={{ whiteSpace: 'nowrap' }}>{st.name}</button>)}
+          {/* 섹션 박스: 단면 모드일 때만 */}
+          {clip && bounds && (
+            <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: '#fff', padding: '8px 12px', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '4px 8px', alignItems: 'center', minWidth: 380 }}>
+              {(['X', 'Y', 'Z'] as const).map((ax, a) => <Axis key={ax} name={ax} min={bounds.min[a]} max={bounds.max[a]} lo={clip[a * 2]} hi={clip[a * 2 + 1]}
+                onChange={(lo, hi) => setClip(c => { const n = [...c!]; n[a * 2] = lo; n[a * 2 + 1] = hi; return n })} />)}
+              <span style={{ color: '#666' }}>층</span>
+              <div style={{ gridColumn: '2 / 4', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {storeys.filter(st => st.elevation != null).map(st => <button key={st.id} onClick={() => setClip(c => { const n = [...c!]; n[3] = st.elevation! + 1.5; return n })} title="바닥 +1.5m 에서 수평 절단" style={{ whiteSpace: 'nowrap' }}>{st.name}</button>)}
+                <button onClick={() => setClip([...bounds.min.flatMap((m, i) => [m, bounds.max[i]])])} title="박스 초기화">초기화</button>
+              </div>
+            </div>
+          )}
+
+          {/* 측정 목록 */}
+          {measuring && (
+            <div style={{ position: 'absolute', top: clip ? 128 : 8, left: 8, background: '#fff', padding: '8px 10px', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, minWidth: 200 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}><Ruler size={13} /> <b style={{ flex: 1 }}>측정</b>
+                <Trash2 size={13} style={{ cursor: 'pointer', color: measures.length ? '#666' : '#ccc' }} onClick={() => { scene.current?.clearMeasures(); setMeasures([]) }} /></div>
+              <div style={{ color: '#888' }}>면 위 두 점을 클릭 · Esc 로 종료</div>
+              {measures.map((m, i) => <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <b style={{ width: 64 }}>{m.d.toFixed(2)} m</b>
+                <span style={{ color: '#888' }}>Δx {Math.abs(m.b[0] - m.a[0]).toFixed(2)} · Δy {Math.abs(m.b[1] - m.a[1]).toFixed(2)} · Δz {Math.abs(m.b[2] - m.a[2]).toFixed(2)}</span></div>)}
             </div>
           )}
 
@@ -178,7 +200,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Tool icon={EyeOff} label="선택만 보기 (나머지 숨김)" hint="요소를 먼저 선택" active={hidden.solo?.key === 'sel'} disabled={!selection.length} onClick={soloSelected} />
             <Tool icon={RotateCcw} label="격리·솔로 해제" hint="적용된 격리·솔로 없음" disabled={focus === 'none' && !hidden.solo} onClick={() => { setFocus('none'); if (hidden.solo) setHidden({ ...hidden, solo: undefined }) }} />
             <Gap />
-            <Tool icon={Scissors} label="수평 단면 — 층 스냅 가능" active={clip != null} disabled={!bounds} onClick={() => setClip(clip == null ? bounds!.max[1] - 0.01 : null)} />
+            <Tool icon={Scissors} label="섹션 박스 — X/Y/Z 범위, 층 스냅" active={!!clip} disabled={!bounds} onClick={() => setClip(clip ? null : bounds!.min.flatMap((m, i) => [m, bounds!.max[i]]))} />
+            <Tool icon={Ruler} label="측정 — 면 위 두 점 거리" active={measuring} onClick={() => setMeasuring(!measuring)} />
             <Tool icon={Palette} label="속성별 색상 — 클래스·층·Pset 값으로 색칠" active={colorMode} onClick={() => setColorMode(!colorMode)} />
             <Tool icon={Combine} label="재질별 병합 — draw call 줄이기" active={opts.merged} onClick={() => setOpts(o => ({ ...o, merged: !o.merged }))} />
             <Gap />
@@ -201,10 +224,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
   )
 }
 
-function readViewpoint(): { v?: View; sel?: string; clip?: number } | undefined {
+function readViewpoint(): { v?: View; sel?: string; clip?: number[] } | undefined {
   const q = new URLSearchParams(location.hash.split('?')[1] ?? '')
-  const n = q.get('v')?.split(',').map(Number)
-  return { v: n?.length === 6 ? { p: n.slice(0, 3), t: n.slice(3) } : undefined, sel: q.get('sel') ?? undefined, clip: q.has('clip') ? +q.get('clip')! : undefined }
+  const n = q.get('v')?.split(',').map(Number), c = q.get('clip')?.split(',').map(Number)
+  return { v: n?.length === 6 ? { p: n.slice(0, 3), t: n.slice(3) } : undefined, sel: q.get('sel') ?? undefined, clip: c?.length === 6 && c.every(Number.isFinite) ? c : undefined }
 }
 
 const sep = { width: 4, background: '#e5e5e5', cursor: 'col-resize' }
@@ -222,6 +245,19 @@ function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { icon: Lu
 }
 
 const Gap = () => <span style={{ width: 1, background: '#e3e3e3', margin: '6px 4px' }} />
+
+/** 축 하나의 min/max 범위 슬라이더 (native range 두 개 겹침) */
+function Axis({ name, min, max, lo, hi, onChange }: { name: string; min: number; max: number; lo: number; hi: number; onChange: (lo: number, hi: number) => void }) {
+  const st = { width: '100%', margin: 0, position: 'absolute' as const, left: 0, top: 0 }
+  return <>
+    <span style={{ color: { X: '#e0403a', Y: '#6fa83a', Z: '#3a7de0' }[name as 'X'], fontWeight: 600 }}>{name}</span>
+    <div style={{ position: 'relative', height: 20 }}>
+      <input type="range" className="dual" min={min} max={max} step={0.05} value={lo} onChange={e => onChange(Math.min(+e.target.value, hi - 0.05), hi)} style={st} />
+      <input type="range" className="dual hi" min={min} max={max} step={0.05} value={hi} onChange={e => onChange(lo, Math.max(+e.target.value, lo + 0.05))} style={st} />
+    </div>
+    <span style={{ color: '#666', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{lo.toFixed(2)} ~ {hi.toFixed(2)} m</span>
+  </>
+}
 
 /** 여러 개 선택: 클래스별 개수 + 공통 Pset (모두 같은 값만, 다르면 —) */
 function MultiProps({ selection, byGid, details }: { selection: string[]; byGid: Map<string, ElementRow>; details: ElementDetail[] }) {
