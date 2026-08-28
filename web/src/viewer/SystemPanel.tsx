@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, CheckCircle2, Droplets, Flame, Focus, PlugZap, Siren, Waves, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, CheckCircle2, Droplets, Fan, Flame, Focus, Network, PlugZap, Siren, Snowflake, Thermometer, Waves, Wind, X, ArrowUpDown, type LucideIcon } from 'lucide-react'
 import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
 
 /** 계통별 색 (ColorPanel 팔레트와 별개로 의미색 고정) */
-export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xf59e0b, DOMESTICCOLDWATER: 0x2563eb, WASTEWATER: 0x78350f, FIREPROTECTION: 0xdc2626, SIGNAL: 0x9333ea, 비상전원: 0xea580c, 화재감지: 0x9333ea }
+export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xf59e0b, DOMESTICCOLDWATER: 0x2563eb, WASTEWATER: 0x78350f, FIREPROTECTION: 0xdc2626, SIGNAL: 0x9333ea, AIRCONDITIONING: 0x0d9488, CHILLEDWATER: 0x0284c7, VENTILATION: 0x65a30d, DOMESTICHOTWATER: 0xe11d48, GAS: 0xca8a04, DATA: 0x4f46e5,
+  비상전원: 0xea580c, 화재감지: 0x9333ea, 수송: 0x78716c }
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? 0x888888
-const SYSTEM_ICON: Record<string, LucideIcon> = { ELECTRICAL: Cable, DOMESTICCOLDWATER: Droplets, WASTEWATER: Waves, FIREPROTECTION: Flame, SIGNAL: Bell, 비상전원: BatteryCharging, 화재감지: Bell }
+const SYSTEM_ICON: Record<string, LucideIcon> = { ELECTRICAL: Cable, DOMESTICCOLDWATER: Droplets, WASTEWATER: Waves, FIREPROTECTION: Flame, SIGNAL: Bell, AIRCONDITIONING: Wind, CHILLEDWATER: Snowflake, VENTILATION: Fan, DOMESTICHOTWATER: Thermometer, GAS: Flame, DATA: Network, 비상전원: BatteryCharging, 화재감지: Bell, 수송: ArrowUpDown }
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 선택 요소의 상류/하류 추적 */
-export const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, STANDBY: 0x6b7280, RUNNING: 0x16a34a, TRANSFERRED: 0xea580c, ALARM: 0xdc2626, FAULT: 0xf59e0b }
+export const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, ONLINE: 0x16a34a, RUNNING: 0x16a34a, STANDBY: 0x6b7280, TRANSFERRED: 0xea580c, ALARM: 0xdc2626, FAULT: 0xf59e0b, OFFLINE: 0xf59e0b }
 
 export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode, statusRows, reloadStatus, power, setPower, statusView, setStatusView, onFocus }: {
   modelId: string; selection: string[]

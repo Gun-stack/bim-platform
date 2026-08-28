@@ -14,7 +14,9 @@ def patch(gid, body): return call("PATCH", f"/models/{a.model}/elements/{p.quote
 
 rows = call("GET", f"/models/{a.model}/status")
 by = lambda cls: [r for r in rows if r["ifcClass"] == cls]
-sensors, pumps, tanks, boards = by("IfcSensor"), by("IfcPump"), by("IfcTank"), by("IfcElectricDistributionBoard")
+sensors, pumps, boards = by("IfcSensor"), by("IfcPump") + by("IfcFan") + by("IfcChiller"), by("IfcElectricDistributionBoard")
+tanks = [r for r in by("IfcTank") if "LevelPercent" in r["status"]]   # 수위 있는 탱크만 (가스 용기 제외)
+comms = [r for r in rows if r["status"].get("Status") == "ONLINE"]
 state = {r["globalId"]: dict(r["status"]) for r in rows}
 pending = {}   # gid → 복구 예정 틱
 power = "UTILITY"; power_until = 0
@@ -29,13 +31,15 @@ while a.ticks == 0 or t < a.ticks:
         s = state[r["globalId"]]; s["LoadPercent"] = round(max(5.0, min(95.0, float(s.get("LoadPercent", 30)) + random.uniform(-6, 6))), 1)
         patch(r["globalId"], {"LoadPercent": s["LoadPercent"]})
     for gid in [g for g, until in pending.items() if until <= t]:   # 예정된 복구
-        patch(gid, {"Status": "NORMAL"}); pending.pop(gid); log.append(f"복구 {gid[:6]}")
+        patch(gid, {"Status": "ONLINE" if state[gid].get("Status") == "ONLINE" else "NORMAL"}); pending.pop(gid); log.append(f"복구 {gid[:6]}")
     roll = random.random()
     if roll < 0.25 and sensors:
         r = random.choice([x for x in sensors if x["globalId"] not in pending] or sensors)
         patch(r["globalId"], {"Status": "ALARM", "AlarmAt": time.strftime("%Y-%m-%dT%H:%M")}); pending[r["globalId"]] = t + random.randint(3, 6); log.append(f"🔥 경보 {r['name']}")
     elif roll < 0.35 and sensors:
         r = random.choice(sensors); patch(r["globalId"], {"Status": "FAULT"}); pending[r["globalId"]] = t + random.randint(5, 10); log.append(f"⚠ 장애 {r['name']}")
+    elif roll < 0.42 and comms:
+        r = random.choice(comms); patch(r["globalId"], {"Status": "OFFLINE"}); pending[r["globalId"]] = t + random.randint(3, 6); log.append(f"📡 오프라인 {r['name']}")
     elif roll < 0.5 and pumps:
         r = random.choice(pumps); s = state[r["globalId"]]; s["Status"] = "STANDBY" if s.get("Status") == "RUNNING" else "RUNNING"
         patch(r["globalId"], {"Status": s["Status"], "RunHours": round(float(s.get("RunHours", 0)) + 0.05, 2)}); log.append(f"펌프 {r['name']} → {s['Status']}")

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, AlertTriangle, ArrowLeft, Box, Cable, ExternalLink, Flame, PlugZap, Siren, Wrench, type LucideIcon } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowLeft, ArrowUpDown, Box, Cable, ExternalLink, Flame, Network, PlugZap, Siren, Wrench, type LucideIcon } from 'lucide-react'
 import { api, post, type Model } from './api'
 
 type Row = { globalId: string; ifcClass: string; name: string; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
@@ -9,10 +9,12 @@ type Row = { globalId: string; ifcClass: string; name: string; storey: string | 
 const TEAMS: { key: string; name: string; icon: LucideIcon; color: string; systems: string[] }[] = [
   { key: 'elec', name: '전기팀', icon: Cable, color: '#f59e0b', systems: ['전기', '비상전원'] },
   { key: 'fire', name: '소방팀', icon: Flame, color: '#dc2626', systems: ['소방', '화재감지'] },
-  { key: 'mech', name: '설비팀', icon: Wrench, color: '#2563eb', systems: ['급수', '배수', '공조', '냉난방'] },
+  { key: 'mech', name: '설비팀', icon: Wrench, color: '#2563eb', systems: ['공조', '냉난방수', '환기', '급수', '급탕', '배수', '가스'] },
+  { key: 'comm', name: '통신·제어팀', icon: Network, color: '#4f46e5', systems: ['통신'] },
+  { key: 'trans', name: '수송팀', icon: ArrowUpDown, color: '#78716c', systems: ['수송'] },
 ]
-const STATUS: Record<string, { label: string; color: string }> = { NORMAL: { label: '정상', color: '#16a34a' }, RUNNING: { label: '운전', color: '#16a34a' }, STANDBY: { label: '대기', color: '#6b7280' }, TRANSFERRED: { label: '절체', color: '#ea580c' }, ALARM: { label: '경보', color: '#dc2626' }, FAULT: { label: '장애', color: '#f59e0b' } }
-const rank = (r: Row, dead = false) => ({ ALARM: 0, FAULT: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (dead ? 2 : r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : 9))
+const STATUS: Record<string, { label: string; color: string }> = { NORMAL: { label: '정상', color: '#16a34a' }, ONLINE: { label: '온라인', color: '#16a34a' }, RUNNING: { label: '운전', color: '#16a34a' }, STANDBY: { label: '대기', color: '#6b7280' }, TRANSFERRED: { label: '절체', color: '#ea580c' }, ALARM: { label: '경보', color: '#dc2626' }, FAULT: { label: '장애', color: '#f59e0b' }, OFFLINE: { label: '오프라인', color: '#f59e0b' } }
+const rank = (r: Row, dead = false) => ({ ALARM: 0, FAULT: 1, OFFLINE: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (dead ? 2 : r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : 9))
 
 /** #/models/{id}/monitor — 팀 × 층 격자 상태판. 5초 자동 갱신 */
 export default function MonitorPage({ modelId }: { modelId: string }) {
@@ -24,8 +26,10 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
     .then(([d, pw]) => { setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setTick(new Date()) })
   useEffect(() => { api(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId])
 
-  // 요소의 주 계통(첫 번째) 기준 — 소화펌프는 소방·비상전원 둘 다지만 소방팀 소관
-  const teamOf = (r: Row) => { for (const s of r.systems) { const t = TEAMS.find(t => t.systems.includes(s)); if (t) return t } }
+  // 팀 우선순위: 소방 > 수송 > 설비 > 통신·제어 > 전기 (MDF 는 비상전원+통신 → 통신팀, 소화펌프는 소방+비상전원 → 소방팀, UPS 는 비상전원만 → 전기팀)
+  // 예외: 조명제어반은 통신 계통에도 걸리지만 전기팀
+  const PRIORITY = ['fire', 'trans', 'mech', 'comm', 'elec']
+  const teamOf = (r: Row) => { if (r.name?.includes('조명제어반')) return TEAMS.find(t => t.key === 'elec'); for (const k of PRIORITY) { const t = TEAMS.find(t => t.key === k)!; if (r.systems.some(s => t.systems.includes(s))) return t } }
   const storeys = useMemo(() => [...new Map(rows.filter(r => r.storey).map(r => [r.storey!, r.elevation ?? 0])).entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]), [rows])
   const visibleTeams = TEAMS.filter(t => !team || t.key === team)
   const dead = (r: Row) => unpowered.has(r.globalId)
@@ -61,7 +65,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleTeams.length}, 1fr)`, gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(${visibleTeams.length}, minmax(220px, 1fr))`, gap: 10, overflowX: 'auto' }}>
         <div /> {visibleTeams.map(t => <div key={t.key} style={{ fontWeight: 600, color: t.color, display: 'flex', alignItems: 'center', gap: 6 }}><t.icon size={14} /> {t.name}</div>)}
         {storeys.map(st => <>
           <div key={st} style={{ fontWeight: 700, fontSize: 15, paddingTop: 8, color: '#374151' }}>{st}</div>
@@ -90,5 +94,5 @@ function RowView({ r, modelId, dead }: { r: Row; modelId: string; dead?: boolean
   )
 }
 /** 상태 옆 보조값: 부하·수위·개폐·연료 */
-const extra = (r: Row) => { const s = r.status ?? {}; const v = s.LoadPercent != null ? `${s.LoadPercent}% ` : s.LevelPercent != null ? `수위 ${s.LevelPercent}% ` : s.FuelLevel != null ? `연료 ${s.FuelLevel}% ` : s.Open === false ? '닫힘 ' : s.Breaker === 'OPEN' ? '트립 ' : ''; return <span style={{ color: '#888', fontWeight: 400, marginRight: 4 }}>{v}</span> }
+const extra = (r: Row) => { const s = r.status ?? {}; const v = s.LoadPercent != null ? `${s.LoadPercent}% ` : s.LevelPercent != null ? `수위 ${s.LevelPercent}% ` : s.FuelLevel != null ? `연료 ${s.FuelLevel}% ` : s.RoomTemp != null ? `${s.RoomTemp}°C ` : s.SupplyTemp != null ? `급기 ${s.SupplyTemp}°C ` : s.OutletTemp != null ? `${s.OutletTemp}°C ` : s.SpeedPercent != null ? `${s.SpeedPercent}% ` : s.FanSpeed != null && typeof s.FanSpeed === 'number' ? `팬 ${s.FanSpeed}% ` : s.ChargePercent != null ? `충전 ${s.ChargePercent}% ` : s.Floor != null ? `${s.Floor} ` : s.Open === false ? '닫힘 ' : s.Breaker === 'OPEN' ? '트립 ' : ''; return <span style={{ color: '#888', fontWeight: 400, marginRight: 4 }}>{v}</span> }
 const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', textDecoration: 'none', color: '#222', fontSize: 12 }

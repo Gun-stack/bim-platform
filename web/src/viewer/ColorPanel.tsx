@@ -7,7 +7,7 @@ export const PALETTE = [0x4e79a7, 0xf28e2b, 0xe15759, 0x76b7b2, 0x59a14f, 0xedc9
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 const BUILTIN = ['ifcClass', 'storey']
 /** 상태값은 의미색 고정 (팔레트 순번이 아니라) */
-const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, OK: 0x16a34a, STANDBY: 0x6b7280, ALARM: 0xdc2626, FAULT: 0xf59e0b, TROUBLE: 0xf59e0b, OFF: 0x9ca3af, UTILITY: 0x2563eb, GENERATOR: 0xea580c }
+const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, OK: 0x16a34a, ONLINE: 0x16a34a, RUNNING: 0x16a34a, STANDBY: 0x6b7280, ALARM: 0xdc2626, FAULT: 0xf59e0b, TROUBLE: 0xf59e0b, OFFLINE: 0xf59e0b, OFF: 0x9ca3af, UTILITY: 0x2563eb, GENERATOR: 0xea580c }
 
 export type Legend = { value: string; color: number; gids: string[] }[]
 

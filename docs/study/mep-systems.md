@@ -21,7 +21,16 @@
 | 배수 | WASTEWATER | 위생기구 → 횡주관 → 입상관 → 집수정 | (역방향) |
 | 소방 | FIREPROTECTION | 소화수조 → 소화펌프 → 입상관 → 층 알람밸브 → 주관 → 스프링클러 | IfcFireSuppressionTerminal, IfcValve(알람밸브) |
 | 비상전원 | ELECTRICAL | 비상발전기 → ATS(한전/발전 절체, MDB 도 입력) → 비상분전반 EMDB → 입상 → 층 비상분전반 → 비상조명 · 소화펌프 · 화재수신기 | IfcElectricGenerator, IfcSwitchingDevice(TRANSFERSWITCH), IfcLightFixture(EMERGENCY) |
-| 화재감지 | SIGNAL | **감지기 → 층 중계기 → 간선 → 화재수신기(방재실)** — 신호 방향이라 수신기가 "하류" | IfcSensor(SMOKESENSOR/HEATSENSOR), IfcUnitaryControlElement(ALARMPANEL), IfcCableSegment |
+| 화재감지 | SIGNAL | **감지기 → 층 중계기 → 간선 → 화재수신기(방재실)** — 신호 방향이라 수신기가 "하류". 수신기 → 비상방송 앰프 → 층 스피커, 수신기 → 제연팬·방화/제연댐퍼·가스계 소화 | IfcSensor, IfcUnitaryControlElement(ALARMPANEL), IfcAudioVisualAppliance(AMPLIFIER/SPEAKER), IfcCableSegment |
+| 공조 | AIRCONDITIONING | 외기처리기 OAU → AHU ← 가습기 → 급기 덕트 입상 → 층 방화댐퍼 → 풍량댐퍼 → 구역 VAV → 덕트 → 디퓨저 | IfcUnitaryEquipment(AIRHANDLER), IfcHumidifier, IfcDuctSegment, IfcDamper(FIREDAMPER/CONTROLDAMPER), IfcAirTerminalBox, IfcAirTerminal |
+| 냉난방수 | CHILLEDWATER | 냉각탑 → 냉각수펌프 → 터보냉동기 → 냉수펌프 → 판형 열교환기 → 입상 → 층 분기 → 구역 FCU / 온수보일러·지열HP → 온수펌프 → 열교환기 / 팽창탱크 | IfcCoolingTower, IfcChiller, IfcBoiler, IfcHeatExchanger(PLATE), IfcTank(EXPANSION), IfcUnitaryEquipment(FCU) |
+| 환기 | VENTILATION | 층 전열교환기 ERV·제연댐퍼 → 배기·제연 덕트 입상 → 옥상 배기팬·제연팬 / 주차장 제트팬 / 급기팬 | IfcFan, IfcAirToAirHeatRecovery, IfcDamper(SMOKEDAMPER) |
+| 급탕 | DOMESTICHOTWATER | 급수펌프 → 급탕보일러 → 저탕조 → 순환펌프 → 입상 → 층 분기 → 위생기구 | IfcBoiler(WATER), IfcTank, IfcPump(CIRCULATOR) |
+| 가스 | GAS | 정압기 → 긴급차단밸브 → 배관 → 급탕보일러·온수보일러 | IfcValve(PRESSUREREDUCING/ISOLATION) |
+| 통신 | DATA | MDF → 광 입상 → 층 IDF → CCTV·출입 카드리더·DDC / MDF → BMS·FMS·NVR·출입통제 주장치·주차관제 / BMS → 층 DDC → VAV·FCU·풍량댐퍼 | IfcCommunicationsAppliance(NETWORKHUB/COMPUTER), IfcController(PROGRAMMABLE), IfcAudioVisualAppliance(CAMERA), IfcUnitaryControlElement(CONTROLPANEL) |
+| 수송 | (IfcSystem) | 비상분전반 → 승강기 제어반(옥상) → 엘리베이터 / 에스컬레이터 / 덤웨이터 | IfcTransportElement(ELEVATOR/ESCALATOR) — IfcDistributionSystem 에는 못 넣어 일반 IfcSystem |
+
+전기는 고압수전반 → 전력량계 → 변압기 → 저압 배전반 MDB → MCC(동력: 펌프·팬·냉동기·AHU) / 층 분전반 → 조명제어반 → 조명 / EV 충전기 / 태양광 패널(옥상) → 인버터 → MDB. 비상전원은 EMDB → UPS ← 축전지 → MDF·BMS·FMS·NVR·비상방송·출입통제 / EMDB → 소화펌프·제연팬·수신기·승강기 제어반·층 비상분전반 → 비상조명·IDF·ERV. 지하에 통신실(UPS·배터리·MDF·BMS·FMS·주차관제)·방재실(수신기·앰프·NVR·출입통제·가스계 소화약제 용기)·기계실(냉동기·보일러·히트펌프·펌프·열교환기·팽창탱크·AHU·가습기·급탕)·옥상(냉각탑·OAU·급배기/제연팬·실외기·고가수조·태양광·승강기 제어반). 피뢰·접지 단자함, 우수 저류조, 오수처리조, 그리스트랩, 옥내소화전 포함. 총 356 요소, 13 계통, 434 연결.
 
 **상태**: 감지기·발전기·ATS·비상조명·수신기·분전반(Breaker, LoadPercent)·펌프(RUNNING/STANDBY, RunHours)·밸브(Open, Pressure)·수조(LevelPercent)·변압기(LoadPercent, OilTemp)·조명(On) 에 `Pset_BimStatus`(Status NORMAL/ALARM/FAULT/STANDBY, AlarmAt, LastTest, FuelLevel, BatteryLevel, Source UTILITY/GENERATOR). 표준 Pset 에 "현재 상태" 자리는 없어서(IFC 는 설계 정보) 프로젝트 Pset 으로 뒀다. 실제 운영에선 BMS/수신기 연동값이 여기로 들어오고, 뷰어 "속성별 색상 → Pset_BimStatus.Status" 가 곧 상태판(ALARM 빨강·FAULT 주황·NORMAL 초록). 예시 데이터: 2F-B 연기감지기 1 = ALARM, 3F-A 열감지기 = FAULT.
 
@@ -76,7 +85,7 @@ SELECT DISTINCT ON (id) ... ORDER BY id, depth
 
 ## 모니터링 페이지 — 팀 × 층
 
-현장 조직은 계통이 아니라 **팀**(전기팀·소방팀·설비팀) 으로 움직인다. 팀 ↔ 계통 매핑은 `MonitorPage.tsx` 의 `TEAMS` 한 곳(전기팀=전기·비상전원, 소방팀=소방·화재감지, 설비팀=급수·배수·공조·냉난방). 행은 층(elevation 내림차순), 열은 팀, 셀 안은 이상 → 작업지시 → 결함 → 정상 순. 배관·트레이 같은 "선" 은 `GET /monitor` 가 기본 제외(장비만). 팀 카드 클릭으로 한 팀만, "이상만" 으로 정상 숨김. 5초 폴링이라 뷰어에서 경보를 내면 모니터에 바로 뜬다 — 실제로는 BMS 연동이 같은 API 를 친다.
+현장 조직은 계통이 아니라 **팀**(전기팀·소방팀·설비팀) 으로 움직인다. 팀 ↔ 계통 매핑은 `MonitorPage.tsx` 의 `TEAMS` 한 곳(전기팀=전기·비상전원, 소방팀=소방·화재감지, 설비팀=공조·냉난방수·환기·급수·급탕·배수·가스, 통신·제어팀=통신, 수송팀=수송). 요소가 여러 계통에 걸치면 우선순위 소방 > 수송 > 설비 > 통신 > 전기 — 전원은 거의 모든 장비에 걸리므로 맨 뒤. 추적 API 도 같은 이유로 기본은 출발 요소의 계통 안(`scope=system`)만 따라간다(스프링클러 상류에 소화펌프의 전원선이 딸려오지 않게). 행은 층(elevation 내림차순), 열은 팀, 셀 안은 이상 → 작업지시 → 결함 → 정상 순. 배관·트레이 같은 "선" 은 `GET /monitor` 가 기본 제외(장비만). 팀 카드 클릭으로 한 팀만, "이상만" 으로 정상 숨김. 5초 폴링이라 뷰어에서 경보를 내면 모니터에 바로 뜬다 — 실제로는 BMS 연동이 같은 API 를 친다.
 
 ## "어디 있는 감지기인가" — 포커스 모드
 
