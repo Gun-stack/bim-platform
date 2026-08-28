@@ -61,7 +61,7 @@ function Models() {
     setErr(undefined); api(`/models/${m.id}`, { method: 'DELETE' }).then(() => api(`/projects/${pid}/models`)).then(setModels).catch(e => setErr(e.message)) }
 
   return (
-    <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 860, margin: '0 auto', padding: '32px 20px' }}>
+    <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 980, margin: '0 auto', padding: '32px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={22} /> bim-platform</h1>
         <span style={{ color: '#888' }}>프로젝트 demo · 모델 {models.length}개{models.some(m => m.status === 'PROCESSING' || m.status === 'UPLOADED') ? ' · 변환 중' : ''}</span>
@@ -80,7 +80,7 @@ function Models() {
       {err && <p style={{ color: '#b91c1c', display: 'flex', gap: 6, alignItems: 'center' }}><AlertCircle size={14} /> {err}</p>}
 
       <div style={{ marginTop: 20, border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 180px 170px 28px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 100px 70px 64px minmax(120px, 160px) 232px 28px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
           <span>모델</span><span>상태</span><span>스키마</span><span style={{ textAlign: 'right' }}>요소 수</span><span>진행</span><span /></div>
         {models.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>아직 모델이 없습니다. IFC 파일을 올리면 변환 후 3D 로 볼 수 있습니다 — <code>samples/</code> 에 예제 4개가 있습니다.</div>}
         {models.map(m => <Row key={m.id} m={m} onRetry={() => retry(m.id)} onRemove={() => remove(m)} />)}
@@ -99,7 +99,7 @@ const STATUS: Record<Model['status'], { label: string; color: string; bg: string
 function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove: () => void }) {
   const st = STATUS[m.status], Icon = st.icon, running = m.status === 'UPLOADED' || m.status === 'PROCESSING'
   return (
-    <div className="model-row" style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 180px 170px 28px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: '1px solid #eee' }}>
+    <div className="model-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 100px 70px 64px minmax(120px, 160px) 232px 28px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: '1px solid #eee' }}>
       <div style={{ overflow: 'hidden' }}>
         <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>{m.name}</div>
         <div style={{ color: '#999', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.id.slice(0, 8)} · {new Date((m as any).createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}</div>
@@ -114,7 +114,7 @@ function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove
           : <div style={{ height: 6, background: '#eee', borderRadius: 3, overflow: 'hidden' }}><div style={{ width: `${m.progress}%`, height: '100%', background: m.status === 'READY' ? '#22c55e' : '#2563eb', transition: 'width .3s' }} /></div>}
       </div>
       <div style={{ textAlign: 'right' }}>
-        {m.status === 'READY' && <span style={{ display: 'inline-flex', gap: 4 }}>
+        {m.status === 'READY' && <span style={{ display: 'inline-flex', gap: 4, whiteSpace: 'nowrap' }}>
           <a href={`#/models/${m.id}/monitor`} title="모니터링" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>모니터링</a>
           <a href={`#/models/${m.id}/fm`} title="시설관리" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>시설관리</a>
           <a href={`#/models/${m.id}`} style={{ padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 12 }}>3D 뷰어</a></span>}
