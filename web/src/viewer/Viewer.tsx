@@ -50,7 +50,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   // 씬 생성 · glb 로드 (한 번). byGid 등은 마운트 시점 값으로 고정 — 의도적
   useEffect(() => {
     if (!model?.glbUrl || !canvas.current || !elements.length || scene.current) return
-    const s = new Scene3D(canvas.current); scene.current = s
+    const el = canvas.current   // cleanup 에서 ref 대신 이 변수를 쓴다
+    const s = new Scene3D(el); scene.current = s
     s.onPick = setSelection
     s.load(model.glbUrl, gid => byGid.has(gid) ? 'element' : spaceGids.has(gid) ? 'space' : 'opening').then(() => {
       setBounds(s.bounds())
@@ -68,11 +69,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
         setHover(gid ? { x: e.clientX, y: e.clientY, text: el ? `${el.ifcClass} ${el.name ?? ''}` : spaceGids.has(gid) ? 'IfcSpace' : 'IfcOpeningElement' } : undefined)
       })
     }
-    canvas.current.addEventListener('pointermove', onMove)
+    el.addEventListener('pointermove', onMove)
     s.onContext = (x, y) => setMenu({ x, y })
     s.onMeasure = m => setMeasures(ms => [...ms, m])
     const t = setInterval(() => setStats(s.stats()), 500)
-    return () => { clearInterval(t); canvas.current?.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null }
+    return () => { clearInterval(t); el.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null }
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.glbUrl, elements.length])
 
