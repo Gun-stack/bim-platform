@@ -83,8 +83,9 @@ worker/
 
 ```
 src/
-  pages/    Models, Viewer, Map, Assets, WorkOrders
-  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·섹션박스·측정·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈/솔로 토글·검색) + ColorPanel.tsx (속성별 색상 범례) + ContextMenu.tsx (우클릭 메뉴)
+  App.tsx        해시 라우팅: #/ 목록 · #/models/{id} 뷰어 · #/models/{id}/fm 시설관리
+  FmPage.tsx     작업지시 보드 · 자산 대장 → 뷰어(?wo=&v=&sel=&clip=)
+  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·섹션박스·측정·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈/솔로 토글·검색) + ColorPanel.tsx (속성별 색상 범례) + ContextMenu.tsx (우클릭 메뉴) + FmPanel.tsx (자산 등록·점검·작업지시)
             뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip=xmin,xmax,ymin,ymax,zmin,zmax — M4 work_order.viewpoint 와 같은 필드
   map/      MapLibre, 풋프린트 레이어, 핀 배치
   api/      fetch 래퍼, SSE 훅

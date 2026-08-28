@@ -56,4 +56,10 @@ curl -X POST localhost:8080/api/models/<id>/retry                               
 
 모델 목록에서 READY 모델 클릭 → `#/models/{id}`. 요소 클릭 → Pset, 층/클래스 필터, 검색, 표시 옵션(Opening·Space·재질별 병합 + draw call 카운터), 섹션 박스(X/Y/Z, 층 스냅), 측정, 격리/숨김, 호버 툴팁, 뷰 프리셋·더블클릭 핏, 뷰포인트 URL 공유. 리사이즈 패널, 하단 아이콘 툴바, XYZ 축 기즈모, 트리 숨김/솔로, 다중 선택(Cmd·Shift), 우클릭 메뉴, 속성별 색상(클래스·층·Pset 값).
 
+### 시설관리 (M4)
+
+![M4 작업지시 보드](docs/images/m4-board.jpg)
+
+뷰어에서 요소 선택 → "자산 · FM" 탭 → 자산 등록(IFC Pset 스냅샷) → 점검 OK/결함 → 작업지시(현재 뷰포인트 저장). `#/models/{id}/fm` 보드에서 "3D" 를 누르면 뷰어가 그 위치·선택으로 돌아간다.
+
 샘플 IFC 는 `samples/README.md` 참고. 로컬 개발: `cd api && ./gradlew test` (Testcontainers, Docker 필요), `cd web && npm run dev`.

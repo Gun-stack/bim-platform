@@ -55,6 +55,8 @@ BCF 3.0 viewpoint(카메라 위치·방향 + 선택된 GlobalId)의 축소판. �
 
 ## 5. 표준 대응
 
+> 상세는 [cobie-bcf.md](cobie-bcf.md).
+
 | 표준 | 무엇 | 이 프로젝트 |
 |---|---|---|
 | COBie | 설계·시공 → 운영 인계 자산 정보 규격 (Component / Type / Space / System 시트) | Component ≈ `asset`. Type은 `category` + `attributes`로 단순화. 정식 내보내기 M5 |
