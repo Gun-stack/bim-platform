@@ -8,7 +8,7 @@ export type ElementDetail = ElementRow & { properties: Record<string, Record<str
 
 export const api = (path: string, init?: RequestInit) => fetch('/api' + path, init).then(async r => {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message ?? r.statusText)
-  return r.json()
+  return r.status === 204 ? undefined : r.json()   // DELETE 는 본문 없음
 })
 
 export type Asset = { id: string; tag: string; category: string | null; status: 'ACTIVE' | 'OUT_OF_SERVICE' | 'RETIRED'; installedOn: string | null; attributes: Record<string, unknown>

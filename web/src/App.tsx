@@ -57,7 +57,8 @@ function Models() {
   }
   const retry = (id: string) => api(`/models/${id}/retry`, { method: 'POST' })
     .then((u: Model) => setModels(ms => ms.map(x => x.id === u.id ? u : x))).catch(e => setErr(e.message))
-  const remove = (m: Model) => { if (!window.confirm(`"${m.name}" 모델을 삭제할까요? 자산·작업지시도 함께 지워집니다.`)) return; api(`/models/${m.id}`, { method: 'DELETE' }).then(() => setModels(ms => ms.filter(x => x.id !== m.id))) }
+  const remove = (m: Model) => { if (!window.confirm(`"${m.name}" 모델을 삭제할까요? 자산·작업지시도 함께 지워집니다.`)) return
+    setErr(undefined); api(`/models/${m.id}`, { method: 'DELETE' }).then(() => api(`/projects/${pid}/models`)).then(setModels).catch(e => setErr(e.message)) }
 
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 860, margin: '0 auto', padding: '32px 20px' }}>
