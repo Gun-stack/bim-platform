@@ -48,7 +48,6 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const spaceStorey = useMemo(() => new Map(spatial.filter(s => s.ifcClass === 'IfcSpace').map(s => [s.globalId, s.parentId])), [spatial])
 
   // 씬 생성 · glb 로드 (한 번). byGid 등은 마운트 시점 값으로 고정 — 의도적
-  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!model?.glbUrl || !canvas.current || !elements.length || scene.current) return
     const s = new Scene3D(canvas.current); scene.current = s
@@ -74,6 +73,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.onMeasure = m => setMeasures(ms => [...ms, m])
     const t = setInterval(() => setStats(s.stats()), 500)
     return () => { clearInterval(t); canvas.current?.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null }
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.glbUrl, elements.length])
 
   useEffect(() => {   // 트리 눈 토글 + 표시 옵션 → 표시 조건
