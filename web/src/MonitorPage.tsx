@@ -24,7 +24,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
     .then(([d, pw]) => { setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setTick(new Date()) })
   useEffect(() => { api(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId])
 
-  const teamOf = (r: Row) => TEAMS.find(t => r.systems.some(s => t.systems.includes(s)))
+  // 요소의 주 계통(첫 번째) 기준 — 소화펌프는 소방·비상전원 둘 다지만 소방팀 소관
+  const teamOf = (r: Row) => { for (const s of r.systems) { const t = TEAMS.find(t => t.systems.includes(s)); if (t) return t } }
   const storeys = useMemo(() => [...new Map(rows.filter(r => r.storey).map(r => [r.storey!, r.elevation ?? 0])).entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]), [rows])
   const visibleTeams = TEAMS.filter(t => !team || t.key === team)
   const dead = (r: Row) => unpowered.has(r.globalId)
