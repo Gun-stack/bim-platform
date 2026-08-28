@@ -130,7 +130,7 @@ export class Scene3D {
   /** 선택. set = 교체, toggle = 추가/제거 */
   select(gids: string[], mode: 'set' | 'toggle' = 'set') {
     if (mode === 'set') this.picked = new Set(gids)
-    else for (const g of gids) this.picked.has(g) ? this.picked.delete(g) : this.picked.add(g)
+    else for (const g of gids) { if (this.picked.has(g)) this.picked.delete(g); else this.picked.add(g) }
     this.apply()
     this.onPick?.([...this.picked])
   }
@@ -310,7 +310,7 @@ class NavCube {
     this.el.addEventListener('pointerleave', () => this.setHover(undefined))
     this.el.addEventListener('click', e => {
       const hit = pick(e); if (!hit) return
-      hit.userData.dir ? onAxis(hit.userData.dir) : onHome()
+      if (hit.userData.dir) onAxis(hit.userData.dir); else onHome()
     })
   }
 
