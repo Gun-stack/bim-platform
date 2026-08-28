@@ -14,6 +14,14 @@ const STATUS: Record<string, { label: string; color: string }> = { NORMAL: { lab
 const worst = (r: Row) => inlineReadings(r.status, r.name).reduce((m, x) => x.level === 'crit' ? 'crit' : m === 'crit' ? m : x.level === 'warn' ? 'warn' : m, 'ok' as 'ok' | 'warn' | 'crit')
 const rank = (r: Row, dead = false) => ({ ALARM: 0, FAULT: 1, OFFLINE: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (dead ? 2 : worst(r) === 'crit' ? 2 : worst(r) === 'warn' ? 3 : r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : 9))
 const isAbn = (r: Row) => r.status?.Status === 'ALARM' || r.status?.Status === 'FAULT'
+/** 팀별 핵심(원천) 장비 — 이름 접두어. 팀을 고르면 격자보다 먼저 카드로 */
+const KEY_EQUIP: Record<string, string[]> = {
+  fire: ['FACP', 'FP-1', 'FT-1', 'SEF-1', 'PA-1', 'GS-1'],
+  trans: ['EL-1 승객', 'ES-1', 'PCS-1', 'BG-IN', 'BG-OUT', 'DISP-1'],
+  mech: ['CH-1', 'CT-1', 'AHU-1', 'B-1', 'HWB-1', 'WP-1', 'WT-1', 'HP-1', 'JF-1'],
+  comm: ['MDF', 'BMS', 'FMS', 'NVR', '출입통제', 'UPS-1'],
+  elec: ['HV-1', 'TR-1', 'MDB', 'EG-1', 'ATS-1', 'EMDB', 'PV-1', 'UPS-1'],
+}
 const kiosk = new URLSearchParams(location.hash.split('?')[1] ?? '').has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대·이상만
 
 /** #/models/{id}/monitor — 건물 요약 → 팀 KPI → 팀 × 층 격자 + 최근 이벤트. 5초 자동 갱신. ?kiosk=1 은 관제실 벽면용 */
@@ -92,6 +100,31 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           </div>) })}
       </div>
 
+      {/* 1) 지금 처리할 것 — 층·팀 격자보다 먼저. 경보 → 장애 → 계측 위험/무전원 → 주의·작업지시 순 */}
+      {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (
+        <div style={{ background: '#fff', border: '1px solid ' + (todo.some(isAbn) ? '#fecaca' : '#e5e7eb'), borderRadius: 10, padding: '8px 12px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: todo.length ? 6 : 0 }}><Siren size={14} style={{ color: todo.some(isAbn) ? '#dc2626' : '#9ca3af' }} /><b>지금 처리할 것</b><span style={{ color: '#888', fontSize: 12 * fs }}>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}</span>
+            {!todo.length && <span style={{ color: '#16a34a', fontSize: 12 * fs }}>이상·미처리 없음</span>}</div>
+          {todo.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '2px 14px' }}>
+            {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: '#6b7280', fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} /></div>)}
+            {todo.length > 12 && <div style={{ color: '#888', fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
+        </div>) })()}
+
+      {/* 2) 핵심 장비 — 팀을 골랐을 때 그 팀의 원천 장비를 카드로 (격자 순서와 무관하게 늘 같은 자리) */}
+      {team && (() => { const t = TEAMS.find(x => x.key === team)!; const keys = KEY_EQUIP[team] ?? []; const eq = keys.map(k => rows.find(r => r.name?.startsWith(k))).filter(Boolean) as Row[]; return eq.length ? (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color: t.color, fontWeight: 600 }}><t.icon size={14} /> {t.name} 핵심 장비</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+            {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: '#374151' } : st ? STATUS[st] : undefined, rs = inlineReadings(r.status, r.name), w = worst(r); return (
+              <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: '#222', background: isAbn(r) ? (st === 'ALARM' ? '#fef2f2' : '#fffbeb') : w === 'crit' ? '#fff1f2' : w === 'warn' ? '#fffbeb' : '#fff', border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? '#fecaca' : '#fde68a') : '#e5e7eb'), borderLeft: '4px solid ' + (sc?.color ?? '#d1d5db'), borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 * fs }} title={r.name}>{r.name}</span><b style={{ color: sc?.color ?? '#bbb', fontSize: 12 * fs, whiteSpace: 'nowrap' }}>{sc?.label ?? '—'}</b></div>
+                <div style={{ color: '#888', fontSize: 11 * fs, marginTop: 2 }}>{r.storey}{r.zone ? ` · ${r.zone.split('-').pop()}` : ''}{r.openWorkOrders ? <b style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309', marginLeft: 6 }}>WO {r.woAssignee ?? '미배정'}</b> : ''}</div>
+                {rs.length > 0 && <div style={{ fontSize: 11.5 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 500 : 700 }}>{x.text}</b></span>)}</div>}
+              </a>) })}
+          </div>
+        </div>) : null })()}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color: '#6b7280', fontSize: 12 * fs }}><Layers size={13} /> 층 × 팀 전체 현황{team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}{storeyF ? ` · ${storeyF}` : ''}</div>
       <div className="monitor-body" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}><div style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleTeams.length}, minmax(210px, 1fr))`, gap: 10, minWidth: 64 + visibleTeams.length * 220 }}>
           <div /> {visibleTeams.map(t => <div key={t.key} style={{ fontWeight: 600, color: t.color, display: 'flex', alignItems: 'center', gap: 6 }}><t.icon size={14} /> {t.name}</div>)}
