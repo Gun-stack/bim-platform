@@ -150,17 +150,17 @@ export class Scene3D {
   /** 요소의 월드 바운딩 (없으면 undefined) */
   elementBox(gid: string) { const ms = this.meshes.filter(m => m.name === gid); if (!ms.length) return; const b = ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()); return { min: b.min.toArray(), max: b.max.toArray() } }
 
-  /** 요소에 3D 핀 (포커스 모드). down=true 면 천장 장비처럼 아래로 매단다(단면에 안 잘리게). 반투명을 뚫고 보이도록 depthTest 끔 */
-  setMarker(gid?: string, color = 0xdc2626, down = false) {
+  /** 요소 위치 비콘 (길찾기): 요소에서 건물 지붕 위까지 솟는 기둥 + 머리. 반투명·벽을 뚫고 보이도록 depthTest 끔 */
+  setMarker(gid?: string, color = 0xdc2626) {
     if (this.marker) { this.scene.remove(this.marker); this.marker = undefined }
     if (!gid) return
     const ms = this.meshes.filter(m => m.name === gid); if (!ms.length) return
     const box = ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()), c = box.getCenter(new THREE.Vector3())
-    const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color, depthTest: false })
-    const y0 = down ? box.min.y : box.max.y, dir = down ? -1 : 1
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 8), mat); stem.position.set(c.x, y0 + dir * 0.6, c.z)
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), mat); head.position.set(c.x, y0 + dir * 1.3, c.z)
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 8, 32), mat); ring.rotation.x = Math.PI / 2; ring.position.set(c.x, y0 + dir * 0.02, c.z)
+    const top = this.box.max.y + 2.5, h = top - c.y
+    const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.9 })
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, h, 8), mat); stem.position.set(c.x, c.y + h / 2, c.z)
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 12), mat); head.position.set(c.x, top, c.z)
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.05, 8, 32), mat); ring.rotation.x = Math.PI / 2; ring.position.set(c.x, c.y, c.z)
     for (const m of [stem, head, ring]) m.renderOrder = 20
     g.add(stem, head, ring); this.marker = g; this.scene.add(g)
   }
@@ -185,7 +185,7 @@ export class Scene3D {
 
   preset(name: 'home' | 'top' | 'front' | 'side') {
     this.lookFrom({ home: new THREE.Vector3(1, 0.8, 1), top: new THREE.Vector3(0, 1, 0.0001), front: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0) }[name])
-    this.fit()
+    this.fitAll([])   // 프리셋은 선택과 무관하게 건물 전체
   }
 
   /** 주어진 방향에서 현재 타깃을 바라보게 (거리 유지). NavCube·프리셋 공용 */
