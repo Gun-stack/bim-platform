@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowDown, ArrowUp, Calendar, ChevronsUp, ExternalLink, Plus, Search, User, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Calendar, ChevronLeft, ChevronRight, ChevronsUp, ExternalLink, Plus, Search, User, X } from 'lucide-react'
 import { post, type Asset, type Priority, type WorkOrder } from './api'
 import { StatusBadge, day } from './viewer/FmPanel'
 import { TEAMS, teamOfSystems } from './teams'
@@ -20,6 +20,8 @@ export default function FmBoard({ modelId, wos: server, assets, reload }: { mode
   const [open, setOpen] = useState<WorkOrder>(); const [creating, setCreating] = useState(false); const [dragOver, setDragOver] = useState<string>(); const [dragging, setDragging] = useState<string>()
   const [pending, setPending] = useState<Record<string, WorkOrder['status']>>({})   // 낙관적 상태: 서버 응답 전 카드를 먼저 옮김
   const [toast, setToast] = useState<{ msg: string; undo?: () => void; error?: boolean }>()
+  const [folded, setFolded] = useState<Set<WorkOrder['status']>>(() => { try { return new Set(JSON.parse(localStorage.getItem('fm.foldedCols') ?? '["DONE"]')) } catch { return new Set<WorkOrder['status']>(['DONE']) } })   // 접힌 열 — 완료는 쌓이기만 하니 기본 접힘
+  const fold = (s: WorkOrder['status']) => setFolded(f => { const n = new Set(f); n.has(s) ? n.delete(s) : n.add(s); try { localStorage.setItem('fm.foldedCols', JSON.stringify([...n])) } catch { /* 저장 불가 환경 */ } return n })
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(undefined), toast.error ? 6000 : 4000); return () => clearTimeout(t) }, [toast])
   const wos = useMemo(() => server.map(w => pending[w.id] ? { ...w, status: pending[w.id] } : w), [server, pending])
   const assignees = useMemo(() => [...new Set(wos.map(w => w.assignee).filter(Boolean) as string[])].sort(), [wos])
@@ -49,14 +51,21 @@ export default function FmBoard({ modelId, wos: server, assets, reload }: { mode
       </div>
 
       {/* 칸반 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {COLS.map(s => { const items = visible.filter(w => w.status === s); return (
+      <div style={{ display: 'grid', gridTemplateColumns: COLS.map(s => folded.has(s) ? '44px' : 'minmax(0, 1fr)').join(' '), gap: 12 }}>
+        {COLS.map(s => { const items = visible.filter(w => w.status === s); if (folded.has(s)) return (
+          <div key={s} onClick={() => fold(s)} onDragOver={e => { e.preventDefault(); setDragOver(s) }} onDragLeave={() => setDragOver(undefined)}
+               onDrop={e => { e.preventDefault(); setDragOver(undefined); setDragging(undefined); const w = wos.find(x => x.id === e.dataTransfer.getData('text/wo')); if (w) move(w, s) }}
+               title={`${COL_NAME[s]} ${items.length}건 — 클릭해서 펼치기 (끌어다 놓기도 됨)`}
+               style={{ background: dragOver === s ? '#eef2ff' : '#f3f4f6', borderRadius: 10, minHeight: 320, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '10px 0', outline: dragOver === s ? '2px dashed #2563eb' : 'none' }}>
+            <ChevronRight size={14} style={{ color: '#999' }} /><StatusBadge s={s} /><b style={{ color: '#666', fontSize: 12 }}>{items.length}</b>
+            <span style={{ writingMode: 'vertical-rl', color: '#999', fontSize: 11, letterSpacing: 2 }}>{COL_NAME[s]} 열 접힘</span></div>); return (
           <div key={s} onDragOver={e => { e.preventDefault(); setDragOver(s) }} onDragLeave={() => setDragOver(undefined)}
                onDrop={e => { e.preventDefault(); setDragOver(undefined); setDragging(undefined); const w = wos.find(x => x.id === e.dataTransfer.getData('text/wo')); if (w) move(w, s) }}
                style={{ background: dragOver === s ? '#eef2ff' : '#f3f4f6', borderRadius: 10, padding: 10, minHeight: 320, outline: dragOver === s ? '2px dashed #2563eb' : 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, minHeight: 20 }}><StatusBadge s={s} /><span style={{ color: '#888' }}>{items.length}</span>
               {dragOver === s ? <span style={{ color: '#2563eb', fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>→ {COL_NAME[s]}(으)로 이동</span>
-                : s !== 'DONE' && items.some(overdue) && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 'auto' }}><AlertTriangle size={11} style={{ verticalAlign: -1 }} /> 초과 {items.filter(overdue).length}</span>}</div>
+                : s !== 'DONE' && items.some(overdue) && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 'auto' }}><AlertTriangle size={11} style={{ verticalAlign: -1 }} /> 초과 {items.filter(overdue).length}</span>}
+              <span onClick={() => fold(s)} title="열 접기" style={{ marginLeft: dragOver === s || (s !== 'DONE' && items.some(overdue)) ? 6 : 'auto', cursor: 'pointer', color: '#aaa', display: 'inline-flex' }}><ChevronLeft size={14} /></span></div>
             {items.map(w => <Card key={w.id} w={w} dragging={dragging === w.id} busy={w.id in pending} onOpen={() => setOpen(w)} viewerUrl={viewerUrl(w)}
                                   onDragStart={() => setDragging(w.id)} onDragEnd={() => { setDragging(undefined); setDragOver(undefined) }} onNext={() => move(w, NEXT[w.status].s)} />)}
             {!items.length && <div style={{ color: '#bbb', textAlign: 'center', padding: 24, fontSize: 12 }}>카드를 여기로 끌어다 놓으세요</div>}

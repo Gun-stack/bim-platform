@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Box, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
+import type React from 'react'
+import { ArrowLeft, Box, ChevronDown, ChevronUp, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
 import { day } from './viewer/FmPanel'
 import { ifcKo } from './ifcNames'
@@ -10,7 +11,9 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [model, setModel] = useState<Model>()
   const [assets, setAssets] = useState<Asset[]>([])
   const [wos, setWos] = useState<WorkOrder[]>([])
-  const [tab, setTab] = useState<'board' | 'assets'>('board')
+  // 접이식 섹션: 보드는 기본 펼침, 자산 대장은 접힘. 상태는 브라우저에 기억
+  const [open, setOpen] = useState<Record<'board' | 'assets', boolean>>(() => { try { return { board: true, assets: false, ...JSON.parse(localStorage.getItem('fm.sections') ?? '{}') } } catch { return { board: true, assets: false } } })
+  const toggle = (k: 'board' | 'assets') => setOpen(o => { const n = { ...o, [k]: !o[k] }; try { localStorage.setItem('fm.sections', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } return n })
   const [add, setAdd] = useState<{ tag: string; category: string } | null>(null)   // 모델에 없는 자산 추가 폼
   const [err, setErr] = useState<string>()
   const [abnormal, setAbnormal] = useState<{ name: string; assetTag?: string }[]>([]); const [syncMsg, setSyncMsg] = useState<string>()
@@ -32,19 +35,15 @@ export default function FmPage({ modelId }: { modelId: string }) {
         <Stat icon={ClipboardList} label="점검 완료" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} />
         <Stat icon={Wrench} label="열린 작업지시" value={wos.filter(w => w.status !== 'DONE').length} sub={`완료 ${wos.filter(w => w.status === 'DONE').length}`} />
       </div>
-      <div style={{ display: 'flex', borderBottom: '1px solid #e5e5e5', marginBottom: 14 }}>
-        {(['board', 'assets'] as const).map(t => <button key={t} onClick={() => setTab(t)}
-          style={{ padding: '6px 14px', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
-          {t === 'board' ? '작업지시 보드' : '자산 대장'}</button>)}
-      </div>
-
-      {tab === 'board' && abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8 }}>
+      <Section title="작업지시 보드" icon={Wrench} count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board} onToggle={() => toggle('board')}>
+      {abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8 }}>
         <span style={{ color: '#9a3412' }}>상태판 이상 <b>{abnormal.length}</b>건 ({abnormal.slice(0, 3).map(r => r.name).join(', ')}{abnormal.length > 3 ? ' …' : ''}) — 열린 작업지시 {wos.filter(w => w.status !== 'DONE').length}건</span>
         <button onClick={() => { setSyncMsg(undefined); post(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: '#ea580c', color: '#fff', border: 0 }}>작업지시 동기화</button>
         {syncMsg && <span style={{ fontSize: 12, color: '#666' }}>{syncMsg}</span>}</div>}
-      {tab === 'board' && <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} />}
+      <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} />
+      </Section>
 
-      {tab === 'assets' && <>
+      <Section title="자산 대장" icon={Tag} count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} open={open.assets} onToggle={() => toggle('assets')}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: '#888', fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
           <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={{ ...btn, marginLeft: 'auto' }}><Plus size={12} /> 자산 추가</button>
@@ -76,11 +75,19 @@ export default function FmPage({ modelId }: { modelId: string }) {
         {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 모니터링의 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>조건에 맞는 자산이 없습니다.</div>}
         </div>
-      </>}
+      </Section>
     </main>
   )
 }
 
+/** 접이식 섹션: 헤더(제목·건수·화살표) 클릭으로 펼침/접힘 */
+const Section = ({ title, icon: Icon, count, open, onToggle, children }: { title: string; icon: typeof Tag; count: string; open: boolean; onToggle: () => void; children: React.ReactNode }) => (
+  <section style={{ border: '1px solid #e5e5e5', borderRadius: 10, marginBottom: 14, background: '#fff' }}>
+    <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', cursor: 'pointer', userSelect: 'none', borderBottom: open ? '1px solid #eee' : 'none' }}>
+      <Icon size={15} style={{ color: '#2563eb' }} /><b style={{ fontSize: 14 }}>{title}</b><span style={{ color: '#888', fontSize: 12 }}>{count}</span>
+      <span style={{ marginLeft: 'auto', color: '#999', display: 'inline-flex' }}>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span></div>
+    {open && <div style={{ padding: 14 }}>{children}</div>}
+  </section>)
 const Stat = ({ icon: Icon, label, value, sub }: { icon: typeof Tag; label: string; value: number; sub: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1px solid #e5e5e5', borderRadius: 10, minWidth: 160 }}>
     <Icon size={18} style={{ color: '#2563eb' }} /><div><div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div><div style={{ fontSize: 12, color: '#888' }}>{label} · {sub}</div></div></div>)
