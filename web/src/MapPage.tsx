@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+// MapLibre 6 는 Blob 워커 안에서 자기 모듈 옆의 maplibre-gl-worker.mjs 를 import 한다 → Vite 단일 번들에선 경로가 깨져
+// nginx 가 index.html 을 돌려주고 워커가 죽는다(GeoJSON 소스가 영원히 로드 안 됨). 워커 파일을 자산으로 내보내 URL 을 알려준다.
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'   // ?worker: 의존성(maplibre-gl.mjs)까지 묶은 독립 워커 번들
+maplibregl.setWorkerUrl(new URL(workerUrl, location.href).href)   // Blob 워커 안의 import() 는 절대 URL 이어야 한다
 import { ArrowLeft, Box, Crosshair, MapPin, X } from 'lucide-react'
 import { api, post, type Model } from './api'
 
@@ -30,7 +34,7 @@ export default function MapPage() {
       style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' } },
                layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
     })
-    map.current = m
+    map.current = m; (window as any).__map = m   // 디버그용 (콘솔·헤드리스 검증)
     m.addControl(new maplibregl.NavigationControl(), 'top-right')
     m.on('error', e => setErr('map: ' + e.error?.message))
     m.on('load', async () => {

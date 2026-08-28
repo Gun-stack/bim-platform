@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | **채택** | IfcOpenShell / ifcopenshell.geom (serializers.gltf, IfcConvert 바이너리 불필요 — ADR 0005) | 0.8.5 (PyPI, manylinux aarch64/x86_64 휠 있음) | LGPL-3.0 | IFC 파싱·기하·glTF 변환의 사실상 표준. IDS(ifctester)·BCF·COBie(ifccobie) 도구 포함 |
 | **채택** | Three.js + glTF | three 0.185.1 | MIT | glb 로드. 프론트에 IFC 파서 없음 |
-| **채택** | MapLibre GL JS | 6.6 | BSD-3 | 2D 지도, 풋프린트. 타일은 OSM 공개 서버(데모용, 운영은 자체 타일/유료) |
+| **채택** | MapLibre GL JS | 6.6 | BSD-3 | 2D 지도, 풋프린트. 타일은 OSM 공개 서버(데모용, 운영은 자체 타일/유료). **워커는 Vite `?worker&url` + nginx `.mjs` MIME 필요** ([bim-gis-integration.md](study/bim-gis-integration.md) 삽질 기록) |
 | **채택** | pyproj | 3.7 | MIT | worker 의 EPSG → 4326 변환 (PROJ 내장) |
 | **채택** | PostGIS | 3.4 | GPL-2.0 (서버) | 공간 저장·변환 |
 | **채택** | Flyway, Testcontainers, MinIO | — | Apache-2.0 / AGPL(MinIO 서버) | MinIO 서버 AGPL은 자체 호스팅·미수정이면 문제 없음. 배포 시 다른 S3로 교체 가능하게 SDK만 의존 |

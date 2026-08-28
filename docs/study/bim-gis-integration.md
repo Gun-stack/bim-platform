@@ -37,6 +37,16 @@ Cesium 의 스트리밍 타일 표준(OGC). 콘텐츠가 glb 라 우리 변환 �
 - 지리참조 없는 IFC 가 태반이라(샘플 4종 중 IfcMapConversion 이 있는 건 2종) **수동 배치 UI** 가 3D 지구본보다 먼저다.
 - MapLibre + PostGIS 는 이력서의 GIS 경험과 직접 이어진다.
 
+## 삽질 기록 — MapLibre 워커가 조용히 죽는 세 가지 이유
+
+GeoJSON 소스가 영원히 로드되지 않고(`isStyleLoaded() === false`), 콘솔에는 아무것도 안 뜬다. 래스터 타일은 메인 스레드라 멀쩡히 보여서 더 헷갈린다. 헤드리스 Chrome(puppeteer-core)으로 잡았다.
+
+1. **워커 파일 경로.** MapLibre 6 는 `new URL('./maplibre-gl-worker.mjs', import.meta.url)` 로 자기 옆의 워커를 찾는다. Vite 단일 번들에선 `/assets/maplibre-gl-worker.mjs` 가 없고, nginx `try_files` 가 **index.html 을 200 으로** 돌려줘 "module script MIME text/html" 로 죽는다.
+2. **`.mjs` MIME.** nginx 기본 `mime.types` 에 `mjs` 가 없어 `application/octet-stream` → 모듈 워커는 strict MIME 이라 거부. `types { text/javascript mjs; }` 추가.
+3. **워커의 의존성.** `?url` 로 워커 파일만 복사하면 그 안의 `import … from './maplibre-gl.mjs'` 가 또 깨진다. **`?worker&url`** 로 Vite 가 의존성까지 묶은 독립 워커 번들(약 480KB)을 만들게 하고 `maplibregl.setWorkerUrl(절대 URL)`.
+
+교훈: 워커 실패는 페이지 콘솔에 안 나온다. `page.on('workercreated')` + `worker.evaluate()` 로 생존을 확인하거나, `map.isStyleLoaded()` 가 몇 초 지나도 false 면 워커부터 의심.
+
 ## 참고
 
 - OGC CityGML 3.0: https://www.ogc.org/standards/citygml
