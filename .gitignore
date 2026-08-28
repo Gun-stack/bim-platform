@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+build/
+dist/
+.gradle/
+__pycache__/
+.env
+samples/*.ifc
