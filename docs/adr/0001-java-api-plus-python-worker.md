@@ -9,7 +9,7 @@ BIM 기하 엔진(OpenCASCADE 기반 IfcOpenShell)과 IFC 도구 생태계(IDS, 
 ## 결정
 
 - `api`: Java 25 + Spring Boot 4 WebFlux. 모든 HTTP 계약, 스키마(Flyway), 도메인 로직 소유.
-- `ifc-worker`: Python 3.12 + IfcOpenShell. IFC 파싱·변환·추출만 담당. HTTP 없음, DB 큐와 MinIO로만 통신.
+- `ifc-worker`: Python 3.13 + IfcOpenShell 0.8.5. IFC 파싱·변환·추출만 담당. HTTP 없음, DB 큐와 MinIO로만 통신.
 
 ## 대안
 

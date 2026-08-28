@@ -6,7 +6,7 @@
 
 | 구분 | 항목 | 버전 (조사일) | 라이선스 | 판단 |
 |---|---|---|---|---|
-| **채택** | IfcOpenShell / ifcopenshell.geom / IfcConvert | 0.8.5 (공식 사이트), PyPI 0.8.3.post1 | LGPL-3.0 | IFC 파싱·기하·glTF 변환의 사실상 표준. IDS(ifctester)·BCF·COBie(ifccobie) 도구 포함 |
+| **채택** | IfcOpenShell / ifcopenshell.geom / IfcConvert | 0.8.5 (PyPI, manylinux aarch64/x86_64 휠 있음) | LGPL-3.0 | IFC 파싱·기하·glTF 변환의 사실상 표준. IDS(ifctester)·BCF·COBie(ifccobie) 도구 포함 |
 | **채택** | Three.js + glTF | three 0.185.1 | MIT | glb 로드. 프론트에 IFC 파서 없음 |
 | **채택** | MapLibre GL JS | 5.x | BSD-3 | 2D 지도, 풋프린트 |
 | **채택** | PostGIS | 3.4 | GPL-2.0 (서버) | 공간 저장·변환 |
@@ -35,7 +35,7 @@
 
 ## Docker 이미지 주의
 
-- `aecgeeks/ifcopenshell` 공식 이미지는 0.8.0에서 1년 이상 방치 → `ifc-worker/Dockerfile`에서 `python:3.12-slim` + ifcopenshell.org 빌드 zip(또는 conda-forge)으로 직접 설치. 버전은 `ARG IFCOPENSHELL_VERSION` 으로 고정.
+- `aecgeeks/ifcopenshell` 공식 이미지는 0.8.0에서 1년 이상 방치. 대신 `python:3.13-slim` + `pip install ifcopenshell==0.8.5` (M0 확인: PyPI에 py3.10~3.14 × linux aarch64/x86_64 휠 전부 있음 → 자체 빌드 zip 불필요).
 
 ## 출처
 

@@ -19,7 +19,7 @@ flowchart LR
 |---|---|---|
 | `web` | node 빌드 → nginx 정적 서빙 | UI. API 프록시(`/api`), MinIO 프록시(`/files`) |
 | `api` | eclipse-temurin:25 | 모델/요소/공간/지도/FMS API, SSE 진행상태, 잡 등록 |
-| `ifc-worker` | python:3.12 + IfcOpenShell 0.8.x (자체 빌드) | IFC → glb, 요소/속성/공간계층/지리참조 추출, (M5) IDS 검증 |
+| `ifc-worker` | python:3.13-slim + IfcOpenShell 0.8.5 (pip) | IFC → glb, 요소/속성/공간계층/지리참조 추출, (M5) IDS 검증 |
 | `postgis` | postgis/postgis:16-3.4 | 메타데이터, 요소 속성(jsonb), 공간 데이터, 잡 큐 |
 | `minio` | minio/minio | IFC 원본, glb, 썸네일 |
 
