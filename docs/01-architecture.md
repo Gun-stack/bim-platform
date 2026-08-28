@@ -119,7 +119,7 @@ src/
 | GET | `/api/models/{id}/elements/{globalId}/route?dir=up\|down` | 흐름 추적 (재귀 CTE, 원천까지 / 말단까지) |
 | GET/PATCH | `/api/models/{id}/status` · `/elements/{globalId}/status` | 런타임 상태(Pset_BimStatus jsonb 병합, 수신기 집계, 자산이면 작업지시 자동) |
 | GET | `/api/models/{id}/monitor?segments=` | 모니터링: 계통 장비 × 층/구역 × 상태 × 자산 × 작업지시 (배관·트레이 제외) |
-| POST | `/api/models/{id}/power?source=UTILITY\|GENERATOR` | 정전 시나리오: ATS/발전기 상태 + 전원 있음/없음 집합 |
+| GET/POST | `/api/models/{id}/power[?source=UTILITY\|GENERATOR]` | 전원 상태 조회 / 정전 시나리오(ATS·발전기 상태 변경) — 전원 있음/없음 집합 |
 
 ## glb ↔ 요소 매핑
 

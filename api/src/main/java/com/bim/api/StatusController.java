@@ -81,6 +81,16 @@ class StatusController {
 		return Map.of("source", source, "powered", powered, "unpowered", unpowered);
 	}
 
+	/** 현재 전원 상태 조회 (변경 없음): 모니터 페이지가 무전원 요소를 회색 처리하는 데 쓴다 */
+	@GetMapping("/power")
+	Map<String, Object> powerNow(@PathVariable UUID id) {
+		String source = db.sql("SELECT properties->'Pset_BimStatus'->>'Source' FROM element WHERE model_id = :id AND ifc_class = 'IfcSwitchingDevice' LIMIT 1").param("id", id).query(String.class).optional().orElse("UTILITY");
+		boolean gen = "GENERATOR".equals(source);
+		List<String> normal = downstream(id, "MDB%"), emergency = downstream(id, "EMDB%");
+		return Map.of("source", source, "powered", gen ? emergency : java.util.stream.Stream.concat(normal.stream(), emergency.stream()).distinct().toList(),
+		              "unpowered", gen ? normal.stream().filter(g -> !emergency.contains(g)).toList() : List.of());
+	}
+
 	private void set(UUID id, String cls, Map<String, Object> patch) {
 		db.sql("UPDATE element SET properties = jsonb_set(properties, '{Pset_BimStatus}', coalesce(properties->'Pset_BimStatus', '{}'::jsonb) || :p::jsonb) WHERE model_id = :id AND ifc_class = :c")
 			.param("id", id).param("c", cls).param("p", JSON.writeValueAsString(patch)).update();

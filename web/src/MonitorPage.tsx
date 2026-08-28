@@ -12,21 +12,24 @@ const TEAMS: { key: string; name: string; icon: LucideIcon; color: string; syste
   { key: 'mech', name: '설비팀', icon: Wrench, color: '#2563eb', systems: ['급수', '배수', '공조', '냉난방'] },
 ]
 const STATUS: Record<string, { label: string; color: string }> = { NORMAL: { label: '정상', color: '#16a34a' }, RUNNING: { label: '운전', color: '#16a34a' }, STANDBY: { label: '대기', color: '#6b7280' }, TRANSFERRED: { label: '절체', color: '#ea580c' }, ALARM: { label: '경보', color: '#dc2626' }, FAULT: { label: '장애', color: '#f59e0b' } }
-const rank = (r: Row) => ({ ALARM: 0, FAULT: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : 9))
+const rank = (r: Row, dead = false) => ({ ALARM: 0, FAULT: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (dead ? 2 : r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : 9))
 
 /** #/models/{id}/monitor — 팀 × 층 격자 상태판. 5초 자동 갱신 */
 export default function MonitorPage({ modelId }: { modelId: string }) {
   const [model, setModel] = useState<Model>()
   const [rows, setRows] = useState<Row[]>([]); const [power, setPower] = useState('UNKNOWN')
   const [team, setTeam] = useState<string>(); const [onlyAbnormal, setOnlyAbnormal] = useState(false); const [tick, setTick] = useState(new Date())
-  const load = () => api(`/models/${modelId}/monitor`).then(d => { setRows(d.rows); setPower(d.power); setTick(new Date()) })
+  const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
+  const load = () => Promise.all([api(`/models/${modelId}/monitor`), api(`/models/${modelId}/power`).catch(() => ({ unpowered: [] }))])
+    .then(([d, pw]) => { setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setTick(new Date()) })
   useEffect(() => { api(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId])
 
   const teamOf = (r: Row) => TEAMS.find(t => r.systems.some(s => t.systems.includes(s)))
   const storeys = useMemo(() => [...new Map(rows.filter(r => r.storey).map(r => [r.storey!, r.elevation ?? 0])).entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]), [rows])
   const visibleTeams = TEAMS.filter(t => !team || t.key === team)
-  const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (!onlyAbnormal || rank(r) < 9)).sort((a, b) => rank(a) - rank(b) || (a.zone ?? '').localeCompare(b.zone ?? '') || a.name.localeCompare(b.name))
-  const kpi = (t: typeof TEAMS[number]) => { const rs = rows.filter(r => teamOf(r)?.key === t.key); return { total: rs.length, alarm: rs.filter(r => r.status?.Status === 'ALARM').length, fault: rs.filter(r => r.status?.Status === 'FAULT').length, wo: rs.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), assets: rs.filter(r => r.assetId).length } }
+  const dead = (r: Row) => unpowered.has(r.globalId)
+  const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (!onlyAbnormal || rank(r, dead(r)) < 9)).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (a.zone ?? '').localeCompare(b.zone ?? '') || a.name.localeCompare(b.name))
+  const kpi = (t: typeof TEAMS[number]) => { const rs = rows.filter(r => teamOf(r)?.key === t.key); return { total: rs.length, alarm: rs.filter(r => r.status?.Status === 'ALARM').length, fault: rs.filter(r => r.status?.Status === 'FAULT').length, wo: rs.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), assets: rs.filter(r => r.assetId).length, dead: rs.filter(r => unpowered.has(r.globalId)).length } }
 
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13, padding: '20px 24px', minHeight: '100vh', background: '#f6f7f9' }}>
@@ -43,7 +46,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         {TEAMS.map(t => { const k = kpi(t), Icon = t.icon, active = team === t.key; return (
           <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} style={{ flex: 1, background: '#fff', border: '2px solid ' + (active ? t.color : '#e5e7eb'), borderRadius: 10, padding: '10px 14px', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Icon size={16} style={{ color: t.color }} /><b>{t.name}</b><span style={{ color: '#888', fontSize: 12 }}>{t.systems.join(' · ')}</span>
-              <span style={{ marginLeft: 'auto', color: '#888', fontSize: 12 }}>장비 {k.total} · 자산 {k.assets}</span></div>
+              <span style={{ marginLeft: 'auto', color: '#888', fontSize: 12 }}>장비 {k.total} · 자산 {k.assets}{k.dead ? <b style={{ color: '#374151', marginLeft: 6 }}>무전원 {k.dead}</b> : ''}</span></div>
             <div style={{ display: 'flex', gap: 14, marginTop: 6, fontSize: 12 }}>
               <span style={{ color: k.alarm ? '#dc2626' : '#999' }}><Siren size={12} style={{ verticalAlign: -2 }} /> 경보 <b>{k.alarm}</b></span>
               <span style={{ color: k.fault ? '#f59e0b' : '#999' }}><AlertTriangle size={12} style={{ verticalAlign: -2 }} /> 장애 <b>{k.fault}</b></span>
@@ -59,7 +62,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           <div key={st} style={{ fontWeight: 700, fontSize: 15, paddingTop: 8, color: '#374151' }}>{st}</div>
           {visibleTeams.map(t => { const rs = cell(st, t); return (
             <div key={st + t.key} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 6, minHeight: 44 }}>
-              {rs.map(r => <RowView key={r.globalId} r={r} modelId={modelId} />)}
+              {rs.map(r => <RowView key={r.globalId} r={r} modelId={modelId} dead={dead(r)} />)}
               {!rs.length && <div style={{ color: '#bbb', fontSize: 12, padding: 4 }}>{onlyAbnormal ? '이상 없음' : '—'}</div>}
             </div>) })}
         </>)}
@@ -68,17 +71,19 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   )
 }
 
-function RowView({ r, modelId }: { r: Row; modelId: string }) {
-  const s = r.status?.Status, st = s ? STATUS[s] : undefined
+function RowView({ r, modelId, dead }: { r: Row; modelId: string; dead?: boolean }) {
+  const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : s ? STATUS[s] : undefined
   const abnormal = s === 'ALARM' || s === 'FAULT'
   return (
     <a href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&fm=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey}`}
-       style={{ display: 'grid', gridTemplateColumns: '10px 1fr auto auto', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 5, textDecoration: 'none', color: '#222', fontSize: 12, background: abnormal ? (s === 'ALARM' ? '#fef2f2' : '#fffbeb') : 'transparent' }}>
+       style={{ display: 'grid', gridTemplateColumns: '10px 1fr auto auto', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 5, textDecoration: 'none', color: '#222', fontSize: 12, background: abnormal ? (s === 'ALARM' ? '#fef2f2' : '#fffbeb') : dead ? '#f3f4f6' : 'transparent', opacity: dead ? 0.7 : 1 }}>
       <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? '#d1d5db' }} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: '#999', marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
       <span style={{ color: '#888' }}>{r.assetTag ? <><Box size={10} style={{ verticalAlign: -1 }} /> {r.assetTag}</> : ''}{r.openWorkOrders ? <b style={{ color: '#1d4ed8', marginLeft: 4 }}>WO {r.openWorkOrders}</b> : ''}{r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: '#b91c1c', marginLeft: 4 }}>결함</b> : ''}</span>
-      <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right' }}>{st?.label ?? ''}</b>
+      <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{extra(r)}{st?.label ?? ''}</b>
     </a>
   )
 }
+/** 상태 옆 보조값: 부하·수위·개폐·연료 */
+const extra = (r: Row) => { const s = r.status ?? {}; const v = s.LoadPercent != null ? `${s.LoadPercent}% ` : s.LevelPercent != null ? `수위 ${s.LevelPercent}% ` : s.FuelLevel != null ? `연료 ${s.FuelLevel}% ` : s.Open === false ? '닫힘 ' : s.Breaker === 'OPEN' ? '트립 ' : ''; return <span style={{ color: '#888', fontWeight: 400, marginRight: 4 }}>{v}</span> }
 const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', textDecoration: 'none', color: '#222', fontSize: 12 }

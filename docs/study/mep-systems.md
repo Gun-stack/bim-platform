@@ -23,7 +23,7 @@
 | 비상전원 | ELECTRICAL | 비상발전기 → ATS(한전/발전 절체, MDB 도 입력) → 비상분전반 EMDB → 입상 → 층 비상분전반 → 비상조명 · 소화펌프 · 화재수신기 | IfcElectricGenerator, IfcSwitchingDevice(TRANSFERSWITCH), IfcLightFixture(EMERGENCY) |
 | 화재감지 | SIGNAL | **감지기 → 층 중계기 → 간선 → 화재수신기(방재실)** — 신호 방향이라 수신기가 "하류" | IfcSensor(SMOKESENSOR/HEATSENSOR), IfcUnitaryControlElement(ALARMPANEL), IfcCableSegment |
 
-**상태**: 감지기·발전기·ATS·비상조명·수신기에 `Pset_BimStatus`(Status NORMAL/ALARM/FAULT/STANDBY, AlarmAt, LastTest, FuelLevel, BatteryLevel, Source UTILITY/GENERATOR). 표준 Pset 에 "현재 상태" 자리는 없어서(IFC 는 설계 정보) 프로젝트 Pset 으로 뒀다. 실제 운영에선 BMS/수신기 연동값이 여기로 들어오고, 뷰어 "속성별 색상 → Pset_BimStatus.Status" 가 곧 상태판(ALARM 빨강·FAULT 주황·NORMAL 초록). 예시 데이터: 2F-B 연기감지기 1 = ALARM, 3F-A 열감지기 = FAULT.
+**상태**: 감지기·발전기·ATS·비상조명·수신기·분전반(Breaker, LoadPercent)·펌프(RUNNING/STANDBY, RunHours)·밸브(Open, Pressure)·수조(LevelPercent)·변압기(LoadPercent, OilTemp)·조명(On) 에 `Pset_BimStatus`(Status NORMAL/ALARM/FAULT/STANDBY, AlarmAt, LastTest, FuelLevel, BatteryLevel, Source UTILITY/GENERATOR). 표준 Pset 에 "현재 상태" 자리는 없어서(IFC 는 설계 정보) 프로젝트 Pset 으로 뒀다. 실제 운영에선 BMS/수신기 연동값이 여기로 들어오고, 뷰어 "속성별 색상 → Pset_BimStatus.Status" 가 곧 상태판(ALARM 빨강·FAULT 주황·NORMAL 초록). 예시 데이터: 2F-B 연기감지기 1 = ALARM, 3F-A 열감지기 = FAULT.
 
 ## IFC 에서 계통과 흐름을 담는 자리
 
