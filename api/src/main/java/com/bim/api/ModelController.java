@@ -70,6 +70,16 @@ class ModelController {
 		return find(id);
 	}
 
+	/** 모델 삭제: DB 는 CASCADE(요소·공간·계통·자산·점검·작업지시·잡), S3 는 source.ifc + glb. S3 실패는 무시하지 않고 500 — 행은 이미 지워졌으므로 로그로 남긴다. */
+	@DeleteMapping("/models/{id}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	void delete(@PathVariable UUID id) {
+		var m = find(id);
+		db.sql("DELETE FROM model WHERE id = :id").param("id", id).update();
+		for (Object k : new Object[] { m.get("ifcKey"), m.get("glbKey") })
+			if (k != null) s3.deleteObject(b -> b.bucket(bucket).key((String) k));
+	}
+
 	/** FAILED 모델의 잡 재등록. 이전 잡 행은 이력으로 남긴다 (conversion_job 1:N). */
 	@PostMapping("/models/{id}/retry")
 	Map<String, Object> retry(@PathVariable UUID id) {
@@ -104,7 +114,7 @@ class ModelController {
 
 	private static final Set<String> DONE = Set.of("READY", "FAILED");
 	private static final String SELECT = """
-		SELECT m.id, m.name, m.status, m.ifc_schema "ifcSchema", m.glb_key "glbKey",
+		SELECT m.id, m.name, m.status, m.ifc_schema "ifcSchema", m.glb_key "glbKey", m.ifc_key "ifcKey",
 		       m.element_count "elementCount", m.created_at "createdAt",
 		       ST_AsGeoJSON(m.footprint)::text footprint, m.map_conversion::text "mapConversion",
 		       j.status "jobStatus", j.progress, j.attempts, j.error

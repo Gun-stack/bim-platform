@@ -17,7 +17,7 @@ flowchart LR
 
 | 서비스 | 이미지 | 역할 |
 |---|---|---|
-| `web` | node 빌드 → nginx 정적 서빙 | UI. API 프록시(`/api`, gzip·레이트리밋), MinIO 프록시(`/files/glb/` 만). **외부에 노출되는 유일한 컨테이너** — 나머지는 `127.0.0.1` 바인딩 ([05](05-scale-and-security.md)) |
+| `web` | node 빌드 → nginx 정적 서빙 | UI. API 프록시(`/api`, gzip·레이트리밋), MinIO 프록시(`/files/bim/glb/` 만). **외부에 노출되는 유일한 컨테이너** — 나머지는 `127.0.0.1` 바인딩 ([05](05-scale-and-security.md)) |
 | `api` | eclipse-temurin:25 | 모델/요소/공간/지도/FMS API, SSE 진행상태, 잡 등록 |
 | `ifc-worker` | python:3.13-slim + IfcOpenShell 0.8.5 (pip) | IFC → glb, 요소/속성/공간계층/지리참조 추출, (M5) IDS 검증 |
 | `postgis` | postgis/postgis:16-3.4 | 메타데이터, 요소 속성(jsonb), 공간 데이터, 잡 큐 |
@@ -46,7 +46,7 @@ sequenceDiagram
   K->>P: bulk insert element, spatial_node; update model(READY, footprint)
   K->>P: job DONE (progress 0→100 중간 갱신)
   A-->>W: SSE progress / READY
-  W->>S: GET /files/glb/{id}.glb (nginx → bim/glb/ 만 프록시, 익명 읽기)
+  W->>S: GET /files/bim/glb/{id}.glb (nginx → bim/glb/ 만 프록시, 익명 읽기)
 ```
 
 진행률은 worker가 `conversion_job.progress`를 갱신하고 api가 1초 간격 폴링해 SSE로 내보낸다. LISTEN/NOTIFY는 필요해지면 교체.
@@ -105,6 +105,7 @@ src/
 | GET | `/api/models/{id}` | 상태, glb URL, 스키마, 풋프린트 |
 | GET | `/api/models/{id}/events` | SSE 진행 상태 |
 | POST | `/api/models/{id}/retry` | FAILED 모델 잡 재등록 |
+| DELETE | `/api/models/{id}` | 모델 삭제 — DB CASCADE(요소·자산·작업지시·잡) + S3 source.ifc/glb. 목록 페이지 휴지통 버튼(confirm) |
 | GET | `/api/models/{id}/spatial` | 공간 계층 트리 |
 | GET | `/api/models/{id}/elements?ifcClass=&storey=&q=&limit=&offset=` | 요소 검색 (속성 제외, 가벼운 목록). limit/offset 선택, 기본 전체 |
 | GET | `/api/models/{id}/property-keys` · `/property-values?key=Pset.Prop` | 뷰어 색상 모드: 키 목록(상위 200)·키별 값 |

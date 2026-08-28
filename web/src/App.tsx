@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { api, type Model } from './api'
-import { AlertCircle, Box, CheckCircle2, Loader2, MapPin, RotateCcw, Upload } from 'lucide-react'
+import { AlertCircle, Box, CheckCircle2, Loader2, MapPin, RotateCcw, Trash2, Upload } from 'lucide-react'
 const Viewer = lazy(() => import('./viewer/Viewer'))
 const FmPage = lazy(() => import('./FmPage'))
 const MapPage = lazy(() => import('./MapPage'))
@@ -57,6 +57,7 @@ function Models() {
   }
   const retry = (id: string) => api(`/models/${id}/retry`, { method: 'POST' })
     .then((u: Model) => setModels(ms => ms.map(x => x.id === u.id ? u : x))).catch(e => setErr(e.message))
+  const remove = (m: Model) => { if (!window.confirm(`"${m.name}" 모델을 삭제할까요? 자산·작업지시도 함께 지워집니다.`)) return; api(`/models/${m.id}`, { method: 'DELETE' }).then(() => setModels(ms => ms.filter(x => x.id !== m.id))) }
 
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 860, margin: '0 auto', padding: '32px 20px' }}>
@@ -81,7 +82,7 @@ function Models() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 180px 160px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
           <span>모델</span><span>상태</span><span>스키마</span><span style={{ textAlign: 'right' }}>요소</span><span>진행</span><span /></div>
         {models.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>아직 모델이 없습니다. 위에서 IFC 를 올려보세요 — <code>samples/</code> 에 예제 4개가 있습니다.</div>}
-        {models.map(m => <Row key={m.id} m={m} onRetry={() => retry(m.id)} />)}
+        {models.map(m => <Row key={m.id} m={m} onRetry={() => retry(m.id)} onRemove={() => remove(m)} />)}
       </div>
     </main>
   )
@@ -94,7 +95,7 @@ const STATUS: Record<Model['status'], { label: string; color: string; bg: string
   FAILED: { label: '실패', color: '#b91c1c', bg: '#fee2e2', icon: AlertCircle },
 }
 
-function Row({ m, onRetry }: { m: Model; onRetry: () => void }) {
+function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove: () => void }) {
   const st = STATUS[m.status], Icon = st.icon, running = m.status === 'UPLOADED' || m.status === 'PROCESSING'
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 180px 160px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: '1px solid #eee' }}>
@@ -117,6 +118,7 @@ function Row({ m, onRetry }: { m: Model; onRetry: () => void }) {
           <a href={`#/models/${m.id}/fm`} title="자산·작업지시" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>FM</a>
           <a href={`#/models/${m.id}`} style={{ padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 12 }}>뷰어</a></span>}
         {m.status === 'FAILED' && <button onClick={onRetry} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12 }}><RotateCcw size={12} /> 재시도</button>}
+        {m.status !== 'PROCESSING' && <button onClick={onRemove} title="모델 삭제" style={{ marginLeft: 4, padding: '5px 7px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#999', verticalAlign: 'middle' }}><Trash2 size={12} /></button>}
       </div>
     </div>
   )

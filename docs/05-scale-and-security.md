@@ -33,13 +33,13 @@
 |---|---|---|
 | 자격증명 | compose·application.yml·worker 에 `bim`/`minio123` 하드코딩 | `.env`(`.env.example` 참고) → `POSTGRES_PASSWORD`, `MINIO_ROOT_USER/PASSWORD` → api(`DB_PASSWORD`, `S3_ACCESS_KEY/SECRET_KEY`)·worker 동일 env. 기본값은 로컬 개발용 |
 | 포트 노출 | postgis 5432, minio 9000/9001, api 8080 이 `0.0.0.0` | 전부 `127.0.0.1` 바인딩. 외부는 **web(80) 하나** |
-| MinIO 원본 IFC | `/files/` 가 버킷 전체 프록시(버킷 정책만으로 차단) | nginx 는 `/files/glb/` 만 프록시. `models/…/source.ifc` 는 경로 자체가 없음(index.html 폴백) — 정책 + 프록시 이중 차단 |
+| MinIO 원본 IFC | `/files/` 가 버킷 전체 프록시(버킷 정책만으로 차단) | nginx 는 `/files/bim/glb/` 만 프록시. `models/…/source.ifc` 는 경로 자체가 없음(index.html 폴백) — 정책 + 프록시 이중 차단 |
 | actuator | api 직접 접근 시 health 노출 | web 경유 `/actuator/` 404. api 는 로컬 바인딩 |
 | 응답 헤더 | 없음 | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `server_tokens off` |
 | 레이트리밋 | 없음 | `/api/` IP 당 20 req/s, 버스트 40, 초과 시 **429** (뷰어 초기 로드 5~6 요청 기준) |
 | 업로드 | `.ifc` 확장자 + 500 MB 상한 (기존) | 동일 |
 
-검증(2026-08-28): gzip 180 KB, `/files/glb/{id}.glb` 200, `/files/models/{id}/source.ifc` → text/html 462 B(index), `/actuator/health` 404, 60회 연타 시 429 7회, 컨테이너 포트 `127.0.0.1:*` 확인.
+검증(2026-08-28): gzip 180 KB, `/files/bim/glb/{id}.glb` 200, `/files/models/{id}/source.ifc` → text/html 462 B(index), `/actuator/health` 404, 60회 연타 시 429 7회, 컨테이너 포트 `127.0.0.1:*` 확인.
 
 ### 남은 것
 - 인증(프록시 Basic 또는 OIDC) — 이 저장소 범위 밖
