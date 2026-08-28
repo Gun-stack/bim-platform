@@ -157,18 +157,18 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {/* 하단 툴바 */}
           <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 2, background: '#fff', padding: 4, borderRadius: 10, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d' }}>
             <Tool icon={Home} label="홈" onClick={() => scene.current?.preset('home')} />
-            <Tool icon={Maximize} label="핏 (더블클릭)" onClick={() => scene.current?.fit(scene.current.selected)} />
+            <Tool icon={Maximize} label="선택 요소에 맞춤 (더블클릭)" onClick={() => scene.current?.fit(scene.current.selected)} />
             <Tool icon={Grid2x2} label="평면" onClick={() => scene.current?.preset('top')} />
             <Tool icon={RectangleHorizontal} label="정면" onClick={() => scene.current?.preset('front')} />
             <Gap />
-            <Tool icon={Focus} label="격리 (선택 외 반투명)" active={focus === 'ghost'} disabled={!selected} onClick={() => setFocus(focus === 'ghost' ? 'none' : 'ghost')} />
-            <Tool icon={EyeOff} label="나머지 숨김" active={focus === 'hide'} disabled={!selected} onClick={() => setFocus(focus === 'hide' ? 'none' : 'hide')} />
-            <Tool icon={RotateCcw} label="전체 표시" disabled={focus === 'none'} onClick={() => setFocus('none')} />
+            <Tool icon={Focus} label="격리 — 선택 외 반투명" hint="요소를 먼저 선택" active={focus === 'ghost'} disabled={!selected} onClick={() => setFocus(focus === 'ghost' ? 'none' : 'ghost')} />
+            <Tool icon={EyeOff} label="나머지 숨김" hint="요소를 먼저 선택" active={focus === 'hide'} disabled={!selected} onClick={() => setFocus(focus === 'hide' ? 'none' : 'hide')} />
+            <Tool icon={RotateCcw} label="격리·숨김 해제" hint="적용된 격리·숨김 없음" disabled={focus === 'none'} onClick={() => setFocus('none')} />
             <Gap />
-            <Tool icon={Scissors} label="수평 단면" active={clip != null} disabled={!bounds} onClick={() => setClip(clip == null ? bounds!.max[1] - 0.01 : null)} />
-            <Tool icon={Combine} label="재질별 병합" active={opts.merged} onClick={() => setOpts({ ...opts, merged: !opts.merged })} />
+            <Tool icon={Scissors} label="수평 단면 — 층 스냅 가능" active={clip != null} disabled={!bounds} onClick={() => setClip(clip == null ? bounds!.max[1] - 0.01 : null)} />
+            <Tool icon={Combine} label="재질별 병합 — draw call 줄이기" active={opts.merged} onClick={() => setOpts({ ...opts, merged: !opts.merged })} />
             <Gap />
-            <Tool icon={copied ? Check : Link} label="뷰포인트 URL 복사" onClick={share} />
+            <Tool icon={copied ? Check : Link} label="현재 뷰·선택·단면을 URL 로 복사" onClick={share} />
           </div>
         </div>
       </Panel>
@@ -203,12 +203,16 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function Tool({ icon: Icon, label, onClick, active, disabled }: { icon: LucideIcon; label: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
+function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { icon: LucideIcon; label: string; hint?: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
   const [hov, setHov] = useState(false)
-  return <button title={label} aria-label={label} onClick={onClick} disabled={disabled} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}
-    style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', border: 0, borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
-             background: active ? '#2563eb' : hov && !disabled ? '#eef2ff' : 'transparent', color: active ? '#fff' : disabled ? '#c5c5c5' : '#333', transition: 'background .12s' }}>
-    <Icon size={18} strokeWidth={1.8} /></button>
+  return <span style={{ position: 'relative', display: 'inline-block' }} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
+    <button aria-label={label} onClick={onClick} disabled={disabled}
+      style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', border: 0, borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
+               background: active ? '#2563eb' : hov && !disabled ? '#eef2ff' : 'transparent', color: active ? '#fff' : disabled ? '#c5c5c5' : '#333', transition: 'background .12s' }}>
+      <Icon size={18} strokeWidth={1.8} /></button>
+    {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: '#222', color: '#fff', padding: '4px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: '0 2px 6px #0003' }}>
+      {label}{disabled && hint && <span style={{ color: '#aaa' }}> · {hint}</span>}</span>}
+  </span>
 }
 
 const Gap = () => <span style={{ width: 1, background: '#e3e3e3', margin: '6px 4px' }} />
