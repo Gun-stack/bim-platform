@@ -62,6 +62,13 @@ curl -X POST localhost:8080/api/models/<id>/retry                               
 
 뷰어에서 요소 선택 → "자산 · FM" 탭 → 자산 등록(IFC Pset 스냅샷) → 점검 OK/결함 → 작업지시(현재 뷰포인트 저장). `#/models/{id}/fm` 보드에서 "3D" 를 누르면 뷰어가 그 위치·선택으로 돌아간다.
 
+### 설비 계통 (M6)
+
+![M6 계통별 색](docs/images/m6-systems.png)
+![M6 계통 추적](docs/images/m6-route.png)
+
+`samples/mep-building.ifc` — `samples/gen/gen_mep.py` 로 만든 가상 업무동(지하 변전실·펌프실·수조 + 3개 층, 층별 A/B 구역). 전기·급수·배수·소방 4계통을 IfcDistributionSystem 과 흐름 연결로 넣었다. 뷰어 "계통" 탭에서 계통별 색, 요소 선택 → **상류(원천까지) / 하류(말단까지)** 추적.
+
 ### 지도 (M3)
 
 ![M3 지도](docs/images/m3-map.png)

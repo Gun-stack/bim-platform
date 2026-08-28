@@ -1,0 +1,65 @@
+# 건물 설비 계통(MEP)을 IFC 로 표현하고 추적하기 (M6 학습 노트)
+
+> 왜 지도 대신 이것인가: 시설관리자가 묻는 건 "이 건물이 지구 어디냐" 가 아니라 **"이 스프링클러는 어느 밸브·펌프·수조에서 오나", "이 구역 정전이면 어느 분전반을 봐야 하나"** 다. 코드: `samples/gen/gen_mep.py`, `worker/extract.py`, `SystemController`, `web/src/viewer/SystemPanel.tsx`.
+
+## 가상 건물
+
+24 × 12 m, 지하 1층(변전실·펌프실·수조실) + 지상 3층. 층마다 A/B 구역(`IfcSpace`), 코어에 EPS(전기 샤프트)·PS(배관 샤프트). 좌표는 건물 남서 모서리 원점의 **상대좌표(m)** — 지리참조 없음. 가구·마감 없이 공용부 설비만.
+
+```
+              3F  LP-3F ─ LP-3F-A ─ 조명×4      AV-3F ─ 주관 ─ 스프링클러×6      밸브 ─ 위생기구×2 ─ 횡주관
+              2F  ⋮                              ⋮                                ⋮
+              1F  ⋮                              ⋮                                ⋮
+   전기 ──────────┤ EPS 입상 트레이           소방 ──┤ 소화 입상관              급수 ──┤ 급수 입상관     배수 ──┤ 배수 입상관
+              B1  TR-1 변압기 → MDB → 트레이     FT-1 소화수조 → FP-1 소화펌프    WT-1 저수조 → WP-1 급수펌프    → SP-1 집수정
+```
+
+| 계통 | `IfcDistributionSystem.PredefinedType` | 원천 → 말단 | 요소 |
+|---|---|---|---|
+| 전기 | ELECTRICAL | 변압기 → 메인분전반 → 입상 트레이 → 층 분전반 → 구역 분전반 → 조명 | IfcTransformer, IfcElectricDistributionBoard, IfcCableCarrierSegment, IfcLightFixture |
+| 급수 | DOMESTICCOLDWATER | 저수조 → 펌프 → 입상관 → 층 분기관 → 구역 밸브 → 위생기구 | IfcTank, IfcPump, IfcPipeSegment, IfcValve, IfcSanitaryTerminal |
+| 배수 | WASTEWATER | 위생기구 → 횡주관 → 입상관 → 집수정 | (역방향) |
+| 소방 | FIREPROTECTION | 소화수조 → 소화펌프 → 입상관 → 층 알람밸브 → 주관 → 스프링클러 | IfcFireSuppressionTerminal, IfcValve(알람밸브) |
+
+## IFC 에서 계통과 흐름을 담는 자리
+
+| 개념 | IFC | 우리 |
+|---|---|---|
+| 계통(그룹) | `IfcSystem` / `IfcDistributionSystem` + `IfcRelAssignsToGroup` | `system`, `element_system` (N:M — 위생기구는 급수·배수 둘 다) |
+| 흐름 연결 | 정식은 `IfcDistributionPort` + `IfcRelConnectsPorts`(포트 방향 SOURCE/SINK) | `IfcRelConnectsElements`(Relating=상류, Related=하류, Description="FLOW") 로 축소 → `connection` |
+| 구역 | `IfcSpace`(층 분해) 또는 `IfcZone` | `IfcSpace` 컨테이너 — 요소의 `spatial_node_id` |
+| 설비 속성 | `Pset_TransformerTypeCommon`, `Pset_ElectricalDeviceCommon`, `Pset_PipeSegmentTypeCommon` … | 그대로 jsonb |
+
+포트를 안 쓴 이유: 포트는 요소당 2개 이상 객체가 더 생기고(150 요소 → 300+ 포트) 방향은 결국 SOURCE/SINK 플래그다. 원천→말단 방향을 관계 하나로 적는 편이 추출·추적 모두 단순하다. 실제 저작 툴(Revit MEP)이 내보내는 IFC 는 포트 기반이므로 **실무 파일을 받으면 `IfcRelConnectsPorts` → `connection` 변환기를 하나 더 붙이면 된다** — 스키마는 그대로.
+
+## 추적 = 그래프 탐색
+
+`connection(from, to)` 는 방향 그래프. 상류 추적은 `to = 나` 인 edge 를 따라 원천까지, 하류는 `from = 나` 로 말단까지. PostgreSQL 재귀 CTE 한 방:
+
+```sql
+WITH RECURSIVE r AS (
+  SELECT e.id, 0 depth, ARRAY[e.id] path FROM element e WHERE global_id = :gid
+  UNION ALL
+  SELECT e.id, r.depth+1, r.path || e.id FROM r JOIN connection c ON c.to_element_id = r.id JOIN element e ON e.id = c.from_element_id
+   WHERE NOT e.id = ANY(r.path) AND r.depth < 50)
+SELECT DISTINCT ON (id) ... ORDER BY id, depth
+```
+`path` 배열로 순환 방지, `DISTINCT ON` 으로 여러 경로로 닿는 요소는 가장 짧은 depth 만. 상류는 보통 사슬(8단계), 하류는 나무(변압기 → 43개).
+
+## 뷰어에서
+
+- "계통별 색": 계통 멤버는 의미색(전기 주황·급수 파랑·배수 갈색·소방 빨강), 구조체는 반투명 — 건물 안의 배관·트레이가 보인다.
+- 요소 하나 선택 → 상류/하류. 경로는 파랑(상류)/초록(하류), 선택 요소 주황, 나머지 반투명. "경로만 보기" 는 솔로 모델 재사용.
+- 층·구역 필터(트리 눈/솔로)와 조합: "2F-B 구역 소방" = 트리에서 2F-B 솔로 + 계통 색.
+
+## FM 시나리오
+
+1. 3층 B구역 조명 고장 신고 → 조명 선택 → 상류 → `LP-3F-B 구역 분전반` 부터 확인, 그래도 안 되면 `LP-3F` → `MDB`.
+2. 급수 펌프 교체 예정 → 펌프 선택 → 하류 → 영향 범위 = 전 층 위생기구 26개 → 작업지시에 첨부(뷰포인트 저장).
+3. 1층 A구역 스프링클러 오작동 → 상류 → `AV-1F 알람밸브` 잠그면 1층만 차단, 그 위 `소화 입상관` 잠그면 전 층.
+
+## 참고
+
+- IFC4.3 IfcDistributionSystem: https://ifc43-docs.standards.buildingsmart.org/IFC/RELEASE/IFC4x3/HTML/lexical/IfcDistributionSystem.htm
+- IfcRelConnectsPorts / IfcDistributionPort: 같은 문서의 Domain > Shared Building Services
+- IfcOpenShell API `system.add_system / assign_system`, `geometry.connect_element`

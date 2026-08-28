@@ -29,7 +29,8 @@ export class Scene3D {
   private mergedRanges: { mesh: THREE.Mesh; ranges: { start: number; end: number; gid: string }[] }[] = []
   private picked = new Set<string>()
   private focusSet: Focus
-  private colors?: Map<string, number>   // 색상 모드: gid → hex. 없는 요소는 회색
+  private colors?: Map<string, number>   // 색상 모드: gid → hex. 없는 요소는 회색 또는 반투명(ghostOthers)
+  private ghostOthers = false
   private colorMats = new Map<number, THREE.Material>()
   // 섹션 박스: 축마다 min/max 두 평면. Plane(normal, c): normal·p + c >= 0 인 쪽만 남긴다
   private clipPlanes = [
@@ -141,7 +142,7 @@ export class Scene3D {
   has(gid: string) { return this.kind.has(gid) }
 
   /** 색상 모드: gid → 색. undefined 면 원래 재질 */
-  setColors(map?: Map<string, number>) { this.colors = map; this.apply() }
+  setColors(map?: Map<string, number>, ghostOthers = false) { this.colors = map; this.ghostOthers = ghostOthers; this.apply() }
 
   /** 격리(나머지 반투명) / 숨김. undefined 면 복원 */
   setFocus(f: Focus) { this.focusSet = f; this.apply() }
@@ -228,7 +229,7 @@ export class Scene3D {
       const gid = m.name, kind = this.kind.get(gid)!, inFocus = !this.focusSet || this.focusSet.gids.has(gid)
       m.visible = this.visible(gid, kind) && (inFocus || this.focusSet?.mode === 'ghost')
       m.material = this.picked.has(gid) ? HIGHLIGHT : !inFocus ? GHOST : kind === 'space' ? SPACE
-        : this.colors ? this.colorMat(this.colors.get(gid) ?? 0xd8d8d8) : this.original.get(m)!
+        : this.colors ? (this.colors.has(gid) ? this.colorMat(this.colors.get(gid)!) : this.ghostOthers ? GHOST : this.colorMat(0xd8d8d8)) : this.original.get(m)!
     }
     if (this.merged) this.setMerged(true)  // 병합 모드면 재구성 (하이라이트·고스트가 자기 그룹으로 분리)
   }

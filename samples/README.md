@@ -18,3 +18,7 @@ curl -sL -o example-project-location.ifc "https://media.githubusercontent.com/me
 ```
 
 주의: buildingSMART 는 2025년 이후 커뮤니티 샘플(Duplex, Schependomlaan 등)을 `buildingsmart-community/Community-Sample-Test-Files` 로 옮겼고 Git LFS 를 쓴다. `raw.githubusercontent.com` 으로 받으면 132바이트 포인터만 온다. Schependomlaan 은 IFC2X3 이라 IFC4 대표로는 FZK-Haus 를 쓴다.
+
+## mep-building.ifc (생성)
+
+`gen/gen_mep.py` 가 IfcOpenShell API 로 만든 가상 건물. 지리참조 없음, 상대좌표. 재생성: `docker compose exec ifc-worker python /tmp/gen_mep.py out.ifc` (컨테이너에 복사 후). 내용은 [docs/study/mep-systems.md](../docs/study/mep-systems.md).

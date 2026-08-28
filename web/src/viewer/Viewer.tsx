@@ -42,11 +42,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
   // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
   useEffect(() => {
     const s = scene.current; if (!s) return
-    if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? 0xffaa00 : route.direction === 'up' ? 0x2563eb : 0x16a34a); s.setColors(m); return }
+    if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? 0xffaa00 : route.direction === 'up' ? 0x2563eb : 0x16a34a); s.setColors(m, true); return }
     if (!sysColor || colorMode) { if (!colorMode) s.setColors(undefined); return }
     const m = new Map<string, number>()
     for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, SYSTEM_COLOR[sm.predefinedType ?? ''] ?? 0x888888)
-    s.setColors(m)
+    s.setColors(m, true)   // 구조체는 반투명 — 계통이 건물 안에서 보이게
   }, [sysColor, sysMembers, systemsMeta, route, colorMode, bounds])
   const [menu, setMenu] = useState<{ x: number; y: number }>()
   const [tab, setTab] = useState<'props' | 'fm'>(() => new URLSearchParams(location.hash.split('?')[1] ?? '').has('fm') || new URLSearchParams(location.hash.split('?')[1] ?? '').has('wo') ? 'fm' : 'props')
