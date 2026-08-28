@@ -15,10 +15,10 @@ export type Opts = { openings: boolean; spaces: boolean; merged: boolean }
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 export const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
-export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect }: {
+export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext }: {
   model?: Model; stats: Stats; spatial: SpatialNode[]; elements: ElementRow[]
   hidden: Hidden; setHidden: (h: Hidden) => void; opts: Opts; setOpts: (f: (o: Opts) => Opts) => void
-  selected: Set<string>; onSelect: (gids: string[], mode: SelectMode) => void
+  selected: Set<string>; onSelect: (gids: string[], mode: SelectMode) => void; onContext: (e: React.MouseEvent, gids: string[]) => void
 }) {
   const [tab, setTab] = useState<'spatial' | 'class'>('spatial')
   const [q, setQ] = useState('')
@@ -117,21 +117,21 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       </div>}
 
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }} onClick={e => { if (e.target === e.currentTarget) onSelect([], 'set') }}>
-        {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => clickRow(r, ev)} /> })
+        {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => clickRow(r, ev)} onContext={ev => onContext(ev, r.gids())} /> })
                           : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
-           : flat.map(f => <TreeRow key={f.row.key} row={f.row} depth={f.depth} open={f.open} selected={rowSelected(f.row)} onToggle={toggle} onSolo={solo} onOpen={() => toggleOpen(f.row, f.depth)} onClick={ev => clickRow(f.row, ev)} />)}
+           : flat.map(f => <TreeRow key={f.row.key} row={f.row} depth={f.depth} open={f.open} selected={rowSelected(f.row)} onToggle={toggle} onSolo={solo} onOpen={() => toggleOpen(f.row, f.depth)} onClick={ev => clickRow(f.row, ev)} onContext={ev => onContext(ev, f.row.gids())} />)}
       </div>
     </aside>
   )
 }
 
-function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick }: {
-  row: Row; depth: number; open: boolean; selected: boolean; onToggle: (r: Row) => void; onSolo: (r: Row) => void; onOpen: () => void; onClick: (e: React.MouseEvent) => void
+function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick, onContext }: {
+  row: Row; depth: number; open: boolean; selected: boolean; onToggle: (r: Row) => void; onSolo: (r: Row) => void; onOpen: () => void; onClick: (e: React.MouseEvent) => void; onContext: (e: React.MouseEvent) => void
 }) {
   const [hov, setHov] = useState(false)
   const Icon = row.icon
   return (
-    <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)} onClick={onClick}
+    <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)} onClick={onClick} onContextMenu={onContext}
          style={{ display: 'flex', alignItems: 'center', gap: 4, height: 26, paddingLeft: 4 + depth * 14, paddingRight: 4, borderRadius: 5, userSelect: 'none',
                   background: selected ? '#dbe4ff' : hov ? '#eef2ff' : 'transparent', opacity: row.hidden ? 0.45 : 1, fontWeight: row.solo ? 600 : 400, cursor: 'pointer' }}>
       <span onClick={e => { e.stopPropagation(); onOpen() }} style={{ width: 14, display: 'grid', placeItems: 'center', color: '#888' }}>

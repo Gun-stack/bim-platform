@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { Check, Combine, Palette, X, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
+import { Check, Combine, Copy, Eye, Palette, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
 import { api, type ElementDetail, type ElementRow, type Model, type SpatialNode } from '../api'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
 import LeftPanel, { type Hidden, type Opts, type SelectMode } from './LeftPanel'
 import ColorPanel from './ColorPanel'
+import ContextMenu, { type MenuItem } from './ContextMenu'
 
 export default function Viewer({ modelId }: { modelId: string }) {
   const canvas = useRef<HTMLDivElement>(null)
@@ -26,6 +28,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [hover, setHover] = useState<{ x: number; y: number; text: string }>()
   const [copied, setCopied] = useState(false)
   const [colorMode, setColorMode] = useState(false)
+  const [menu, setMenu] = useState<{ x: number; y: number }>()
 
   useEffect(() => {
     Promise.all([api(`/models/${modelId}`), api(`/models/${modelId}/spatial`), api(`/models/${modelId}/elements`)])
@@ -63,8 +66,15 @@ export default function Viewer({ modelId }: { modelId: string }) {
       })
     }
     canvas.current.addEventListener('pointermove', onMove)
+    const onCtx = (e: MouseEvent) => {
+      e.preventDefault()
+      const gid = s.hover(e.clientX, e.clientY)
+      if (gid && !s.selected.includes(gid)) s.select([gid])
+      setMenu({ x: e.clientX, y: e.clientY })
+    }
+    canvas.current.addEventListener('contextmenu', onCtx)
     const t = setInterval(() => setStats(s.stats()), 500)
-    return () => { clearInterval(t); canvas.current?.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null }
+    return () => { clearInterval(t); canvas.current?.removeEventListener('pointermove', onMove); canvas.current?.removeEventListener('contextmenu', onCtx); s.dispose(); scene.current = null }
   }, [model?.glbUrl, elements.length])
 
   useEffect(() => {   // 트리 눈 토글 + 표시 옵션 → 표시 조건
@@ -98,6 +108,27 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const cur = hidden.solo?.key === 'sel'
     setHidden({ ...hidden, solo: cur ? undefined : { key: 'sel', label: selection.length === 1 ? (byGid.get(selection[0])?.name ?? selection[0]) : `선택 ${selection.length}개`, gids: selSet } })
   }
+  const hideSelected = () => { const g = new Set(hidden.gids); for (const x of selection) g.add(x); setHidden({ ...hidden, gids: g }); scene.current?.select([]) }
+  const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
+  const menuItems = (): MenuItem[] => {
+    const n = selection.length, none = n === 0, label = n === 1 ? (byGid.get(selection[0])?.name ?? selection[0]) : `${n}개`
+    return [
+      { icon: Maximize, label: none ? '전체 보기' : `맞춤: ${label}`, hint: 'dbl', onClick: () => scene.current?.fit() },
+      'sep',
+      { icon: Focus, label: focus === 'ghost' ? '격리 해제' : '격리 (나머지 반투명)', disabled: none && focus !== 'ghost', onClick: () => setFocus(focus === 'ghost' ? 'none' : 'ghost') },
+      { icon: EyeOff, label: hidden.solo?.key === 'sel' ? '선택만 보기 해제' : '선택만 보기', disabled: none && hidden.solo?.key !== 'sel', onClick: soloSelected },
+      { icon: EyeOff, label: '숨김', disabled: none, onClick: hideSelected },
+      { icon: Eye, label: '숨긴 것 모두 표시', disabled: !anyHidden, onClick: () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); setFocus('none') } },
+      'sep',
+      { icon: Copy, label: n === 1 ? 'GlobalId 복사' : `GlobalId ${n}개 복사`, disabled: none, onClick: () => navigator.clipboard?.writeText(selection.join('\n')) },
+      { icon: XCircle, label: '선택 해제', hint: 'Esc', disabled: none, onClick: () => scene.current?.select([]) },
+    ]
+  }
+  const onContext = (e: React.MouseEvent, gids: string[]) => {
+    e.preventDefault()
+    if (gids.length && !gids.every(g => selSet.has(g))) scene.current?.select(gids)
+    setMenu({ x: e.clientX, y: e.clientY })
+  }
   const onSelect = (gids: string[], mode: SelectMode) => scene.current?.select(gids, mode === 'toggle' ? 'toggle' : 'set')
 
   const share = () => {   // 현재 카메라·선택·단면 → URL
@@ -114,7 +145,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   return (
     <Group orientation="horizontal" style={{ height: '100vh', fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
-        <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} />
+        <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} />
       </Panel>
       <Separator style={sep} />
 
@@ -130,6 +161,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {hidden.solo && <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 999, fontSize: 12, boxShadow: '0 2px 8px #0003', maxWidth: 320 }}>
             <Focus size={13} /> 이것만 보기: <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hidden.solo.label}</b>
             <X size={14} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setHidden({ ...hidden, solo: undefined })} /></div>}
+
+          {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems()} onClose={() => setMenu(undefined)} />}
 
           {/* 단면 슬라이더: 단면 모드일 때만 */}
           {clip != null && bounds && (
