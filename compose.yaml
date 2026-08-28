@@ -4,8 +4,8 @@ services:
     environment:
       POSTGRES_DB: bim
       POSTGRES_USER: bim
-      POSTGRES_PASSWORD: bim
-    ports: ["5432:5432"]
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bim}
+    ports: ["127.0.0.1:5432:5432"]   # 호스트 로컬만. 외부 노출은 web 뿐
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bim -d bim"]
@@ -17,9 +17,9 @@ services:
     image: minio/minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
-    ports: ["9000:9000", "9001:9001"]
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: [minio:/data]
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -33,7 +33,7 @@ services:
     depends_on:
       minio: { condition: service_healthy }
     entrypoint: >
-      sh -c "mc alias set local http://minio:9000 minio minio123 &&
+      sh -c "mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minio} ${MINIO_ROOT_PASSWORD:-minio123} &&
              mc mb --ignore-existing local/bim &&
              mc anonymous set download local/bim/glb"   # glb 만 공개 읽기, source.ifc 는 비공개
 
@@ -41,8 +41,11 @@ services:
     build: ./api
     environment:
       DB_HOST: postgis
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-bim}
       S3_ENDPOINT: http://minio:9000
-    ports: ["8080:8080"]
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
+    ports: ["127.0.0.1:8080:8080"]
     depends_on:
       postgis: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
@@ -57,7 +60,10 @@ services:
     build: ./ifc-worker
     environment:
       DB_HOST: postgis
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-bim}
       S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
       # GEOM_THREADS: 4   # 기하 변환 스레드. 스레드당 ~200MB (docs/study/ifcopenshell-geom.md)
     depends_on:
       api: { condition: service_healthy }

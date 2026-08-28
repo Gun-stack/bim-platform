@@ -13,7 +13,7 @@ from psycopg.types.json import Jsonb
 from . import convert as conv, extract, georef
 
 log = logging.getLogger("worker")
-DSN = f"postgresql://bim:bim@{os.environ.get('DB_HOST', 'localhost')}:5432/bim"
+DSN = f"postgresql://bim:{os.environ.get('DB_PASSWORD', 'bim')}@{os.environ.get('DB_HOST', 'localhost')}:5432/bim"
 POLL_SEC = 2
 STALE = "10 minutes"
 HEARTBEAT_SEC = int(os.environ.get("JOB_HEARTBEAT_SEC", "30"))
@@ -95,7 +95,7 @@ class Heartbeat:
 
 def convert(conn, job_id, model_id, lease_owner):
     import tempfile
-    s3 = Minio(S3, access_key="minio", secret_key="minio123", secure=False)
+    s3 = Minio(S3, access_key=os.environ.get("S3_ACCESS_KEY", "minio"), secret_key=os.environ.get("S3_SECRET_KEY", "minio123"), secure=False)
     ifc_key = conn.execute("SELECT ifc_key FROM model WHERE id=%s", (model_id,)).fetchone()[0]
     # A fenced-out worker may still finish native conversion. Never let it overwrite
     # the object referenced by a newer lease; only the winning DB transaction publishes this key.

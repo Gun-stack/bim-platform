@@ -4,14 +4,14 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/bim
     username: bim
-    password: bim
+    password: ${DB_PASSWORD:bim}
   servlet.multipart:
     max-file-size: 500MB
     max-request-size: 500MB
 s3:
   endpoint: ${S3_ENDPOINT:http://localhost:9000}
-  access-key: minio
-  secret-key: minio123
+  access-key: ${S3_ACCESS_KEY:minio}
+  secret-key: ${S3_SECRET_KEY:minio123}
   bucket: bim
 management.endpoints.web.exposure.include: health
 spring.web.error.include-message: always  # Boot 4 이름 (server.error.* 는 구 이름)

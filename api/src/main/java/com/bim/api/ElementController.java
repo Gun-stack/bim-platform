@@ -21,10 +21,12 @@ class ElementController {
 			  FROM spatial_node WHERE model_id = :id ORDER BY id""").param("id", id).query().listOfRows();
 	}
 
-	/** 속성 제외한 가벼운 목록. storey 는 spatial_node.id — 그 아래 Space 까지 포함. */
+	/** 속성 제외한 가벼운 목록. storey 는 spatial_node.id — 그 아래 Space 까지 포함.
+	 *  limit/offset 은 선택(기본 전체) — 뷰어 트리는 전체가 필요하고 2만 요소 2.5MB/124ms 라 아직 페이징 안 함 (05-scale-and-security). 외부 연동·목록 UI 용. */
 	@GetMapping("/elements")
 	List<Map<String, Object>> elements(@PathVariable UUID id, @RequestParam(required = false) String ifcClass,
-	                                   @RequestParam(required = false) Long storey, @RequestParam(required = false) String q) {
+	                                   @RequestParam(required = false) Long storey, @RequestParam(required = false) String q,
+	                                   @RequestParam(required = false) Integer limit, @RequestParam(required = false) Integer offset) {
 		return db.sql("""
 			WITH RECURSIVE sub AS (
 			  SELECT id FROM spatial_node WHERE id = :storey
@@ -35,8 +37,8 @@ class ElementController {
 			   AND (:ifcClass::text IS NULL OR ifc_class = :ifcClass)
 			   AND (:storey::bigint IS NULL OR spatial_node_id IN (SELECT id FROM sub))
 			   AND (:q::text IS NULL OR name ILIKE '%' || :q || '%' OR global_id = :q)
-			 ORDER BY ifc_class, name""")
-			.param("id", id).param("ifcClass", ifcClass).param("storey", storey).param("q", q).query().listOfRows();
+			 ORDER BY ifc_class, name LIMIT :limit OFFSET coalesce(:offset, 0)""")
+			.param("id", id).param("ifcClass", ifcClass).param("storey", storey).param("q", q).param("limit", limit).param("offset", offset).query().listOfRows();
 	}
 
 	/** 색상 모드용: 모델에 등장하는 "Pset.속성" 키와 요소 수. 상위 200개 */
