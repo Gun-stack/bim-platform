@@ -4,18 +4,21 @@
 
 ## 측정
 
+> Duplex, 2026-08-28 재측정. 처음 측정(192 calls)은 아래 "분류 버그" 상태였다.
+
 | 상태 | draw calls | 삼각형 |
 |---|---|---|
-| 기본 (요소 218 + Space 21) | 192 | 22,684 |
-| Opening 표시 | 384 | 28,428 |
-| Space 숨김 | 171 | 22,116 |
-| Level 2 만 | 73 | 6,140 |
-| **재질별 병합** | **14** | 22,684 |
-| 병합 + 선택 1개 | 15 | 22,684 |
+| 기본 (요소 + Space 21) | 334 | 27,604 |
+| Opening 표시 (+50) | 384 | 28,428 |
+| Space 숨김 | 313 | 27,036 |
+| Level 2 숨김 (트리 눈 토글) | 171 | 18,264 |
+| **재질별 병합** | **24** | 27,604 |
 
-삼각형은 그대로인데 draw call 이 192 → 14. 병합이 줄이는 건 GPU 일이 아니라 **CPU 가 GPU 에 명령을 보내는 횟수**다. 모바일·통합 GPU 에서 수천 draw call 은 그 자체로 병목이고, 삼각형 수십만은 아니다.
+삼각형은 그대로인데 draw call 이 334 → 24. 병합이 줄이는 건 GPU 일이 아니라 **CPU 가 GPU 에 명령을 보내는 횟수**다. 모바일·통합 GPU 에서 수천 draw call 은 그 자체로 병목이고, 삼각형 수십만은 아니다.
 
-(glb 노드 수 192 ≠ 요소 218: glb 는 iterator 가 낸 "기하 있는 것" 이고 element 는 IfcElement. 기하 없는 요소, Opening, Space 가 차이를 만든다. [ifc-spatial-structure.md](ifc-spatial-structure.md).)
+### 분류 버그에서 배운 것 — glb 노드 수 ≠ Mesh 수
+
+glb 노드는 286개(요소 218 + Space 21 + Opening 50 − 형상 없는 요소 3)인데 Three.js Mesh 는 384개다. glTF 의 mesh 하나가 **primitive 여러 개**(재질이 다른 부분 — 문짝+문틀)를 가지면 GLTFLoader 는 노드를 `Group` 으로 만들고 자식 `Mesh` 를 `{노드이름}_0`, `_1` 로 이름 붙인다. 처음 코드는 `mesh.name` 을 GlobalId 로 믿어서 이런 자식 142개를 "DB 에 없는 노드 = Opening" 으로 분류해 기본 숨김 처리했다 — 문·창이 일부만 보였는데 샘플이 작아 눈치채지 못했다. 수정: 이름이 GlobalId 형식(22자 `[0-9A-Za-z_$]`)인 쪽(자기 이름 또는 부모 이름)을 취한다. draw call 도 노드가 아니라 **Mesh(= primitive) 수** 로 센다.
 
 ## Three.js 에서 한 draw call 의 단위
 

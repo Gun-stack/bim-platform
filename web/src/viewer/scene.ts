@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 export type Kind = 'element' | 'space' | 'opening'
+const GID = /^[0-9A-Za-z_$]{22}$/
 export type Stats = { calls: number; triangles: number; fps: number }
 const HIGHLIGHT = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 })
 const SPACE = new THREE.MeshStandardMaterial({ color: 0x4488ff, transparent: true, opacity: 0.25, depthWrite: false })
@@ -64,7 +65,8 @@ export class Scene3D {
     gltf.scene.traverse(o => {
       const m = o as THREE.Mesh
       if (!m.isMesh) return
-      const gid = m.name || m.parent?.name || ''
+      // 프리미티브가 여럿인 노드는 GLTFLoader 가 자식 메시를 `GlobalId_0`, `_1` 로 이름 붙인다 → GlobalId 형식(22자)에 맞는 쪽을 취한다
+      const gid = [m.name, m.parent?.name].find(n => GID.test(n ?? '')) ?? m.name
       m.name = gid; this.meshes.push(m); this.original.set(m, m.material)
       this.kind.set(gid, classify(gid))
       if (this.kind.get(gid) === 'space') m.material = SPACE
@@ -111,6 +113,9 @@ export class Scene3D {
 
   get selected() { return this.picked }
 
+  /** glb 에 형상이 있는 요소인지 */
+  has(gid: string) { return this.kind.has(gid) }
+
   /** 격리(나머지 반투명) / 숨김. undefined 면 복원 */
   setFocus(f: Focus) { this.focusSet = f; this.apply() }
 
@@ -152,6 +157,15 @@ export class Scene3D {
     const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length()
     this.controls.target.copy(c); this.camera.position.copy(c).add(new THREE.Vector3(r, r * 0.8, r)); this.controls.update()
     this.select(gid)
+  }
+
+  /** 여러 요소(트리 노드 범위)에 카메라 맞춤 */
+  fitAll(gids: string[]) {
+    const set = new Set(gids), ms = this.meshes.filter(m => set.has(m.name)); if (!ms.length) return
+    const box = ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3())
+    const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize()
+    this.controls.target.copy(c); this.camera.position.copy(c).addScaledVector(dir, r / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 1.1); this.controls.update()
   }
 
   /** 호버용: 픽킹만, 선택 안 함 */

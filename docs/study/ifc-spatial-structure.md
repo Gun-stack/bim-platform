@@ -42,4 +42,6 @@ IfcProject
 | `spatial_node` 의 IfcSpace | spatial_node 행 | `space` — 반투명, 토글 |
 | 둘 다 없음 | 없음 (Opening 은 element 에서 제외) | `opening` — 기본 숨김 |
 
+주의: GLTFLoader 는 primitive 가 여럿인 노드의 자식 Mesh 를 `GlobalId_0` 처럼 이름 붙인다. 분류는 GlobalId 형식에 맞는 이름(자기 또는 부모)으로 해야 한다([webgl-performance.md](webgl-performance.md) 분류 버그).
+
 분류를 변환 시점이 아니라 뷰어에서 하는 이유: 같은 glb 로 세 가지를 다 토글할 수 있고, 재변환 없이 규칙을 바꿀 수 있다.
