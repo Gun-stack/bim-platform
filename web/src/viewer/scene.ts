@@ -34,6 +34,7 @@ export class Scene3D {
   private clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0)
   private box = new THREE.Box3()
   onPick?: (gids: string[]) => void
+  onContext?: (x: number, y: number) => void
 
   private el: HTMLElement
   private ro: ResizeObserver
@@ -52,11 +53,17 @@ export class Scene3D {
     const down = new THREE.Vector2()
     this.renderer.domElement.addEventListener('pointerdown', e => down.set(e.clientX, e.clientY))
     this.renderer.domElement.addEventListener('pointerup', e => {
-      if (down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 3) return  // 드래그는 회전
+      if (down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 3) return  // 드래그는 회전/팬
       const gid = this.pick(e.clientX, e.clientY)
+      if (e.button === 2) {   // 우클릭: contextmenu 이벤트는 OrbitControls 의 pointer capture·macOS 순서 문제로 신뢰 못 함 → pointerup 에서 연다
+        if (gid && !this.picked.has(gid)) this.select([gid])
+        this.onContext?.(e.clientX, e.clientY)
+        return
+      }
       if (e.metaKey || e.ctrlKey) { if (gid) this.select([gid], 'toggle') }   // Cmd/Ctrl: 토글
       else this.select(gid ? [gid] : [])
     })
+    this.renderer.domElement.addEventListener('contextmenu', e => e.preventDefault())   // 브라우저 기본 메뉴만 막는다
     addEventListener('keydown', this.onKey)
     this.renderer.domElement.addEventListener('dblclick', e => { const g = this.pick(e.clientX, e.clientY); this.fitAll(g ? [g] : []) })
     this.ro = new ResizeObserver(this.onResize); this.ro.observe(el)   // 패널 리사이즈 추종

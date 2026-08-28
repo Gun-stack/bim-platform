@@ -66,15 +66,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
       })
     }
     canvas.current.addEventListener('pointermove', onMove)
-    const onCtx = (e: MouseEvent) => {
-      e.preventDefault()
-      const gid = s.hover(e.clientX, e.clientY)
-      if (gid && !s.selected.includes(gid)) s.select([gid])
-      setMenu({ x: e.clientX, y: e.clientY })
-    }
-    canvas.current.addEventListener('contextmenu', onCtx)
+    s.onContext = (x, y) => setMenu({ x, y })
     const t = setInterval(() => setStats(s.stats()), 500)
-    return () => { clearInterval(t); canvas.current?.removeEventListener('pointermove', onMove); canvas.current?.removeEventListener('contextmenu', onCtx); s.dispose(); scene.current = null }
+    return () => { clearInterval(t); canvas.current?.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null }
   }, [model?.glbUrl, elements.length])
 
   useEffect(() => {   // 트리 눈 토글 + 표시 옵션 → 표시 조건
