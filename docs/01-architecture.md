@@ -100,15 +100,15 @@ src/
 | GET | `/api/models/{id}/events` | SSE 진행 상태 |
 | POST | `/api/models/{id}/retry` | FAILED 모델 잡 재등록 |
 | GET | `/api/models/{id}/spatial` | 공간 계층 트리 |
-| GET | `/api/models/{id}/elements?class=&storey=&q=` | 요소 검색 |
-| GET | `/api/elements/{globalId}` | 요소 + Pset |
+| GET | `/api/models/{id}/elements?ifcClass=&storey=&q=` | 요소 검색 (속성 제외, 가벼운 목록) |
+| GET | `/api/models/{id}/elements/{globalId}` | 요소 + Pset. GlobalId 는 모델 안에서만 유일(같은 파일 재업로드 시 중복)이라 모델 스코프 |
 | PUT | `/api/models/{id}/footprint` | 수동 풋프린트/핀 |
 | GET | `/api/map/footprints?bbox=` | 지도용 GeoJSON |
 | CRUD | `/api/assets`, `/api/inspections`, `/api/work-orders` | FMS |
 
 ## glb ↔ 요소 매핑
 
-glb 노드 이름 = IFC GlobalId (serializer `use-element-guids`, ADR 0005). 프론트는 raycast 히트 노드의 이름으로 `/api/elements/{globalId}` 조회. 별도 ID 매핑 테이블 없음.
+glb 노드 이름 = IFC GlobalId (serializer `use-element-guids`, ADR 0005). 프론트는 raycast 히트 노드의 이름으로 `/api/models/{id}/elements/{globalId}` 조회. 별도 ID 매핑 테이블 없음.
 
 ## 에러 처리
 
