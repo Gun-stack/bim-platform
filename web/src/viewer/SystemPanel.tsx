@@ -1,6 +1,7 @@
 /* oxlint-disable react/only-export-components */
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, CheckCircle2, Droplets, Fan, Flame, Focus, Network, PlugZap, Siren, Snowflake, Thermometer, Waves, Wind, X, ArrowUpDown, Car, type LucideIcon } from 'lucide-react'
+import { patchStatus, statusPatchFor } from './StatusEditor'
 import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
 
 /** 계통별 색 (ColorPanel 팔레트와 별개로 의미색 고정) */
@@ -87,8 +88,7 @@ function StatusBoard({ rows, modelId, gid, reload, onSelect, statusView, setStat
   const abnormal = rows.filter(r => r.status.Status === 'ALARM' || r.status.Status === 'FAULT')
   const sel = gid ? rows.find(r => r.globalId === gid) : undefined
   const setStatus = (Status: string) => { if (!gid) return; setBusy(true); setMsg(undefined)
-    post(`/models/${modelId}/elements/${encodeURIComponent(gid)}/status`, Status === 'ALARM' ? { Status, AlarmAt: new Date().toISOString().slice(0, 16) } : { Status }, 'PATCH')
-      .then(r => { const w = r.workOrder; if (!w) return; setMsg(w.suppressedBy ? `상위 장비 이상(${w.suppressedBy.name}) — 작업지시 억제` : w.reopened ? `10분 내 완료된 작업지시 다시 열림 (${w.assetTag})` : w.existing ? `열린 작업지시 있음 — 재사용 (${w.assetTag})` : `작업지시 자동 생성 (${w.assetTag})`) }).then(reload).catch(e => setMsg(e.message)).finally(() => setBusy(false)) }
+    patchStatus(modelId, gid, statusPatchFor(Status)).then(m => { if (m) setMsg(m) }).then(reload).catch(e => setMsg(e.message)).finally(() => setBusy(false)) }
   const togglePower = () => { setBusy(true); post(`/models/${modelId}/power?source=${power?.source === 'GENERATOR' ? 'UTILITY' : 'GENERATOR'}`, {}).then((p: PowerResult) => setPower(p.source === 'GENERATOR' ? p : undefined)).then(reload).finally(() => setBusy(false)) }
   return (
     <div style={{ padding: '0 6px' }}>

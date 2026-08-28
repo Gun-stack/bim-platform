@@ -5,6 +5,7 @@ import { MapPinned, Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircl
 import { api, type Asset, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type StatusRow, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import SystemPanel, { STATUS_COLOR, systemColor } from './SystemPanel'
 import { StatusBadge, day } from './FmPanel'
+import StatusEditor from './StatusEditor'
 import FmPanel from './FmPanel'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
 import LeftPanel, { type Hidden, type Opts, type SelectMode } from './LeftPanel'
@@ -298,7 +299,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {!selection.length && <p style={{ color: '#888' }}>요소를 클릭하면 속성이 표시됩니다.<br /><span style={{ fontSize: 12 }}>Cmd/Ctrl+클릭: 추가 선택 · Shift+클릭(트리): 범위 · Esc: 해제</span></p>}
           {selection.length === 1 && detail && !('properties' in detail) && <p>glb 노드 <code>{detail.globalId}</code> — {detail.kind === 'space' ? 'IfcSpace (spatial_node)' : 'IfcOpeningElement (element 테이블 제외)'}</p>}
           {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: '#a60', fontSize: 12 }}>이 요소는 glb 에 형상이 없습니다 (IFC 에 Representation 없음 또는 변환 시 제외).</p>}
-          {selection.length === 1 && detail && 'properties' in detail && <Props e={detail} />}
+          {selection.length === 1 && detail && 'properties' in detail && <><StatusEditor modelId={modelId} e={detail} reload={reloadStatus} /><Props e={detail} /></>}
           {selection.length > 1 && <MultiProps selection={selection} byGid={byGid} details={details} />}
           </>}
         </aside>
