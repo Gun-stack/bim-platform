@@ -33,6 +33,8 @@ export class Scene3D {
   onPick?: (gid: string | undefined, kind: Kind | undefined) => void
 
   private el: HTMLElement
+  private ro: ResizeObserver
+  private navCube: NavCube
 
   constructor(el: HTMLElement) {
     this.el = el
@@ -51,8 +53,9 @@ export class Scene3D {
       this.select(this.pick(e.clientX, e.clientY))
     })
     this.renderer.domElement.addEventListener('dblclick', e => this.fit(this.pick(e.clientX, e.clientY)))
-    addEventListener('resize', this.onResize)
-    const loop = () => { this.raf = requestAnimationFrame(loop); this.controls.update(); this.renderer.render(this.scene, this.camera); this.frames++ }
+    this.ro = new ResizeObserver(this.onResize); this.ro.observe(el)   // 패널 리사이즈 추종
+    this.navCube = new NavCube(el, dir => this.lookFrom(dir))
+    const loop = () => { this.raf = requestAnimationFrame(loop); this.controls.update(); this.renderer.render(this.scene, this.camera); this.navCube.sync(this.camera); this.frames++ }
     loop()
   }
 
@@ -132,10 +135,14 @@ export class Scene3D {
   }
 
   preset(name: 'home' | 'top' | 'front' | 'side') {
-    const c = this.box.getCenter(new THREE.Vector3()), s = this.box.getSize(new THREE.Vector3()), d = s.length()
-    const dir = { home: new THREE.Vector3(1, 0.8, 1), top: new THREE.Vector3(0, 1, 0.0001), front: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0) }[name].normalize()
-    this.controls.target.copy(c); this.camera.position.copy(c).addScaledVector(dir, d); this.controls.update()
+    this.lookFrom({ home: new THREE.Vector3(1, 0.8, 1), top: new THREE.Vector3(0, 1, 0.0001), front: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0) }[name])
     this.fit()
+  }
+
+  /** 주어진 방향에서 현재 타깃을 바라보게 (거리 유지). NavCube·프리셋 공용 */
+  lookFrom(dir: THREE.Vector3) {
+    const t = this.controls.target, d = this.camera.position.distanceTo(t) || this.box.getSize(new THREE.Vector3()).length()
+    this.camera.position.copy(t).addScaledVector(dir.clone().normalize(), d); this.controls.update()
   }
 
   /** 카메라를 해당 요소로 */
@@ -157,7 +164,7 @@ export class Scene3D {
     return { calls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles, fps: this.fps }
   }
 
-  dispose() { cancelAnimationFrame(this.raf); removeEventListener('resize', this.onResize); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
+  dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); this.navCube.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
 
   private apply() {
     for (const m of this.meshes) {
@@ -183,4 +190,45 @@ export class Scene3D {
   }
 
   private onResize = () => { this.camera.aspect = this.el.clientWidth / this.el.clientHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(this.el.clientWidth, this.el.clientHeight) }
+}
+
+/** 우하단 방향 큐브. 메인 카메라의 회전만 따라가고, 면을 클릭하면 그 방향에서 보게 한다. */
+class NavCube {
+  private renderer: THREE.WebGLRenderer
+  private scene = new THREE.Scene()
+  private camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100)
+  private cube: THREE.Mesh
+  private el: HTMLCanvasElement
+
+  constructor(parent: HTMLElement, onFace: (dir: THREE.Vector3) => void) {
+    this.el = document.createElement('canvas')
+    Object.assign(this.el.style, { position: 'absolute', right: '12px', bottom: '56px', width: '96px', height: '96px', cursor: 'pointer' })
+    parent.appendChild(this.el)
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.el, alpha: true, antialias: true })
+    this.renderer.setSize(96, 96, false); this.renderer.setPixelRatio(devicePixelRatio)
+    const face = (t: string) => {
+      const c = document.createElement('canvas'); c.width = c.height = 128
+      const g = c.getContext('2d')!; g.fillStyle = '#f4f4f4'; g.fillRect(0, 0, 128, 128); g.strokeStyle = '#999'; g.lineWidth = 6; g.strokeRect(0, 0, 128, 128)
+      g.fillStyle = '#333'; g.font = 'bold 34px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 64, 66)
+      return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) })
+    }
+    // BoxGeometry 재질 순서: +x -x +y -y +z -z
+    this.cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), ['우', '좌', '상', '하', '앞', '뒤'].map(face))
+    this.scene.add(this.cube)
+    this.camera.position.set(0, 0, 3.2)
+    const dirs = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0.0001), new THREE.Vector3(0, -1, 0.0001), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)]
+    this.el.addEventListener('click', e => {
+      const r = this.el.getBoundingClientRect(), ray = new THREE.Raycaster()
+      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera)
+      const hit = ray.intersectObject(this.cube)[0]
+      if (hit?.face) onFace(dirs[hit.face.materialIndex])
+    })
+  }
+
+  sync(main: THREE.Camera) {
+    this.cube.quaternion.copy(main.quaternion).invert()
+    this.renderer.render(this.scene, this.camera)
+  }
+
+  dispose() { this.renderer.dispose(); this.el.remove() }
 }

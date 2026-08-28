@@ -32,9 +32,9 @@
 
 ## 3. 결론 — 우리 뷰어 다음 손질 순서
 
-1. **패널 리사이즈·접기** — react-resizable-panels 1개 추가, 섹션은 `<details>`. 비용 낮음, 체감 큼.
-2. **하단 아이콘 툴바 + 모드 버튼** — 선택/격리/숨김/단면/측정을 토글 아이콘으로. 좌측 패널이 가벼워짐.
-3. **NavCube** — 우하단 작은 큐브(면 클릭 → 프리셋). drei 없이 서브씬 100줄.
+1. ✅ **패널 리사이즈·접기** — react-resizable-panels 4.x (`Group/Panel/Separator`), 섹션은 `<details>`. 캔버스는 `ResizeObserver` 로 추종.
+2. ✅ **하단 아이콘 툴바 + 모드 버튼** — 홈/핏/평면/정면 · 격리/숨김/전체 · 단면/병합 · URL. 단면 슬라이더는 단면 모드일 때만 상단에.
+3. ✅ **NavCube** — `scene.ts` 안 `NavCube` 클래스: 별도 WebGLRenderer(96px, alpha) + BoxGeometry 6면 CanvasTexture 라벨, 메인 카메라 quaternion 의 역을 큐브에 적용, 면 클릭 → `lookFrom(dir)` (거리 유지).
 4. **트리 3모드** — 공간 / 클래스 / (타입은 M5). 노드 체크박스로 표시 토글.
 5. **속성 색상 모드(E)** — Speckle 방식: 속성 선택 → 값별 범례 → 색칠.
 6. **우클릭 컨텍스트 메뉴** — 격리/숨김/핏/속성 복사.
