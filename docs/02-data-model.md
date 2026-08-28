@@ -98,7 +98,7 @@ erDiagram
 - **footprint 계산**: 지리참조가 있으면 IfcSite 하위 IfcBuilding 요소의 XY 바운딩 박스(또는 convex hull)를 EPSG 변환 후 저장. 없으면 NULL, UI에서 수동 핀(Point) → `project.location`.
 - **conversion_job 1:N**: 재시도는 새 행 insert. 실패 이력이 남고 `model.status`는 최신 잡 기준.
 - **인덱스**: `element(model_id, ifc_class)`, `element(model_id, global_id)` unique, `model USING GIST(footprint)`, `conversion_job(status)`.
-- **ifc_schema 정규화**: 헤더 `FILE_SCHEMA`는 `IFC4X3_ADD2`, `IFC4X1` 처럼 접미가 붙는다. 접두 매칭(`IFC2X3` / `IFC4X3` / 그 외 `IFC4` 시작 → `IFC4`)으로 3값 중 하나만 저장.
+- **ifc_schema 정규화**: 헤더 `FILE_SCHEMA`는 `IFC4X3_ADD2` 처럼 접미가 붙지만 IfcOpenShell `file.schema` 가 이미 `IFC2X3` / `IFC4` / `IFC4X3` 로 정규화해 준다(M0 확인). worker는 그 값을 그대로 저장.
 - **제약은 DB에**: status/result 류는 전부 `CHECK`, `asset UNIQUE(model_id, tag)`, `element UNIQUE(model_id, global_id)`. 앱 코드에서 enum 검증 안 함.
 - **삭제 전파**: 소유 관계(model→element 등)는 `ON DELETE CASCADE`, 참조 관계(`element.spatial_node_id`, `asset.element_id`, `work_order.inspection_id`)는 `SET NULL`.
 - **마이그레이션**: Flyway (api 기동 시, `api/src/main/resources/db/migration`). worker는 스키마를 소유하지 않는다. **이 문서와 V1 SQL은 1:1** — 둘 중 하나 바꾸면 나머지도.

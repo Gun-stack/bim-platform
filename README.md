@@ -2,7 +2,7 @@
 
 IFC 모델을 업로드하면 서버에서 변환하고, 웹에서 3D로 보고, 지도 위에 배치하고, 시설관리(FMS) 자산·점검·작업지시로 연결하는 **개인 BIM 미니 플랫폼**.
 
-> 상태: 설계 단계 (2026-08). 코드 없음. `docs/` 부터 읽으세요.
+> 상태: M0 골격 완료 (2026-08-28). `docs/` 부터 읽으세요.
 
 ## 무엇을 보여주려는가
 
@@ -25,11 +25,15 @@ IFC 모델을 업로드하면 서버에서 변환하고, 웹에서 3D로 보고,
 | — | [docs/adr/](docs/adr/) | 아키텍처 결정 기록 |
 | — | [docs/study/](docs/study/) | 개발하며 남기는 학습 노트 |
 
-## 실행 (예정)
+## 실행
 
 ```bash
-docker compose up --build
-# web  → http://localhost:5173
-# api  → http://localhost:8080
-# minio→ http://localhost:9001
+docker compose up -d --build --wait
+# web   → http://localhost:5173
+# api   → http://localhost:8080/actuator/health
+# minio → http://localhost:9001  (minio / minio123)
+# db    → localhost:5432  bim / bim / bim
+docker compose down -v   # 볼륨까지 초기화
 ```
+
+샘플 IFC 는 `samples/README.md` 참고. 로컬 개발: `cd api && ./gradlew test` (Testcontainers, Docker 필요), `cd web && npm run dev`.
