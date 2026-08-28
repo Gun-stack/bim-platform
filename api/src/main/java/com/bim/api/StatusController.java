@@ -40,12 +40,19 @@ class StatusController {
 				var asset = db.sql("SELECT a.id, a.tag FROM asset a JOIN element e ON e.id = a.element_id WHERE e.model_id = :id AND e.global_id = :gid")
 					.param("id", id).param("gid", globalId).query().listOfRows().stream().findFirst().orElse(null);
 				if (asset != null) {
-					var name = db.sql("SELECT name FROM element WHERE model_id = :id AND global_id = :gid").param("id", id).param("gid", globalId).query(String.class).single();
-					UUID wid = db.sql("""
-						INSERT INTO work_order (asset_id, title, viewpoint) VALUES (:a, :t, :v::jsonb) RETURNING id""")
-						.param("a", asset.get("id")).param("t", (status.equals("ALARM") ? "경보 확인: " : "장애 점검: ") + name)
-						.param("v", JSON.writeValueAsString(Map.of("sel", List.of(globalId)))).query(UUID.class).single();
-					wo = Map.of("id", wid, "assetTag", asset.get("tag"));
+					// 중복 억제: 같은 자산에 열린 작업지시(OPEN/IN_PROGRESS)가 있으면 새로 만들지 않고 재사용. DONE 뒤 재발이면 새로 생성.
+					var open = db.sql("SELECT id FROM work_order WHERE asset_id = :a AND status <> 'DONE' ORDER BY created_at DESC LIMIT 1")
+						.param("a", asset.get("id")).query(UUID.class).optional();
+					if (open.isPresent()) {
+						wo = Map.of("id", open.get(), "assetTag", asset.get("tag"), "existing", true);
+					} else {
+						var name = db.sql("SELECT name FROM element WHERE model_id = :id AND global_id = :gid").param("id", id).param("gid", globalId).query(String.class).single();
+						UUID wid = db.sql("""
+							INSERT INTO work_order (asset_id, title, viewpoint) VALUES (:a, :t, :v::jsonb) RETURNING id""")
+							.param("a", asset.get("id")).param("t", (status.equals("ALARM") ? "경보 확인: " : "장애 점검: ") + name)
+							.param("v", JSON.writeValueAsString(Map.of("sel", List.of(globalId)))).query(UUID.class).single();
+						wo = Map.of("id", wid, "assetTag", asset.get("tag"), "existing", false);
+					}
 				}
 			}
 			var el = db.sql("SELECT global_id \"globalId\", name, properties->'Pset_BimStatus' AS s FROM element WHERE model_id = :id AND global_id = :gid")
