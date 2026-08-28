@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
-import { api, type Asset, type ElementDetail, type ElementRow, type Model, type SpatialNode, type Viewpoint, type WorkOrder } from '../api'
+import { api, type Asset, type ElementDetail, type ElementRow, type Model, type Route, type SpatialNode, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
+import SystemPanel, { SYSTEM_COLOR } from './SystemPanel'
 import { StatusBadge, day } from './FmPanel'
 import FmPanel from './FmPanel'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
@@ -33,6 +34,20 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [hover, setHover] = useState<{ x: number; y: number; text: string }>()
   const [copied, setCopied] = useState(false)
   const [colorMode, setColorMode] = useState(false)
+  const [sysMembers, setSysMembers] = useState<Map<number, SystemMember[]>>(new Map())
+  const [sysColor, setSysColor] = useState(false)     // 계통별 색
+  const [route, setRoute] = useState<Route>()          // 추적 결과
+  const [systemsMeta, setSystemsMeta] = useState<{ id: number; predefinedType: string | null }[]>([])
+  useEffect(() => { api(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
+  // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
+  useEffect(() => {
+    const s = scene.current; if (!s) return
+    if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? 0xffaa00 : route.direction === 'up' ? 0x2563eb : 0x16a34a); s.setColors(m); return }
+    if (!sysColor || colorMode) { if (!colorMode) s.setColors(undefined); return }
+    const m = new Map<string, number>()
+    for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, SYSTEM_COLOR[sm.predefinedType ?? ''] ?? 0x888888)
+    s.setColors(m)
+  }, [sysColor, sysMembers, systemsMeta, route, colorMode, bounds])
   const [menu, setMenu] = useState<{ x: number; y: number }>()
   const [tab, setTab] = useState<'props' | 'fm'>(() => new URLSearchParams(location.hash.split('?')[1] ?? '').has('fm') || new URLSearchParams(location.hash.split('?')[1] ?? '').has('wo') ? 'fm' : 'props')
   const [wo, setWo] = useState<WorkOrder>()   // ?wo= 로 열었을 때 상단 배너
@@ -160,7 +175,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
   return (
     <Group orientation="horizontal" style={{ height: '100vh', fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
-        <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} />
+        <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext}
+          systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute}
+            onSolo={(label, gids, key) => setHidden({ ...hidden, solo: hidden.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } })}
+            onSelect={gids => scene.current?.select(gids)} colorMode={sysColor} setColorMode={setSysColor} />} />
       </Panel>
       <Separator style={sep} />
 

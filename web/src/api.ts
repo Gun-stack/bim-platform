@@ -19,3 +19,8 @@ export type WorkOrder = { id: string; title: string; status: 'OPEN' | 'IN_PROGRE
   assetId?: string; assetTag?: string; globalId?: string | null; ifcClass?: string | null; elementName?: string | null }
 export type AssetDetail = Asset & { inspections: Inspection[]; workOrders: WorkOrder[] }
 export const post = (path: string, body: unknown, method = 'POST') => api(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+
+export type System = { id: number; globalId: string; name: string; predefinedType: string | null; memberCount: number; connectionCount: number }
+export type SystemMember = ElementRow & { spatialName: string | null; upstream: number; downstream: number }
+export type RouteNode = { globalId: string; ifcClass: string; name: string | null; depth: number; spatialName: string | null; via: string | null }
+export type Route = { globalId: string; direction: 'up' | 'down'; systems: string[]; nodes: RouteNode[] }

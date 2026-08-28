@@ -15,18 +15,22 @@ export type Opts = { openings: boolean; spaces: boolean; merged: boolean }
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 export const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
-export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext }: {
+export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel }: {
   model?: Model; stats: Stats; spatial: SpatialNode[]; elements: ElementRow[]
   hidden: Hidden; setHidden: (h: Hidden) => void; opts: Opts; setOpts: (f: (o: Opts) => Opts) => void
   selected: Set<string>; onSelect: (gids: string[], mode: SelectMode) => void; onContext: (e: React.MouseEvent, gids: string[]) => void
+  systemPanel?: ReactNode
 }) {
-  const [tab, setTab] = useState<'spatial' | 'class'>('spatial')
+  const [tab, setTab] = useState<'spatial' | 'class' | 'system'>('spatial')
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Set<string>>(new Set())   // 펼친 행 key. Site·Building 은 기본 펼침
   const [anchor, setAnchor] = useState<string>()             // Shift 범위 선택 시작 행
 
   const byNode = useMemo(() => { const m = new Map<number | null, ElementRow[]>(); for (const e of elements) (m.get(e.spatialNodeId) ?? m.set(e.spatialNodeId, []).get(e.spatialNodeId)!).push(e); return m }, [elements])
-  const childrenOf = useMemo(() => { const m = new Map<number | null, SpatialNode[]>(); for (const s of spatial) (m.get(s.parentId) ?? m.set(s.parentId, []).get(s.parentId)!).push(s); return m }, [spatial])
+  const childrenOf = useMemo(() => {   // 층은 elevation 순 (IFC 저장 순서는 툴마다 제멋대로)
+    const m = new Map<number | null, SpatialNode[]>(); for (const s of spatial) (m.get(s.parentId) ?? m.set(s.parentId, []).get(s.parentId)!).push(s)
+    for (const arr of m.values()) arr.sort((a, b) => (a.elevation ?? Infinity) - (b.elevation ?? Infinity))
+    return m }, [spatial])
   const desc = (n: SpatialNode): string[] => [...(byNode.get(n.id) ?? []).map(e => e.globalId), ...(childrenOf.get(n.id) ?? []).flatMap(desc)]
 
   const elRow = (e: ElementRow): Row => ({ key: 'e:' + e.globalId, gid: e.globalId, label: e.name ?? '(이름 없음)', sub: e.ifcClass.replace('Ifc', ''), icon: classIcon(e.ifcClass), count: 0,
@@ -38,7 +42,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       children: () => [...(childrenOf.get(n.id) ?? []).map(spRow), ...(byNode.get(n.id) ?? []).map(elRow)] }
   }
   const roots: Row[] = useMemo(() => {
-    if (tab === 'spatial') {
+    if (tab !== 'class') {
       const rows = (childrenOf.get(null) ?? []).map(spRow)
       const orphan = byNode.get(null) ?? []
       if (orphan.length) rows.push({ key: 'orphan', label: '컨테이너 없음', icon: Tag, count: orphan.length, hidden: false, solo: hidden.solo?.key === 'orphan', gids: () => orphan.map(e => e.globalId), children: () => orphan.map(elRow) })
@@ -116,16 +120,17 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       </div>
 
       {!q && <div style={{ display: 'flex', margin: '0 12px', borderBottom: '1px solid #e5e5e5' }}>
-        {(['spatial', 'class'] as const).map(t => <button key={t} onClick={() => setTab(t)}
+        {(['spatial', 'class', 'system'] as const).map(t => <button key={t} onClick={() => setTab(t)}
           style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
-          {t === 'spatial' ? '공간 구조' : '클래스'}</button>)}
+          {{ spatial: '공간 구조', class: '클래스', system: '계통' }[t]}</button>)}
       </div>}
 
+      {tab === 'system' && !q ? <div style={{ flex: 1, overflow: 'auto' }}>{systemPanel}</div> :
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }} onClick={e => { if (e.target === e.currentTarget) onSelect([], 'set') }}>
         {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => clickRow(r, ev)} onContext={ev => onContext(ev, r.gids())} /> })
                           : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
            : flat.map(f => <TreeRow key={f.row.key} row={f.row} depth={f.depth} open={f.open} selected={rowSelected(f.row)} onToggle={toggle} onSolo={solo} onOpen={() => toggleOpen(f.row, f.depth)} onClick={ev => clickRow(f.row, ev)} onContext={ev => onContext(ev, f.row.gids())} />)}
-      </div>
+      </div>}
     </aside>
   )
 }
