@@ -4,7 +4,7 @@
 
 ## 가상 건물
 
-36 × 16 m, 지하 2층(B2 주차장·동측 확장 차량 램프·주차관제실 / B1 변전실·통신실·방재실·펌프실·기계실·수조실) + 지상 3층 + 옥상. 지상층마다 A/B 구역(`IfcSpace`), 코어에 EPS(전기)·PS(배관)·DS(덕트) 샤프트와 엘리베이터. 슬래브는 샤프트·에스컬레이터·덤웨이터 자리에 `IfcOpeningElement`(변환기가 `IfcRelVoidsElement` 로 차감). 좌표는 건물 남서 모서리 원점의 **상대좌표(m)** — 지리참조 없음. 가구·마감·창호 없이 공용부 설비만. (초판은 24×12m 지하 1층이었고 확장했다)
+36 × 16 m, 지하 2층 + 지상 3층 + 옥상. **층 구성은 실무 관행을 따랐다**: B2 변전실·발전기실(별실, 연료탱크)·펌프실·기계실·수조실(저수조·소화수조)·오폐수처리실(오수처리조·우수저류조 — 음용 저수조와 분리) + 주차 4면 / B1 주차장(EV 충전 2면) + 방재실·통신실·주차관제실 / 옥탑 보일러실(온수·급탕 보일러, 가스 정압기 — 도시가스는 지하로 내리지 않음). 계단실 2개소(반층 절환, 경사판 근사) 전 층. 차량 램프는 **17%**(직선 램프 법정 상한): 지상→B1 은 북측 옥외 램프 20.6m, B1→B2 는 남측 장변을 따라 건물 안 램프. 변압기 500kVA·발전기 200kW(연면적 ≈2,900㎡ 업무시설 기준). 주차장은 준비작동식 스프링클러·소화전·비상조명·제트팬·CO 센서. 지상층마다 A/B 구역(`IfcSpace`), 코어에 EPS(전기)·PS(배관)·DS(덕트) 샤프트와 엘리베이터. 슬래브는 샤프트·에스컬레이터·덤웨이터 자리에 `IfcOpeningElement`(변환기가 `IfcRelVoidsElement` 로 차감). 좌표는 건물 남서 모서리 원점의 **상대좌표(m)** — 지리참조 없음. 가구·마감·창호 없이 공용부 설비만. (초판은 24×12m 지하 1층이었고 확장했다)
 
 ```
               3F  LP-3F ─ LP-3F-A ─ 조명×4      AV-3F ─ 주관 ─ 스프링클러×6      밸브 ─ 위생기구×2 ─ 횡주관
@@ -31,7 +31,7 @@
 | 수송 | (IfcSystem) | 비상분전반 → 승강기 제어반(옥상) → 엘리베이터(B2~RF) / 에스컬레이터(1F↔2F, 30° 경사 압출) / 덤웨이터 | IfcTransportElement(ELEVATOR/ESCALATOR) — IfcDistributionSystem 에는 못 넣어 일반 IfcSystem |
 | 주차관제 | CONTROL | 주차관제 서버 PCS → 차단기·LPR·정산기·표시판·주차면 센서 (통신 IDF-B2, 전기 LP-B2 에서 급전) | IfcController, IfcActuator(ELECTRICACTUATOR), IfcAudioVisualAppliance(CAMERA/DISPLAY), IfcElectricAppliance(VENDINGMACHINE), IfcSensor(MOVEMENTSENSOR) |
 
-전기는 고압수전반 → 전력량계 → 변압기 → 저압 배전반 MDB → MCC(동력: 펌프·팬·냉동기·AHU) / 층 분전반 → 조명제어반 → 조명 / EV 충전기 / 태양광 패널(옥상) → 인버터 → MDB. 비상전원은 EMDB → UPS ← 축전지 → MDF·BMS·FMS·NVR·비상방송·출입통제 / EMDB → 소화펌프·제연팬·수신기·승강기 제어반·층 비상분전반 → 비상조명·IDF·ERV. 지하에 통신실(UPS·배터리·MDF·BMS·FMS·주차관제)·방재실(수신기·앰프·NVR·출입통제·가스계 소화약제 용기)·기계실(냉동기·보일러·히트펌프·펌프·열교환기·팽창탱크·AHU·가습기·급탕)·옥상(냉각탑·OAU·급배기/제연팬·실외기·고가수조·태양광·승강기 제어반). 피뢰·접지 단자함, 우수 저류조, 오수처리조, 그리스트랩, 옥내소화전 포함. 주차관제(`IfcDistributionSystem` CONTROL, 수송팀): PCS 서버 → 입·출구 차단기(IfcActuator)·LPR 카메라·무인정산기·만공차 표시판·주차면 센서 14. 총 **404 요소, 14 계통, 470 연결** (2026-08-28 확장 후).
+전기는 고압수전반 → 전력량계 → 변압기 → 저압 배전반 MDB → MCC(동력: 펌프·팬·냉동기·AHU) / 층 분전반 → 조명제어반 → 조명 / EV 충전기 / 태양광 패널(옥상) → 인버터 → MDB. 비상전원은 EMDB → UPS ← 축전지 → MDF·BMS·FMS·NVR·비상방송·출입통제 / EMDB → 소화펌프·제연팬·수신기·승강기 제어반·층 비상분전반 → 비상조명·IDF·ERV. 지하에 통신실(UPS·배터리·MDF·BMS·FMS·주차관제)·방재실(수신기·앰프·NVR·출입통제·가스계 소화약제 용기)·기계실(냉동기·보일러·히트펌프·펌프·열교환기·팽창탱크·AHU·가습기·급탕)·옥상(냉각탑·OAU·급배기/제연팬·실외기·고가수조·태양광·승강기 제어반). 피뢰·접지 단자함, 우수 저류조, 오수처리조, 그리스트랩, 옥내소화전 포함. 주차관제(`IfcDistributionSystem` CONTROL, 수송팀): PCS 서버 → 입·출구 차단기(IfcActuator)·LPR 카메라·무인정산기·만공차 표시판·주차면 센서 14. 총 **474 요소, 14 계통, 521 연결** (2026-08-28 실무 관행 재배치 후). 남은 비현실 요소(의도): 업무동의 에스컬레이터·덤웨이터(계통 예시로 유지, '1F 로비↔2F 식당' 설정), 층고 전 층 3.5m(지하 기계실·1층은 실제 4.5m+), 기둥·창호 없음.
 
 **상태**: 감지기·발전기·ATS·비상조명·수신기·분전반(Breaker, LoadPercent)·펌프(RUNNING/STANDBY, RunHours)·밸브(Open, Pressure)·수조(LevelPercent)·변압기(LoadPercent, OilTemp)·조명(On) 에 `Pset_BimStatus`(Status NORMAL/ALARM/FAULT/STANDBY, AlarmAt, LastTest, FuelLevel, BatteryLevel, Source UTILITY/GENERATOR). 표준 Pset 에 "현재 상태" 자리는 없어서(IFC 는 설계 정보) 프로젝트 Pset 으로 뒀다. 실제 운영에선 BMS/수신기 연동값이 여기로 들어오고, 뷰어 "속성별 색상 → Pset_BimStatus.Status" 가 곧 상태판(ALARM 빨강·FAULT 주황·NORMAL 초록). 예시 데이터: 2F-B 연기감지기 1 = ALARM, 3F-A 열감지기 = FAULT.
 

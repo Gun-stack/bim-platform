@@ -2,7 +2,7 @@
 
 ## 규모 측정 (2026-08-28)
 
-실제 대형 IFC 가 없어서 mep-building(404요소)을 DB 에서 50배 복제한 합성 모델(**20,200 요소**, 속성 jsonb 포함)로 주요 쿼리를 `EXPLAIN ANALYZE` 하고 API 응답 크기를 쟀다. 재현: `model` 행 하나 추가 후 `INSERT INTO element … SELECT … FROM element WHERE model_id = <원본>` 을 50회(global_id 에 접미 붙임), `ANALYZE element`. 측정 후 그 모델 행은 지운다(glb 가 없어 뷰어가 열지 못함).
+실제 대형 IFC 가 없어서 mep-building(당시 404요소)을 DB 에서 50배 복제한 합성 모델(**20,200 요소**, 속성 jsonb 포함)로 주요 쿼리를 `EXPLAIN ANALYZE` 하고 API 응답 크기를 쟀다. 재현: `model` 행 하나 추가 후 `INSERT INTO element … SELECT … FROM element WHERE model_id = <원본>` 을 50회(global_id 에 접미 붙임), `ANALYZE element`. 측정 후 그 모델 행은 지운다(glb 가 없어 뷰어가 열지 못함).
 
 | 쿼리 / API | DB 실행 | API 응답 | 비고 |
 |---|---|---|---|
