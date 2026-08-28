@@ -51,7 +51,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
 
   const clone = (): Hidden => ({ nodes: new Set(hidden.nodes), classes: new Set(hidden.classes), gids: new Set(hidden.gids), solo: hidden.solo })
   const flipHidden = (h: Hidden, r: Row) => {
-    const flip = <T,>(set: Set<T>, v: T) => set.has(v) ? set.delete(v) : set.add(v)
+    const flip = <T,>(set: Set<T>, v: T) => { if (set.has(v)) set.delete(v); else set.add(v) }
     if (r.key.startsWith('n:')) flip(h.nodes, +r.key.slice(2))
     else if (r.key.startsWith('c:')) flip(h.classes, r.key.slice(2))
     else if (r.gid) flip(h.gids, r.gid)
@@ -142,7 +142,7 @@ function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick
       {row.count > 0 && <span style={{ color: '#999', fontSize: 11, background: '#eee', borderRadius: 8, padding: '0 6px' }}>{row.count}</span>}
       <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? '#2563eb' : hov ? '#777' : 'transparent' }}>
         <Focus size={14} /></span>
-      <span onClick={e => { e.stopPropagation(); e.altKey ? onSolo(row) : onToggle(row) }} title={row.hidden ? '표시' : '숨김 · Alt+클릭: 이것만 보기'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? '#bbb' : hov ? '#555' : 'transparent' }}>
+      <span onClick={e => { e.stopPropagation(); if (e.altKey) onSolo(row); else onToggle(row) }} title={row.hidden ? '표시' : '숨김 · Alt+클릭: 이것만 보기'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? '#bbb' : hov ? '#555' : 'transparent' }}>
         {row.hidden ? <EyeOff size={14} /> : <Eye size={14} />}</span>
     </div>
   )

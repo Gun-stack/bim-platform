@@ -47,7 +47,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }, [spatial, hidden.nodes])
   const spaceStorey = useMemo(() => new Map(spatial.filter(s => s.ifcClass === 'IfcSpace').map(s => [s.globalId, s.parentId])), [spatial])
 
-  // 씬 생성 · glb 로드 (한 번)
+  // 씬 생성 · glb 로드 (한 번). byGid 등은 마운트 시점 값으로 고정 — 의도적
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!model?.glbUrl || !canvas.current || !elements.length || scene.current) return
     const s = new Scene3D(canvas.current); scene.current = s
@@ -86,6 +87,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       return true
     })
   }, [opts.openings, opts.spaces, hiddenNodes, hidden, byGid, bounds])
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {   // 선택 → 상세(1개) / 요약용 상세들(여러 개, 최대 20)
     const fetch1 = (gid: string) => api(`/models/${modelId}/elements/${encodeURIComponent(gid)}`) as Promise<ElementDetail>
     if (selection.length === 1) {

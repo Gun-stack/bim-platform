@@ -59,6 +59,7 @@ erDiagram
     text error
     timestamptz started_at
     timestamptz finished_at
+    timestamptz created_at
   }
   asset {
     uuid id PK
@@ -86,6 +87,7 @@ erDiagram
     text assignee
     date due_on
     jsonb viewpoint "카메라 + 선택 GlobalId (BCF viewpoint 축소판)"
+    timestamptz created_at
   }
 ```
 
