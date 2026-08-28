@@ -84,7 +84,8 @@ worker/
 ```
 src/
   pages/    Models, Viewer, Map, Assets, WorkOrders
-  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹) + Viewer.tsx (트리·필터·검색·속성 UI)
+  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·단면·뷰포인트) + Viewer.tsx (트리·필터·검색·속성·표시 옵션 UI)
+            뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip={y} — M4 work_order.viewpoint 와 같은 필드
   map/      MapLibre, 풋프린트 레이어, 핀 배치
   api/      fetch 래퍼, SSE 훅
 ```

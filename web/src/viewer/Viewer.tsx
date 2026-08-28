@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, type ElementDetail, type ElementRow, type Model, type SpatialNode } from '../api'
-import { Scene3D, type Kind, type Stats } from './scene'
+import { Scene3D, type Kind, type Stats, type View } from './scene'
 
 type Opts = { openings: boolean; spaces: boolean; merged: boolean }
 
@@ -17,6 +17,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [q, setQ] = useState('')
   const [stats, setStats] = useState<Stats>({ calls: 0, triangles: 0, fps: 0 })
   const [err, setErr] = useState<string>()
+  const [clip, setClip] = useState<number | null>(null)
+  const [bounds, setBounds] = useState<{ min: number[]; max: number[] }>()
+  const [focus, setFocus] = useState<'none' | 'ghost' | 'hide'>('none')
+  const [hover, setHover] = useState<{ x: number; y: number; text: string }>()
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     Promise.all([api(`/models/${modelId}`), api(`/models/${modelId}/spatial`), api(`/models/${modelId}/elements`)])
@@ -43,9 +48,26 @@ export default function Viewer({ modelId }: { modelId: string }) {
       if (kind !== 'element') return setSelected({ globalId: gid, kind })
       api(`/models/${modelId}/elements/${encodeURIComponent(gid)}`).then(setSelected).catch(e => setErr(e.message))
     }
-    s.load(model.glbUrl, gid => byGid.has(gid) ? 'element' : spaceGids.has(gid) ? 'space' : 'opening').catch(e => setErr(String(e)))
+    s.load(model.glbUrl, gid => byGid.has(gid) ? 'element' : spaceGids.has(gid) ? 'space' : 'opening').then(() => {
+      setBounds(s.bounds())
+      const vp = readViewpoint()   // B: URL 에 실린 뷰포인트 복원
+      if (vp?.v) s.setView(vp.v)
+      if (vp?.clip != null) setClip(vp.clip)
+      if (vp?.sel) s.select(vp.sel)
+    }).catch(e => setErr(String(e)))
+    // D: 호버 툴팁 (pointermove 는 프레임당 1회로 제한)
+    let pending = false
+    const onMove = (e: PointerEvent) => {
+      if (pending) return; pending = true
+      requestAnimationFrame(() => {
+        pending = false
+        const gid = s.hover(e.clientX, e.clientY), el = gid ? byGid.get(gid) : undefined
+        setHover(gid ? { x: e.clientX, y: e.clientY, text: el ? `${el.ifcClass} ${el.name ?? ''}` : spaceGids.has(gid) ? 'IfcSpace' : 'IfcOpeningElement' } : undefined)
+      })
+    }
+    canvas.current.addEventListener('pointermove', onMove)
     const t = setInterval(() => setStats(s.stats()), 500)
-    return () => { clearInterval(t); s.dispose(); scene.current = null }
+    return () => { clearInterval(t); canvas.current?.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null }
   }, [model?.glbUrl, elements.length])
 
   // 필터 → 표시 조건
@@ -60,6 +82,21 @@ export default function Viewer({ modelId }: { modelId: string }) {
     })
   }, [opts.openings, opts.spaces, storeyNodes, cls, byGid, stats.calls === 0])
   useEffect(() => { scene.current?.setMerged(opts.merged) }, [opts.merged])
+  useEffect(() => { scene.current?.setClip(clip) }, [clip, bounds])
+  // C: 격리/숨김 — 선택 요소(+ 검색 결과) 기준
+  useEffect(() => {
+    const gid = selected?.globalId
+    scene.current?.setFocus(focus === 'none' || !gid ? undefined : { mode: focus, gids: new Set([gid]) })
+  }, [focus, selected?.globalId])
+
+  const share = () => {   // B: 현재 카메라·선택·단면을 URL 에
+    const s = scene.current; if (!s) return
+    const v = s.getView(), q = new URLSearchParams({ v: [...v.p, ...v.t].join(',') })
+    if (s.selected) q.set('sel', s.selected)
+    if (clip != null) q.set('clip', clip.toFixed(2))
+    history.replaceState(null, '', `#/models/${modelId}?${q}`)
+    navigator.clipboard?.writeText(location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
+  }
 
   const storeys = spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0))
   const classes = useMemo(() => [...new Set(elements.map(e => e.ifcClass))].sort(), [elements])
@@ -82,6 +119,28 @@ export default function Viewer({ modelId }: { modelId: string }) {
         <label style={row}><input type="checkbox" checked={opts.merged} onChange={e => setOpts({ ...opts, merged: e.target.checked })} /> 재질별 병합 (draw call ↓)</label>
         <div style={{ color: '#666', marginTop: 4 }}>draw calls <b>{stats.calls}</b> · 삼각형 {stats.triangles.toLocaleString()} · {stats.fps} fps</div>
 
+        <h4 style={sec}>뷰</h4>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {(['home', 'top', 'front', 'side'] as const).map(p => <button key={p} onClick={() => scene.current?.preset(p)}>{{ home: '홈', top: '평면', front: '정면', side: '측면' }[p]}</button>)}
+          <button onClick={() => scene.current?.fit(scene.current.selected)} title="더블클릭과 동일">핏</button>
+          <button onClick={share}>{copied ? '복사됨 ✓' : '뷰포인트 URL'}</button>
+        </div>
+
+        <h4 style={sec}>단면 (수평)</h4>
+        {bounds && <>
+          <label style={row}><input type="checkbox" checked={clip != null} onChange={e => setClip(e.target.checked ? bounds.max[1] : null)} /> 절단 {clip != null && <b>{clip.toFixed(2)}m</b>}</label>
+          <input type="range" min={bounds.min[1]} max={bounds.max[1]} step={0.05} value={clip ?? bounds.max[1]} disabled={clip == null}
+                 onChange={e => setClip(+e.target.value)} style={{ width: '100%' }} />
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {storeys.filter(st => st.elevation != null).map(st => <button key={st.id} onClick={() => setClip(st.elevation! + 1.5)} title="층 바닥 +1.5m (평면도 절단 높이)">{st.name}</button>)}
+          </div>
+        </>}
+
+        <h4 style={sec}>선택 요소</h4>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {(['none', 'ghost', 'hide'] as const).map(f => <button key={f} disabled={!selected} onClick={() => setFocus(f)} style={{ fontWeight: focus === f ? 'bold' : undefined }}>{{ none: '전체', ghost: '격리', hide: '나머지 숨김' }[f]}</button>)}
+        </div>
+
         <h4 style={sec}>필터</h4>
         <select value={cls ?? ''} onChange={e => setCls(e.target.value || undefined)} style={{ width: '100%' }}>
           <option value="">모든 클래스 ({elements.length})</option>
@@ -102,6 +161,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
       <div ref={canvas} style={{ position: 'relative', minWidth: 0 }}>
         {err && <p style={{ position: 'absolute', top: 8, left: 8, color: 'crimson', background: '#fff', padding: 6 }}>{err}</p>}
+        {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: '#222', color: '#fff', padding: '2px 6px', borderRadius: 3, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
       </div>
 
       <aside style={{ overflow: 'auto', padding: 12, borderLeft: '1px solid #ddd' }}>
@@ -111,6 +171,12 @@ export default function Viewer({ modelId }: { modelId: string }) {
       </aside>
     </div>
   )
+}
+
+function readViewpoint(): { v?: View; sel?: string; clip?: number } | undefined {
+  const q = new URLSearchParams(location.hash.split('?')[1] ?? '')
+  const n = q.get('v')?.split(',').map(Number)
+  return { v: n?.length === 6 ? { p: n.slice(0, 3), t: n.slice(3) } : undefined, sel: q.get('sel') ?? undefined, clip: q.has('clip') ? +q.get('clip')! : undefined }
 }
 
 const sec = { margin: '14px 0 4px', fontSize: 12, color: '#444', textTransform: 'uppercase' as const }

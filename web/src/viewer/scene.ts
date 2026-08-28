@@ -7,6 +7,9 @@ export type Kind = 'element' | 'space' | 'opening'
 export type Stats = { calls: number; triangles: number; fps: number }
 const HIGHLIGHT = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 })
 const SPACE = new THREE.MeshStandardMaterial({ color: 0x4488ff, transparent: true, opacity: 0.25, depthWrite: false })
+const GHOST = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, transparent: true, opacity: 0.12, depthWrite: false })
+export type View = { p: number[]; t: number[] }
+export type Focus = { mode: 'ghost' | 'hide'; gids: Set<string> } | undefined
 
 /** glb 한 개 = 씬 한 개. 노드 이름(GlobalId) 기준으로 분류·필터·픽킹. React 는 이 클래스만 호출한다. */
 export class Scene3D {
@@ -24,6 +27,9 @@ export class Scene3D {
   private merged?: THREE.Group
   private mergedRanges: { mesh: THREE.Mesh; ranges: { start: number; end: number; gid: string }[] }[] = []
   private picked?: string
+  private focusSet: Focus
+  private clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0)
+  private box = new THREE.Box3()
   onPick?: (gid: string | undefined, kind: Kind | undefined) => void
 
   private el: HTMLElement
@@ -44,6 +50,7 @@ export class Scene3D {
       if (down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 3) return  // 드래그는 회전
       this.select(this.pick(e.clientX, e.clientY))
     })
+    this.renderer.domElement.addEventListener('dblclick', e => this.fit(this.pick(e.clientX, e.clientY)))
     addEventListener('resize', this.onResize)
     const loop = () => { this.raf = requestAnimationFrame(loop); this.controls.update(); this.renderer.render(this.scene, this.camera); this.frames++ }
     loop()
@@ -60,8 +67,8 @@ export class Scene3D {
       if (this.kind.get(gid) === 'space') m.material = SPACE
     })
     this.scene.add(gltf.scene)
-    const box = new THREE.Box3().setFromObject(gltf.scene), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3())
-    this.camera.position.set(c.x + size.x, c.y + size.y * 1.2, c.z + size.z * 1.5); this.controls.target.copy(c); this.controls.update()
+    this.box.setFromObject(gltf.scene)
+    this.preset('home')
     this.apply()
   }
 
@@ -94,11 +101,41 @@ export class Scene3D {
   get isMerged() { return !!this.merged }
 
   select(gid: string | undefined) {
-    for (const m of this.meshes) if (m.name === this.picked) m.material = this.kind.get(m.name) === 'space' ? SPACE : this.original.get(m)!
     this.picked = gid
-    if (gid) for (const m of this.meshes) if (m.name === gid) m.material = HIGHLIGHT
-    if (this.merged) this.setMerged(true)  // 하이라이트 재질이 자기 그룹으로 분리된다 (+1 draw call)
+    this.apply()
     this.onPick?.(gid, gid ? this.kind.get(gid) : undefined)
+  }
+
+  get selected() { return this.picked }
+
+  /** 격리(나머지 반투명) / 숨김. undefined 면 복원 */
+  setFocus(f: Focus) { this.focusSet = f; this.apply() }
+
+  /** 수평 절단: y 이상을 잘라낸다. null 이면 해제 */
+  setClip(y: number | null) {
+    this.clipPlane.constant = y ?? 0
+    this.renderer.clippingPlanes = y == null ? [] : [this.clipPlane]
+  }
+
+  bounds() { return { min: this.box.min.toArray(), max: this.box.max.toArray() } }
+
+  getView(): View { return { p: this.camera.position.toArray().map(n => +n.toFixed(2)), t: this.controls.target.toArray().map(n => +n.toFixed(2)) } }
+  setView(v: View) { this.camera.position.fromArray(v.p); this.controls.target.fromArray(v.t); this.controls.update() }
+
+  /** 요소(들) 또는 전체가 화면에 들어오게 */
+  fit(gid?: string) {
+    const ms = gid ? this.meshes.filter(m => m.name === gid) : []
+    const box = ms.length ? ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()) : this.box
+    const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize()
+    this.controls.target.copy(c); this.camera.position.copy(c).addScaledVector(dir, r / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 1.1); this.controls.update()
+  }
+
+  preset(name: 'home' | 'top' | 'front' | 'side') {
+    const c = this.box.getCenter(new THREE.Vector3()), s = this.box.getSize(new THREE.Vector3()), d = s.length()
+    const dir = { home: new THREE.Vector3(1, 0.8, 1), top: new THREE.Vector3(0, 1, 0.0001), front: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0) }[name].normalize()
+    this.controls.target.copy(c); this.camera.position.copy(c).addScaledVector(dir, d); this.controls.update()
+    this.fit()
   }
 
   /** 카메라를 해당 요소로 */
@@ -110,6 +147,9 @@ export class Scene3D {
     this.select(gid)
   }
 
+  /** 호버용: 픽킹만, 선택 안 함 */
+  hover(x: number, y: number) { return this.pick(x, y) }
+
   stats(): Stats {
     this.renderer.render(this.scene, this.camera)  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로
     const now = performance.now()
@@ -120,8 +160,12 @@ export class Scene3D {
   dispose() { cancelAnimationFrame(this.raf); removeEventListener('resize', this.onResize); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
 
   private apply() {
-    for (const m of this.meshes) m.visible = this.visible(m.name, this.kind.get(m.name)!)
-    if (this.merged) this.setMerged(true)  // 병합 모드면 재구성
+    for (const m of this.meshes) {
+      const gid = m.name, kind = this.kind.get(gid)!, inFocus = !this.focusSet || this.focusSet.gids.has(gid)
+      m.visible = this.visible(gid, kind) && (inFocus || this.focusSet?.mode === 'ghost')
+      m.material = gid === this.picked ? HIGHLIGHT : !inFocus ? GHOST : kind === 'space' ? SPACE : this.original.get(m)!
+    }
+    if (this.merged) this.setMerged(true)  // 병합 모드면 재구성 (하이라이트·고스트가 자기 그룹으로 분리)
   }
 
   private pick(x: number, y: number): string | undefined {

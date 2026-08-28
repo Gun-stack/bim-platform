@@ -10,7 +10,7 @@ const useHash = () => {
 }
 
 export default function App() {
-  const m = useHash().match(/^#\/models\/([0-9a-f-]{36})$/)
+  const m = useHash().match(/^#\/models\/([0-9a-f-]{36})/)
   return m ? <Viewer modelId={m[1]} /> : <Models />
 }
 
