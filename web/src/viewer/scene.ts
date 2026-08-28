@@ -147,16 +147,20 @@ export class Scene3D {
   /** 색상 모드: gid → 색. undefined 면 원래 재질 */
   setColors(map?: Map<string, number>, ghostOthers = false) { this.colors = map; this.ghostOthers = ghostOthers; this.apply() }
 
-  /** 요소 위에 3D 핀 (포커스 모드). 반투명 요소를 뚫고 보이도록 depthTest 끔 */
-  setMarker(gid?: string, color = 0xdc2626) {
+  /** 요소의 월드 바운딩 (없으면 undefined) */
+  elementBox(gid: string) { const ms = this.meshes.filter(m => m.name === gid); if (!ms.length) return; const b = ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()); return { min: b.min.toArray(), max: b.max.toArray() } }
+
+  /** 요소에 3D 핀 (포커스 모드). down=true 면 천장 장비처럼 아래로 매단다(단면에 안 잘리게). 반투명을 뚫고 보이도록 depthTest 끔 */
+  setMarker(gid?: string, color = 0xdc2626, down = false) {
     if (this.marker) { this.scene.remove(this.marker); this.marker = undefined }
     if (!gid) return
     const ms = this.meshes.filter(m => m.name === gid); if (!ms.length) return
     const box = ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()), c = box.getCenter(new THREE.Vector3())
     const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color, depthTest: false })
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 8), mat); stem.position.set(c.x, box.max.y + 0.6, c.z)
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), mat); head.position.set(c.x, box.max.y + 1.3, c.z)
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 8, 32), mat); ring.rotation.x = Math.PI / 2; ring.position.set(c.x, box.max.y + 0.02, c.z)
+    const y0 = down ? box.min.y : box.max.y, dir = down ? -1 : 1
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 8), mat); stem.position.set(c.x, y0 + dir * 0.6, c.z)
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), mat); head.position.set(c.x, y0 + dir * 1.3, c.z)
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 8, 32), mat); ring.rotation.x = Math.PI / 2; ring.position.set(c.x, y0 + dir * 0.02, c.z)
     for (const m of [stem, head, ring]) m.renderOrder = 20
     g.add(stem, head, ring); this.marker = g; this.scene.add(g)
   }

@@ -57,7 +57,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.fitAll(space ? [space.globalId, gid] : [gid])
     const st = statusRows.find(r => r.globalId === gid)?.status.Status
     setFocusInfo({ gid, name: el.name ?? gid, zone: space?.name ?? undefined, storey: storey?.name ?? undefined, status: st, spaceGid: space?.globalId })
-    s.setMarker(gid, st === 'FAULT' ? 0xf59e0b : 0xdc2626)
+    const eb = s.elementBox(gid), ceiling = !!eb && storey?.elevation != null && eb.min[1] > storey.elevation + 2.0   // 천장 부착 → 핀을 아래로
+    s.setMarker(gid, st === 'FAULT' ? 0xf59e0b : 0xdc2626, ceiling)
   }
   const focusRef = useRef(focusOn); focusRef.current = focusOn
   useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); scene.current?.setMarker(undefined) } }, [selSet])
