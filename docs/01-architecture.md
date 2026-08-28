@@ -85,6 +85,7 @@ worker/
 src/
   App.tsx        해시 라우팅: #/ 목록 · #/models/{id} 뷰어 · #/models/{id}/fm 시설관리
   FmPage.tsx     작업지시 보드 · 자산 대장 → 뷰어(?wo=&v=&sel=&clip=)
+  MonitorPage.tsx #/models/{id}/monitor 팀(전기·소방·설비 ↔ 계통 이름 매핑) × 층 격자 상태판, KPI, 전원 배지, 5초 폴링
   MapPage.tsx    #/map MapLibre + OSM 타일, 풋프린트 레이어(자동/수동 색 구분), 클릭 팝업, 미배치 모델 지도 클릭 배치
   viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·섹션박스·측정·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈/솔로 토글·검색) + ColorPanel.tsx (속성별 색상 범례) + ContextMenu.tsx (우클릭 메뉴) + FmPanel.tsx (자산 등록·점검·작업지시) + SystemPanel.tsx (계통 목록·색·상류/하류 추적)
             뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip=xmin,xmax,ymin,ymax,zmin,zmax — M4 work_order.viewpoint 와 같은 필드
@@ -117,6 +118,7 @@ src/
 | GET | `/api/models/{id}/systems` · `/systems/{sid}/elements` | 설비 계통 목록·멤버 |
 | GET | `/api/models/{id}/elements/{globalId}/route?dir=up\|down` | 흐름 추적 (재귀 CTE, 원천까지 / 말단까지) |
 | GET/PATCH | `/api/models/{id}/status` · `/elements/{globalId}/status` | 런타임 상태(Pset_BimStatus jsonb 병합, 수신기 집계, 자산이면 작업지시 자동) |
+| GET | `/api/models/{id}/monitor?segments=` | 모니터링: 계통 장비 × 층/구역 × 상태 × 자산 × 작업지시 (배관·트레이 제외) |
 | POST | `/api/models/{id}/power?source=UTILITY\|GENERATOR` | 정전 시나리오: ATS/발전기 상태 + 전원 있음/없음 집합 |
 
 ## glb ↔ 요소 매핑

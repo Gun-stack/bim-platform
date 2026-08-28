@@ -30,7 +30,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <a href="#/" style={{ color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={14} /> 모델 목록</a>
         <h1 style={{ margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={18} /> {model?.name ?? '…'} <span style={{ color: '#888', fontWeight: 400 }}>시설관리</span></h1>
-        <a href={`#/models/${modelId}`} style={{ marginLeft: 'auto', ...btn }}><ExternalLink size={13} /> 3D 뷰어</a>
+        <a href={`#/models/${modelId}/monitor`} style={{ marginLeft: 'auto', ...btn }}>모니터링</a><a href={`#/models/${modelId}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a>
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
         <Stat icon={Tag} label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />

@@ -4,6 +4,7 @@ import { AlertCircle, Box, CheckCircle2, Loader2, MapPin, RotateCcw, Upload } fr
 import Viewer from './viewer/Viewer'
 import FmPage from './FmPage'
 import MapPage from './MapPage'
+import MonitorPage from './MonitorPage'
 
 // 라우팅은 해시 하나. 페이지가 셋(모델·뷰어·지도) 넘어가면 react-router.
 const useHash = () => {
@@ -13,9 +14,9 @@ const useHash = () => {
 }
 
 export default function App() {
-  const h = useHash(), m = h.match(/^#\/models\/([0-9a-f-]{36})(\/fm)?/)
+  const h = useHash(), m = h.match(/^#\/models\/([0-9a-f-]{36})(\/fm|\/monitor)?/)
   if (h.startsWith('#/map')) return <MapPage />
-  return m ? (m[2] ? <FmPage modelId={m[1]} /> : <Viewer modelId={m[1]} />) : <Models />
+  return m ? (m[2] === '/fm' ? <FmPage modelId={m[1]} /> : m[2] === '/monitor' ? <MonitorPage modelId={m[1]} /> : <Viewer modelId={m[1]} />) : <Models />
 }
 
 function Models() {
@@ -77,7 +78,7 @@ function Models() {
       {err && <p style={{ color: '#b91c1c', display: 'flex', gap: 6, alignItems: 'center' }}><AlertCircle size={14} /> {err}</p>}
 
       <div style={{ marginTop: 20, border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 200px 110px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 180px 160px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
           <span>모델</span><span>상태</span><span>스키마</span><span style={{ textAlign: 'right' }}>요소</span><span>진행</span><span /></div>
         {models.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>아직 모델이 없습니다. 위에서 IFC 를 올려보세요 — <code>samples/</code> 에 예제 4개가 있습니다.</div>}
         {models.map(m => <Row key={m.id} m={m} onRetry={() => retry(m.id)} />)}
@@ -96,7 +97,7 @@ const STATUS: Record<Model['status'], { label: string; color: string; bg: string
 function Row({ m, onRetry }: { m: Model; onRetry: () => void }) {
   const st = STATUS[m.status], Icon = st.icon, running = m.status === 'UPLOADED' || m.status === 'PROCESSING'
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 200px 110px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: '1px solid #eee' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 180px 160px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: '1px solid #eee' }}>
       <div style={{ overflow: 'hidden' }}>
         <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>{m.name}</div>
         <div style={{ color: '#999', fontSize: 11 }}>{m.id.slice(0, 8)} · {new Date((m as any).createdAt).toLocaleString()}</div>
@@ -112,6 +113,7 @@ function Row({ m, onRetry }: { m: Model; onRetry: () => void }) {
       </div>
       <div style={{ textAlign: 'right' }}>
         {m.status === 'READY' && <span style={{ display: 'inline-flex', gap: 4 }}>
+          <a href={`#/models/${m.id}/monitor`} title="설비 모니터링" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>모니터</a>
           <a href={`#/models/${m.id}/fm`} title="자산·작업지시" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>FM</a>
           <a href={`#/models/${m.id}`} style={{ padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 12 }}>뷰어</a></span>}
         {m.status === 'FAILED' && <button onClick={onRetry} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12 }}><RotateCcw size={12} /> 재시도</button>}
