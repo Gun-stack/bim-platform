@@ -18,7 +18,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [err, setErr] = useState<string>()
   const [clip, setClip] = useState<number | null>(null)
   const [bounds, setBounds] = useState<{ min: number[]; max: number[] }>()
-  const [focus, setFocus] = useState<'none' | 'ghost' | 'hide'>('none')
+  const [focus, setFocus] = useState<'none' | 'ghost'>('none')
   const [hover, setHover] = useState<{ x: number; y: number; text: string }>()
   const [copied, setCopied] = useState(false)
 
@@ -69,6 +69,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => {   // 트리 눈 토글 + 표시 옵션 → 표시 조건
     scene.current?.setVisible((gid, kind) => {
       if (kind === 'opening') return opts.openings
+      if (hidden.solo && !hidden.solo.gids.has(gid)) return false   // 솔로: 집합 밖은 전부 숨김
       if (kind === 'space') return opts.spaces && !hiddenNodes.has(spaceStorey.get(gid) ?? -1) && !hidden.gids.has(gid)
       const e = byGid.get(gid)!
       if (hidden.gids.has(gid) || hidden.classes.has(e.ifcClass)) return false
@@ -78,10 +79,15 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }, [opts.openings, opts.spaces, hiddenNodes, hidden, byGid, bounds])
   useEffect(() => { scene.current?.setMerged(opts.merged) }, [opts.merged])
   useEffect(() => { scene.current?.setClip(clip) }, [clip, bounds])
-  useEffect(() => {   // 격리/숨김 — 선택 요소 기준
+  useEffect(() => {   // 격리(반투명) — 선택 요소 기준. "나머지 숨김" 은 트리 솔로와 같은 모델을 쓴다
     const gid = selected?.globalId
-    scene.current?.setFocus(focus === 'none' || !gid ? undefined : { mode: focus, gids: new Set([gid]) })
+    scene.current?.setFocus(focus !== 'ghost' || !gid ? undefined : { mode: 'ghost', gids: new Set([gid]) })
   }, [focus, selected?.globalId])
+  const soloSelected = () => {
+    const gid = selected?.globalId; if (!gid) return
+    const cur = hidden.solo?.key === 'e:' + gid
+    setHidden({ ...hidden, solo: cur ? undefined : { key: 'e:' + gid, label: byGid.get(gid)?.name ?? gid, gids: new Set([gid]) } })
+  }
 
   const share = () => {   // 현재 카메라·선택·단면 → URL
     const s = scene.current; if (!s) return
@@ -124,8 +130,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Tool icon={RectangleHorizontal} label="정면" onClick={() => scene.current?.preset('front')} />
             <Gap />
             <Tool icon={Focus} label="격리 — 선택 외 반투명" hint="요소를 먼저 선택" active={focus === 'ghost'} disabled={!selected} onClick={() => setFocus(focus === 'ghost' ? 'none' : 'ghost')} />
-            <Tool icon={EyeOff} label="나머지 숨김" hint="요소를 먼저 선택" active={focus === 'hide'} disabled={!selected} onClick={() => setFocus(focus === 'hide' ? 'none' : 'hide')} />
-            <Tool icon={RotateCcw} label="격리·숨김 해제" hint="적용된 격리·숨김 없음" disabled={focus === 'none'} onClick={() => setFocus('none')} />
+            <Tool icon={EyeOff} label="이것만 보기 (나머지 숨김)" hint="요소를 먼저 선택" active={!!selected && hidden.solo?.key === 'e:' + selected.globalId} disabled={!selected} onClick={soloSelected} />
+            <Tool icon={RotateCcw} label="격리·솔로 해제" hint="적용된 격리·솔로 없음" disabled={focus === 'none' && !hidden.solo} onClick={() => { setFocus('none'); if (hidden.solo) setHidden({ ...hidden, solo: undefined }) }} />
             <Gap />
             <Tool icon={Scissors} label="수평 단면 — 층 스냅 가능" active={clip != null} disabled={!bounds} onClick={() => setClip(clip == null ? bounds!.max[1] - 0.01 : null)} />
             <Tool icon={Combine} label="재질별 병합 — draw call 줄이기" active={opts.merged} onClick={() => setOpts(o => ({ ...o, merged: !o.merged }))} />

@@ -1,12 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, Box, Building2, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Box, Building2, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, X, type LucideIcon } from 'lucide-react'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
 
 /** 트리 한 행. children 은 지연 계산(펼칠 때만) */
-export type Row = { key: string; gid?: string; label: string; sub?: string; icon: LucideIcon; count: number; hidden: boolean; gids: () => string[]; children?: () => Row[] }
+export type Row = { key: string; gid?: string; label: string; sub?: string; icon: LucideIcon; count: number; hidden: boolean; solo: boolean; gids: () => string[]; children?: () => Row[] }
 
-export type Hidden = { nodes: Set<number>; classes: Set<string>; gids: Set<string> }
+/** 숨김 3종 + 솔로(이것만 보기). 보임 = (solo 없음 || gid ∈ solo) && !hidden */
+export type Hidden = { nodes: Set<number>; classes: Set<string>; gids: Set<string>; solo?: { key: string; label: string; gids: Set<string> } }
 export type Opts = { openings: boolean; spaces: boolean; merged: boolean }
 
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
@@ -25,36 +26,43 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   const desc = (n: SpatialNode): string[] => [...(byNode.get(n.id) ?? []).map(e => e.globalId), ...(childrenOf.get(n.id) ?? []).flatMap(desc)]
 
   const elRow = (e: ElementRow): Row => ({ key: 'e:' + e.globalId, gid: e.globalId, label: e.name ?? '(이름 없음)', sub: e.ifcClass.replace('Ifc', ''), icon: classIcon(e.ifcClass), count: 0,
-    hidden: hidden.gids.has(e.globalId) || hidden.classes.has(e.ifcClass), gids: () => [e.globalId] })
+    hidden: hidden.gids.has(e.globalId) || hidden.classes.has(e.ifcClass), solo: hidden.solo?.key === 'e:' + e.globalId, gids: () => [e.globalId] })
   const spRow = (n: SpatialNode): Row => {
     const g = desc(n)
     return { key: 'n:' + n.id, label: n.name ?? '(이름 없음)', sub: n.ifcClass.replace('Ifc', '') + (n.elevation != null ? ` ${n.elevation.toFixed(2)}m` : ''), icon: classIcon(n.ifcClass), count: g.length,
-      hidden: hidden.nodes.has(n.id), gids: () => g,
+      hidden: hidden.nodes.has(n.id), solo: hidden.solo?.key === 'n:' + n.id, gids: () => g,
       children: () => [...(childrenOf.get(n.id) ?? []).map(spRow), ...(byNode.get(n.id) ?? []).map(elRow)] }
   }
   const roots: Row[] = useMemo(() => {
     if (tab === 'spatial') {
       const rows = (childrenOf.get(null) ?? []).map(spRow)
       const orphan = byNode.get(null) ?? []
-      if (orphan.length) rows.push({ key: 'orphan', label: '컨테이너 없음', icon: Tag, count: orphan.length, hidden: false, gids: () => orphan.map(e => e.globalId), children: () => orphan.map(elRow) })
+      if (orphan.length) rows.push({ key: 'orphan', label: '컨테이너 없음', icon: Tag, count: orphan.length, hidden: false, solo: hidden.solo?.key === 'orphan', gids: () => orphan.map(e => e.globalId), children: () => orphan.map(elRow) })
       return rows
     }
     const byClass = new Map<string, ElementRow[]>()
     for (const e of elements) (byClass.get(e.ifcClass) ?? byClass.set(e.ifcClass, []).get(e.ifcClass)!).push(e)
-    return [...byClass].sort((a, b) => b[1].length - a[1].length).map(([c, es]) => ({ key: 'c:' + c, label: c, icon: classIcon(c), count: es.length, hidden: hidden.classes.has(c), gids: () => es.map(e => e.globalId), children: () => es.map(elRow) }))
+    return [...byClass].sort((a, b) => b[1].length - a[1].length).map(([c, es]) => ({ key: 'c:' + c, label: c, icon: classIcon(c), count: es.length, hidden: hidden.classes.has(c), solo: hidden.solo?.key === 'c:' + c, gids: () => es.map(e => e.globalId), children: () => es.map(elRow) }))
   }, [tab, spatial, elements, hidden])
 
-  const toggle = (r: Row) => {
-    const h: Hidden = { nodes: new Set(hidden.nodes), classes: new Set(hidden.classes), gids: new Set(hidden.gids) }
+  const clone = (): Hidden => ({ nodes: new Set(hidden.nodes), classes: new Set(hidden.classes), gids: new Set(hidden.gids), solo: hidden.solo })
+  const flipHidden = (h: Hidden, r: Row) => {
     const flip = <T,>(set: Set<T>, v: T) => set.has(v) ? set.delete(v) : set.add(v)
     if (r.key.startsWith('n:')) flip(h.nodes, +r.key.slice(2))
     else if (r.key.startsWith('c:')) flip(h.classes, r.key.slice(2))
     else if (r.gid) flip(h.gids, r.gid)
     else for (const g of r.gids()) flip(h.gids, g)   // 컨테이너 없음 묶음
+  }
+  const toggle = (r: Row) => { const h = clone(); flipHidden(h, r); setHidden(h) }
+  /** 이것만 보기. 같은 행이면 해제, 다른 행이면 교체. 숨겨진 행을 솔로하면 그 행의 숨김은 푼다 (솔로 = 보여달라는 뜻) */
+  const solo = (r: Row) => {
+    const h = clone()
+    if (r.hidden && !r.solo) flipHidden(h, r)
+    h.solo = r.solo ? undefined : { key: r.key, label: r.label, gids: new Set(r.gids()) }
     setHidden(h)
   }
   const allVisible = () => setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() })
-  const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0
+  const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
 
   // 검색: 요소 이름/GlobalId/클래스 → 평면 목록
   const found = useMemo(() => { const t = q.trim().toLowerCase(); return t ? elements.filter(e => e.globalId === q.trim() || e.name?.toLowerCase().includes(t) || e.ifcClass.toLowerCase().includes(t)).slice(0, 100) : [] }, [elements, q])
@@ -75,6 +83,10 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
         <Toggle icon={Eye} label="숨긴 것 모두 표시" on={false} disabled={!anyHidden} onClick={allVisible} />
       </div>
 
+      {hidden.solo && <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '8px 12px 0', padding: '4px 8px', background: '#eef2ff', color: '#2563eb', borderRadius: 6, fontSize: 12 }}>
+        <Focus size={13} /> 이것만 보기: <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{hidden.solo.label}</b>
+        <X size={13} style={{ cursor: 'pointer' }} onClick={() => setHidden({ ...clone(), solo: undefined })} /></div>}
+
       <div style={{ position: 'relative', margin: '8px 12px 4px' }}>
         <Search size={14} style={{ position: 'absolute', left: 8, top: 8, color: '#999' }} />
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="이름 · 클래스 · GlobalId" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px 6px 28px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
@@ -87,31 +99,33 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       </div>}
 
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }}>
-        {q ? (found.length ? found.map(e => <TreeRow key={e.globalId} row={elRow(e)} depth={0} onToggle={toggle} onFocus={onFocus} />) : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
-           : roots.map(r => <TreeRow key={r.key} row={r} depth={0} onToggle={toggle} onFocus={onFocus} openDepth={r.key.startsWith('n:') ? 2 : 0} />)}
+        {q ? (found.length ? found.map(e => <TreeRow key={e.globalId} row={elRow(e)} depth={0} onToggle={toggle} onSolo={solo} onFocus={onFocus} />) : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
+           : roots.map(r => <TreeRow key={r.key} row={r} depth={0} onToggle={toggle} onSolo={solo} onFocus={onFocus} openDepth={r.key.startsWith('n:') ? 2 : 0} />)}
       </div>
     </aside>
   )
 }
 
-function TreeRow({ row, depth, onToggle, onFocus, openDepth = 0 }: { row: Row; depth: number; onToggle: (r: Row) => void; onFocus: (gids: string[], select?: string) => void; openDepth?: number }) {
+function TreeRow({ row, depth, onToggle, onSolo, onFocus, openDepth = 0 }: { row: Row; depth: number; onToggle: (r: Row) => void; onSolo: (r: Row) => void; onFocus: (gids: string[], select?: string) => void; openDepth?: number }) {
   const [open, setOpen] = useState(depth < openDepth)   // Site·Building 은 펼침, 층부터 접힘
   const [hov, setHov] = useState(false)
   const Icon = row.icon, kids = open && row.children ? row.children() : undefined
   return (
     <>
       <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}
-           style={{ display: 'flex', alignItems: 'center', gap: 4, height: 26, paddingLeft: 4 + depth * 14, paddingRight: 4, borderRadius: 5, background: hov ? '#eef2ff' : 'transparent', opacity: row.hidden ? 0.45 : 1, cursor: 'pointer' }}>
+           style={{ display: 'flex', alignItems: 'center', gap: 4, height: 26, paddingLeft: 4 + depth * 14, paddingRight: 4, borderRadius: 5, background: hov ? '#eef2ff' : 'transparent', opacity: row.hidden ? 0.45 : 1, fontWeight: row.solo ? 600 : 400, cursor: 'pointer' }}>
         <span onClick={() => row.children && setOpen(!open)} style={{ width: 14, display: 'grid', placeItems: 'center', color: '#888' }}>
           {row.children && (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}</span>
         <Icon size={14} style={{ color: '#666', flexShrink: 0 }} />
         <span onClick={() => onFocus(row.gids(), row.gid)} title={row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {row.label}{row.sub && <span style={{ color: '#999', marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
         {row.count > 0 && <span style={{ color: '#999', fontSize: 11, background: '#eee', borderRadius: 8, padding: '0 6px' }}>{row.count}</span>}
-        <span onClick={e => { e.stopPropagation(); onToggle(row) }} title={row.hidden ? '표시' : '숨김'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? '#bbb' : hov ? '#555' : 'transparent' }}>
+        <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? '#2563eb' : hov ? '#777' : 'transparent' }}>
+          <Focus size={14} /></span>
+        <span onClick={e => { e.stopPropagation(); e.altKey ? onSolo(row) : onToggle(row) }} title={row.hidden ? '표시' : '숨김 · Alt+클릭: 이것만 보기'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? '#bbb' : hov ? '#555' : 'transparent' }}>
           {row.hidden ? <EyeOff size={14} /> : <Eye size={14} />}</span>
       </div>
-      {kids?.map(k => <TreeRow key={k.key} row={k} depth={depth + 1} onToggle={onToggle} onFocus={onFocus} openDepth={openDepth} />)}
+      {kids?.map(k => <TreeRow key={k.key} row={k} depth={depth + 1} onToggle={onToggle} onSolo={onSolo} onFocus={onFocus} openDepth={openDepth} />)}
     </>
   )
 }
