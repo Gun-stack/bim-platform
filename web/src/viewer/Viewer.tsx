@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
+import { MapPinned, Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
 import { api, type Asset, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type StatusRow, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import SystemPanel, { STATUS_COLOR, systemColor } from './SystemPanel'
 import { StatusBadge, day } from './FmPanel'
@@ -41,6 +41,23 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [statusRows, setStatusRows] = useState<StatusRow[]>([])
   const [power, setPower] = useState<PowerResult>()
   const [statusView, setStatusView] = useState(false)
+  const [focusInfo, setFocusInfo] = useState<{ gid: string; name: string; zone?: string; storey?: string; status?: string }>()
+  /** 경보/장애 요소로 포커스: 구역 반투명 강조 + 요소 하이라이트 + 위층 단면 + 구역에 카메라 */
+  const focusOn = (gid: string) => {
+    const s = scene.current, el = byGid.get(gid); if (!s || !el) return
+    const node = el.spatialNodeId != null ? spatial.find(n => n.id === el.spatialNodeId) : undefined
+    const space = node?.ifcClass === 'IfcSpace' ? node : undefined
+    const storey = node?.ifcClass === 'IfcBuildingStorey' ? node : node?.parentId != null ? spatial.find(n => n.id === node.parentId) : undefined
+    setOpts(o => ({ ...o, spaces: true })); setRoute(undefined); setPower(undefined)
+    setHidden(h => ({ ...h, solo: undefined }))
+    s.select([gid])
+    setFocus('ghost'); s.setFocus({ mode: 'ghost', gids: new Set([gid, ...(space ? [space.globalId] : [])]) })
+    if (storey?.elevation != null && bounds) setClip([bounds.min[0], bounds.max[0], bounds.min[1], storey.elevation + 3.3, bounds.min[2], bounds.max[2]])
+    s.fitAll(space ? [space.globalId, gid] : [gid])
+    const st = statusRows.find(r => r.globalId === gid)?.status.Status
+    setFocusInfo({ gid, name: el.name ?? gid, zone: space?.name ?? undefined, storey: storey?.name ?? undefined, status: st })
+  }
+  const focusRef = useRef(focusOn); focusRef.current = focusOn
   const reloadStatus = () => api(`/models/${modelId}/status`).then(setStatusRows).catch(() => setStatusRows([]))
   useEffect(() => { reloadStatus() }, [modelId])
   useEffect(() => { api(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
@@ -91,6 +108,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       if (vp?.v) s.setView(vp.v)
       if (vp?.clip) setClip(vp.clip)
       if (vp?.sel) s.select(vp.sel.split(','))
+      if (vp?.focus && vp.sel) setTimeout(() => focusRef.current(vp.sel!.split(',')[0]), 300)   // byGid·spatial 준비 후
     }).catch(e => setErr(String(e)))
     let pending = false   // 호버 툴팁: 프레임당 1회
     const onMove = (e: PointerEvent) => {
@@ -186,7 +204,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute}
             onSolo={(label, gids, key) => setHidden({ ...hidden, solo: hidden.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } })}
             onSelect={gids => scene.current?.select(gids)} colorMode={sysColor} setColorMode={setSysColor}
-            statusRows={statusRows} reloadStatus={reloadStatus} power={power} setPower={setPower} statusView={statusView} setStatusView={setStatusView} />} />
+            statusRows={statusRows} reloadStatus={reloadStatus} power={power} setPower={setPower} statusView={statusView} setStatusView={setStatusView} onFocus={focusOn} />} />
       </Panel>
       <Separator style={sep} />
 
@@ -197,6 +215,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
           {colorMode && <ColorPanel modelId={modelId} elements={elements} spatial={spatial} onChange={m => scene.current?.setColors(m)}
             onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
+
+          {/* 경보/장애 포커스 배너 */}
+          {focusInfo && <div style={{ position: 'absolute', top: wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: focusInfo.status === 'ALARM' ? '#fef2f2' : focusInfo.status === 'FAULT' ? '#fffbeb' : '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 460 }}>
+            <MapPinned size={14} style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#2563eb' }} />
+            <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
+            {focusInfo.status && <b style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#16a34a' }}>{{ ALARM: '경보', FAULT: '장애', NORMAL: '정상' }[focusInfo.status] ?? focusInfo.status}</b>}
+            <span style={{ color: '#888' }}>구역 강조 · 위층 단면</span>
+            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); setClip(null) }} /></div>}
 
           {/* 작업지시로 진입: 배너 */}
           {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 420 }}>
@@ -279,10 +305,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
   )
 }
 
-function readViewpoint(): { v?: View; sel?: string; clip?: number[] } | undefined {
+function readViewpoint(): { v?: View; sel?: string; clip?: number[]; focus?: boolean } | undefined {
   const q = new URLSearchParams(location.hash.split('?')[1] ?? '')
   const n = q.get('v')?.split(',').map(Number), c = q.get('clip')?.split(',').map(Number)
-  return { v: n?.length === 6 ? { p: n.slice(0, 3), t: n.slice(3) } : undefined, sel: q.get('sel') ?? undefined, clip: c?.length === 6 && c.every(Number.isFinite) ? c : undefined }
+  return { v: n?.length === 6 ? { p: n.slice(0, 3), t: n.slice(3) } : undefined, sel: q.get('sel') ?? undefined, clip: c?.length === 6 && c.every(Number.isFinite) ? c : undefined, focus: q.has('focus') }
 }
 
 const sep = { width: 4, background: '#e5e5e5', cursor: 'col-resize' }

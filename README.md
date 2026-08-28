@@ -70,6 +70,7 @@ curl -X POST localhost:8080/api/models/<id>/retry                               
 ![M6 정전 시나리오](docs/images/m6-blackout.png)
 ![M6 모니터링](docs/images/m6-monitor.png)
 ![M6 모니터링 정전](docs/images/m6-monitor-blackout.png)
+![M6 경보 포커스](docs/images/m6-focus.png)
 
 `samples/mep-building.ifc` — `samples/gen/gen_mep.py` 로 만든 가상 업무동(지하 변전실·펌프실·수조 + 3개 층, 층별 A/B 구역). 전기·급수·배수·소방·비상전원·화재감지 6계통을 IfcDistributionSystem 과 흐름 연결로 넣었고, 감지기·발전기엔 상태(`Pset_BimStatus`)가 있다. 뷰어 "계통" 탭에서 계통별 색, 요소 선택 → **상류(원천까지) / 하류(말단까지)** 추적, **상태판**(경보/장애 목록, API 로 상태 갱신 → 수신기 집계·작업지시 자동), **정전 시나리오**(발전기 절체 시 전원 있음/없음을 흐름 그래프로 계산). `#/models/{id}/monitor` **모니터링**: 팀(전기·소방·설비) × 층 격자에 장비 상태·자산·작업지시, 5초 갱신. `python3 samples/gen/bms_sim.py <modelId>` 로 BMS 시뮬레이션(경보·장애·펌프·수위·정전).
 

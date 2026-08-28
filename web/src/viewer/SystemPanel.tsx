@@ -11,7 +11,7 @@ const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 선택 요소의 상류/하류 추적 */
 export const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, STANDBY: 0x6b7280, RUNNING: 0x16a34a, TRANSFERRED: 0xea580c, ALARM: 0xdc2626, FAULT: 0xf59e0b }
 
-export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode, statusRows, reloadStatus, power, setPower, statusView, setStatusView }: {
+export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode, statusRows, reloadStatus, power, setPower, statusView, setStatusView, onFocus }: {
   modelId: string; selection: string[]
   members: Map<number, SystemMember[]>; setMembers: (m: Map<number, SystemMember[]>) => void
   route?: Route; setRoute: (r?: Route) => void
@@ -20,6 +20,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
   statusRows: StatusRow[]; reloadStatus: () => Promise<unknown>
   power?: PowerResult; setPower: (p?: PowerResult) => void
   statusView: boolean; setStatusView: (b: boolean) => void
+  onFocus: (gid: string) => void
 }) {
   const [systems, setSystems] = useState<System[]>([])
   const [busy, setBusy] = useState(false)
@@ -49,7 +50,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
         </div>) })}
 
       <div style={{ borderTop: '1px solid #e5e5e5', margin: '8px 0' }} />
-      <StatusBoard rows={statusRows} modelId={modelId} gid={gid} reload={reloadStatus} onSelect={onSelect} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} />
+      <StatusBoard rows={statusRows} modelId={modelId} gid={gid} reload={reloadStatus} onSelect={g => onFocus(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} />
       <div style={{ borderTop: '1px solid #e5e5e5', margin: '8px 0' }} />
       {!gid && <div style={{ color: '#888', fontSize: 12, padding: 6 }}>요소를 하나 선택하면 흐름을 추적할 수 있습니다.</div>}
       {gid && <>
@@ -96,7 +97,7 @@ function StatusBoard({ rows, modelId, gid, reload, onSelect, statusView, setStat
       </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#444', marginBottom: 4 }}>
         <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기 (정상 초록 · 경보 빨강 · 장애 주황)</label>
-      {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: 4, background: '#fff5f5' }}>
+      {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: 4, background: '#fff5f5' }}>
         <AlertTriangle size={12} style={{ color: r.status.Status === 'ALARM' ? '#dc2626' : '#f59e0b' }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
         <span style={{ color: '#888' }}>{r.spatialName}</span><b style={{ color: r.status.Status === 'ALARM' ? '#dc2626' : '#f59e0b' }}>{r.status.Status}</b></div>)}

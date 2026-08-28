@@ -80,7 +80,7 @@ function RowView({ r, modelId, dead }: { r: Row; modelId: string; dead?: boolean
   const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : s ? STATUS[s] : undefined
   const abnormal = s === 'ALARM' || s === 'FAULT'
   return (
-    <a href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&fm=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey}`}
+    <a href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey} — 클릭: 뷰어에서 구역 강조`}
        style={{ display: 'grid', gridTemplateColumns: '10px 1fr auto auto', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 5, textDecoration: 'none', color: '#222', fontSize: 12, background: abnormal ? (s === 'ALARM' ? '#fef2f2' : '#fffbeb') : dead ? '#f3f4f6' : 'transparent', opacity: dead ? 0.7 : 1 }}>
       <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? '#d1d5db' }} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: '#999', marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
