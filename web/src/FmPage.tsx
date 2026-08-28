@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Box, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
-import { Section, useSections } from './Section'
+import { Section } from './Section'
+import { useSections } from './useSections'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
 import { day } from './viewer/FmPanel'
 import { ifcKo } from './ifcNames'

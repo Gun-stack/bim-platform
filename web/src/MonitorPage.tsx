@@ -3,7 +3,8 @@ import { Activity, AlertTriangle, ArrowLeft, Box, Car, ExternalLink, Gauge, Laye
 import { api, post, type Model } from './api'
 import { TEAMS } from './teams'
 import { day } from './viewer/FmPanel'
-import { Section, useSections } from './Section'
+import { Section } from './Section'
+import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
 
 type Row = { globalId: string; ifcClass: string; name: string; storey: string | null; zone: string | null; elevation: number | null; systems: string[]

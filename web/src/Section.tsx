@@ -1,5 +1,4 @@
 import type React from 'react'
-import { useState } from 'react'
 import { ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react'
 
 /** 접이식 섹션 — 헤더(아이콘·제목·건수) 클릭으로 펼침/접힘. 시설관리·모니터링이 공유 */
@@ -12,11 +11,4 @@ export function Section({ title, icon: Icon, count, open, onToggle, color, right
         <span style={{ marginLeft: right ? 8 : 'auto', color: '#999', display: 'inline-flex' }}>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span></div>
       {open && <div style={{ padding: pad }}>{children}</div>}
     </section>)
-}
-
-/** 섹션 펼침 상태를 localStorage 에 기억 */
-export function useSections<K extends string>(key: string, defaults: Record<K, boolean>) {
-  const [open, setOpen] = useState<Record<K, boolean>>(() => { try { return { ...defaults, ...JSON.parse(localStorage.getItem(key) ?? '{}') } } catch { return defaults } })
-  const toggle = (k: K) => setOpen(o => { const n = { ...o, [k]: !o[k] }; try { localStorage.setItem(key, JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } return n })
-  return [open, toggle] as const
 }
