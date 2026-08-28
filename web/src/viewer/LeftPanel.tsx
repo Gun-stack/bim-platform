@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import type React from 'react'
-import { ArrowLeft, Box, Building2, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
 
@@ -12,6 +12,7 @@ export type SelectMode = 'set' | 'toggle' | 'range'
 export type Hidden = { nodes: Set<number>; classes: Set<string>; gids: Set<string>; solo?: { key: string; label: string; gids: Set<string> } }
 export type Opts = { openings: boolean; spaces: boolean; merged: boolean }
 
+const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', 'IfcCovering', 'IfcCurtainWall']   // 구조체 숨김 토글 대상
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 export const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
@@ -110,6 +111,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
         <Toggle icon={Square} label="Opening (창·문 구멍)" on={opts.openings} onClick={() => setOpts(o => ({ ...o, openings: !o.openings }))} />
         <Toggle icon={Box} label="Space 반투명" on={opts.spaces} onClick={() => setOpts(o => ({ ...o, spaces: !o.spaces }))} />
         <Toggle icon={Combine} label="재질별 병합" on={opts.merged} onClick={() => setOpts(o => ({ ...o, merged: !o.merged }))} />
+        <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕)" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) on ? h.classes.delete(c) : h.classes.add(c); setHidden(h) }} />
         <span style={{ flex: 1 }} />
         <Toggle icon={Eye} label="숨긴 것 모두 표시" on={false} disabled={!anyHidden} onClick={allVisible} />
       </div>

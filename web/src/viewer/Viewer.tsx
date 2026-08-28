@@ -3,7 +3,7 @@ import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { Check, Combine, Copy, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
 import { api, type Asset, type ElementDetail, type ElementRow, type Model, type Route, type SpatialNode, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
-import SystemPanel, { SYSTEM_COLOR } from './SystemPanel'
+import SystemPanel, { systemColor } from './SystemPanel'
 import { StatusBadge, day } from './FmPanel'
 import FmPanel from './FmPanel'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
@@ -37,7 +37,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [sysMembers, setSysMembers] = useState<Map<number, SystemMember[]>>(new Map())
   const [sysColor, setSysColor] = useState(false)     // 계통별 색
   const [route, setRoute] = useState<Route>()          // 추적 결과
-  const [systemsMeta, setSystemsMeta] = useState<{ id: number; predefinedType: string | null }[]>([])
+  const [systemsMeta, setSystemsMeta] = useState<{ id: number; name: string; predefinedType: string | null }[]>([])
   useEffect(() => { api(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
   // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? 0xffaa00 : route.direction === 'up' ? 0x2563eb : 0x16a34a); s.setColors(m, true); return }
     if (!sysColor || colorMode) { if (!colorMode) s.setColors(undefined); return }
     const m = new Map<string, number>()
-    for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, SYSTEM_COLOR[sm.predefinedType ?? ''] ?? 0x888888)
+    for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, systemColor(sm))
     s.setColors(m, true)   // 구조체는 반투명 — 계통이 건물 안에서 보이게
   }, [sysColor, sysMembers, systemsMeta, route, colorMode, bounds])
   const [menu, setMenu] = useState<{ x: number; y: number }>()

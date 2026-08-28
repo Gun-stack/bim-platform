@@ -69,6 +69,7 @@ def system(name, ptype):
     systems[name] = s
     return s
 S_EL, S_WS, S_WW, S_FP = system("전기", "ELECTRICAL"), system("급수", "DOMESTICCOLDWATER"), system("배수", "WASTEWATER"), system("소방", "FIREPROTECTION")
+S_EM, S_FA = system("비상전원", "ELECTRICAL"), system("화재감지", "SIGNAL")
 
 def link(up, down, sysname):
     """상류 → 하류 흐름 연결 + 양쪽 계통 소속"""
@@ -80,7 +81,7 @@ def link(up, down, sysname):
 ST = {"slab": style("slab", (0.75, 0.75, 0.75)), "wall": style("wall", (0.85, 0.85, 0.82), 0.35), "space": style("space", (0.6, 0.75, 1.0), 0.15),
       "el": style("electrical", (0.95, 0.65, 0.1)), "tray": style("tray", (0.8, 0.5, 0.1)), "light": style("light", (1.0, 0.95, 0.6)),
       "ws": style("water", (0.2, 0.5, 0.95)), "ww": style("waste", (0.45, 0.35, 0.25)), "fp": style("fire", (0.9, 0.2, 0.2)), "tank": style("tank", (0.3, 0.6, 0.8), 0.6),
-      "shaft": style("shaft", (0.5, 0.5, 0.5), 0.3)}
+      "shaft": style("shaft", (0.5, 0.5, 0.5), 0.3), "em": style("emergency", (0.85, 0.3, 0.05)), "fa": style("firealarm", (0.6, 0.2, 0.7)), "gen": style("generator", (0.4, 0.4, 0.45))}
 
 # ---------- 구조: 층·슬래브·외벽·샤프트·구역 ----------
 storeys, spaces = {}, {}
@@ -92,7 +93,7 @@ for name, z in FLOORS:
         make("IfcWall", f"{name} 외벽", [box(x, y, z, w, d, H)], st, ST["wall"])
     for label, (x, y, w, d) in (("EPS", EPS), ("PS", PS)):
         make("IfcWall", f"{name} {label} 샤프트", [box(x, y, z, w, 0.1, H), box(x, y + d, z, w, 0.1, H), box(x, y, z, 0.1, d, H), box(x + w, y, z, 0.1, d, H)], st, ST["shaft"])
-    zones = [("변전실", 0, 0, 6, D), ("펌프실", 6, 0, 5, D), ("수조실", 13.6, 0, W - 13.6, D)] if name == "B1" else [("A", 0, 0, 11, D), ("B", 13.6, 0, W - 13.6, D)]
+    zones = [("변전실", 0, 0, 6, 8), ("방재실", 0, 8, 6, D - 8), ("펌프실", 6, 0, 5, D), ("수조실", 13.6, 0, W - 13.6, D)] if name == "B1" else [("A", 0, 0, 11, D), ("B", 13.6, 0, W - 13.6, D)]
     for zname, x, y, w, d in zones:
         sp = api.root.create_entity(f, ifc_class="IfcSpace", name=f"{name}-{zname}")
         api.geometry.assign_representation(f, product=sp, representation=rep([box(x + 0.2, y + 0.2, z, w - 0.4, d - 0.4, H - 0.3)], ST["space"]))
@@ -112,6 +113,15 @@ link(WT, WP, "급수")
 FT = make("IfcTank", "FT-1 소화수조 40t", [box(19, 1, zb, 4, 4, 2.5)], spaces["B1-수조실"], ST["tank"], {"Pset_TankTypeCommon": {"NominalCapacity": 40.0}}, "STORAGE")
 FP = make("IfcPump", "FP-1 소화펌프", [box(9, 1.5, zb, 1, 1, 1.4)], spaces["B1-펌프실"], ST["fp"], None, "ENDSUCTION")
 link(FT, FP, "소방")
+# ---------- 비상전원: 발전기 → ATS → 비상분전반 ----------
+GEN = make("IfcElectricGenerator", "EG-1 비상발전기 500kW", [box(1, 0.5, zb, 3, 1.6, 1.8), box(1.2, 2.3, zb, 1.0, 1.0, 1.0)], spaces["B1-변전실"], ST["gen"],
+           {"Pset_ElectricGeneratorTypeCommon": {"MaximumPowerOutput": 500000.0}, "Pset_BimStatus": {"Status": "STANDBY", "FuelLevel": 82.0, "LastTest": "2026-08-01"}}, "CHP")
+ATS = make("IfcSwitchingDevice", "ATS-1 자동절체개폐기", [box(4, 2.2, zb, 0.6, 0.8, 1.6)], spaces["B1-변전실"], ST["em"], {"Pset_BimStatus": {"Status": "NORMAL", "Source": "UTILITY"}}, "TRANSFERSWITCH")
+EMDB = make("IfcElectricDistributionBoard", "EMDB 비상분전반", [box(4, 7.0, zb, 0.8, 0.8, 2.0)], spaces["B1-변전실"], ST["em"], {"Pset_ElectricalDeviceCommon": {"RatedVoltage": 380.0, "RatedCurrent": 400.0}}, "SWITCHBOARD")
+link(GEN, ATS, "비상전원"); link(MDB, ATS, "비상전원"); link(ATS, EMDB, "비상전원")
+# ---------- 화재감지: 수신기(방재실) ----------
+FACP = make("IfcUnitaryControlElement", "FACP 화재수신기 (P형)", [box(1, 9.5, zb + 0.8, 0.7, 0.3, 1.0)], spaces["B1-방재실"], ST["fa"], {"Pset_BimStatus": {"Status": "NORMAL", "ActiveAlarms": 1, "Faults": 1}}, "ALARMPANEL")
+link(EMDB, FACP, "비상전원"); link(EMDB, FP, "비상전원")   # 소화펌프는 비상전원
 SP = make("IfcTank", "SP-1 집수정", [box(7, 8, zb - 0.2, 2, 2, 1.0)], spaces["B1-펌프실"], ST["ww"], None, "BASIN")
 
 # 지하 수평 배관: 수조 → 펌프 → 샤프트, 펌프실 → 샤프트
@@ -127,6 +137,9 @@ p = make("IfcPipeSegment", "배수 집수관", [pipe([(px, py - 0.3, zb + 0.3), 
 # ---------- 입상 (B1 → 3F) ----------
 top = FLOORS[-1][1] + H
 riser_el = make("IfcCableCarrierSegment", "EPS 입상 트레이", [box(ex - 0.15, ey - 0.15, zb + 2.8, 0.3, 0.3, top - zb - 2.8)], b1, ST["tray"], None, "CABLELADDERSEGMENT"); link(EL_B1, riser_el, "전기")
+riser_em = make("IfcCableCarrierSegment", "EPS 비상 입상 트레이", [box(ex - 0.5, ey - 0.15, zb + 2.8, 0.25, 0.3, top - zb - 2.8)], b1, ST["em"], None, "CABLELADDERSEGMENT")
+t = make("IfcCableCarrierSegment", "B1 비상 트레이", [box(4.8, 7.3, zb + 2.8, ex - 0.5 - 4.8, 0.25, 0.1)], b1, ST["em"], None, "CABLETRAYSEGMENT"); link(EMDB, t, "비상전원"); link(t, riser_em, "비상전원")
+riser_fa = make("IfcCableSegment", "화재감지 간선 (입상)", [pipe([(1.35, 9.65, zb + 1.8), (1.35, 9.65, zb + 3.0), (ex + 0.4, ey + 0.6, zb + 3.0), (ex + 0.4, ey + 0.6, top)], 0.02)], b1, ST["fa"], None, "CABLESEGMENT"); link(riser_fa, FACP, "화재감지")
 riser_ws = make("IfcPipeSegment", "급수 입상관", [pipe([(px - 0.3, py, zb + 3.0), (px - 0.3, py, top)], 0.05)], b1, ST["ws"], None, "RIGIDSEGMENT"); link(WS_B1, riser_ws, "급수")
 riser_fp = make("IfcPipeSegment", "소화 입상관", [pipe([(px + 0.3, py, zb + 3.1), (px + 0.3, py, top)], 0.065)], b1, ST["fp"], None, "RIGIDSEGMENT"); link(FP_B1, riser_fp, "소방")
 riser_ww = make("IfcPipeSegment", "배수 입상관", [pipe([(px, py - 0.3, top), (px, py - 0.3, zb + 0.3)], 0.075)], b1, ST["ww"], None, "RIGIDSEGMENT"); link(riser_ww, WW_B1, "배수")
@@ -136,6 +149,10 @@ for name, z in FLOORS[1:]:
     st = storeys[name]
     LP = make("IfcElectricDistributionBoard", f"LP-{name} 층 분전반", [box(EPS[0] + 0.2, EPS[1] + 0.3, z + 0.8, 0.6, 0.25, 1.0)], st, ST["el"], {"Pset_ElectricalDeviceCommon": {"RatedVoltage": 380.0, "RatedCurrent": 250.0}}, "DISTRIBUTIONBOARD")
     link(riser_el, LP, "전기")
+    ELP = make("IfcElectricDistributionBoard", f"ELP-{name} 층 비상분전반", [box(EPS[0] + 0.2, EPS[1] + 1.2, z + 0.8, 0.4, 0.25, 0.6)], st, ST["em"], {"Pset_ElectricalDeviceCommon": {"RatedVoltage": 220.0, "RatedCurrent": 63.0}}, "DISTRIBUTIONBOARD")
+    link(riser_em, ELP, "비상전원")
+    RPT = make("IfcUnitaryControlElement", f"RPT-{name} 층 중계기", [box(EPS[0] + 0.7, EPS[1] + 1.2, z + 1.6, 0.3, 0.15, 0.3)], st, ST["fa"], {"Pset_BimStatus": {"Status": "NORMAL"}}, "ALARMPANEL")
+    link(RPT, riser_fa, "화재감지")
     AV = make("IfcValve", f"AV-{name} 알람밸브", [box(px + 0.15, py + 0.5, z + 1.0, 0.3, 0.3, 0.3)], st, ST["fp"], None, "ISOLATION")
     link(riser_fp, AV, "소방")
     WSB = make("IfcPipeSegment", f"{name} 급수 분기관", [pipe([(px - 0.3, py, z + 3.0), (px - 0.3, 3.0, z + 3.0), (2, 3.0, z + 3.0)], 0.04), pipe([(px - 0.3, 3.0, z + 3.0), (W - 2, 3.0, z + 3.0)], 0.04)], st, ST["ws"], None, "RIGIDSEGMENT")
@@ -155,6 +172,17 @@ for name, z in FLOORS[1:]:
         for i, (lx, ly) in enumerate([(x0 + 3, 3), (x0 + 3, 9), (x0 + 7, 3), (x0 + 7, 9)] if zname == "A" else [(x0 + 2.5, 3), (x0 + 2.5, 9), (x0 + 7, 3), (x0 + 7, 9)]):
             L = make("IfcLightFixture", f"{name}-{zname} 조명 {i + 1}", [box(lx - 0.6, ly - 0.15, z + H - 0.35, 1.2, 0.3, 0.08)], sp, ST["light"], None, "POINTSOURCE")
             link(ZP, L, "전기")
+        # 비상전원: 층 비상분전반 → 비상조명(피난유도등) 2개
+        for i, (lx, ly) in enumerate([(x0 + 1.0, 6.0), (x1 - 1.0, 6.0)] if zname == "A" else [(x0 + 1.0, 6.0), (x1 - 1.0, 6.0)]):
+            EL = make("IfcLightFixture", f"{name}-{zname} 비상조명 {i + 1}", [box(lx - 0.15, ly - 0.15, z + 2.4, 0.3, 0.3, 0.15)], sp, ST["em"], {"Pset_BimStatus": {"Status": "NORMAL", "BatteryLevel": 100.0}}, "EMERGENCY")
+            link(ELP, EL, "비상전원")
+        # 화재감지: 중계기 ← 연기감지기 3 + 열감지기 1 (신호는 감지기 → 중계기 → 수신기 방향 = 상류가 수신기)
+        det_status = {("2F", "B", 0): ("ALARM", "2026-08-28T13:42"), ("3F", "A", 3): ("FAULT", None)}
+        for i, (dx, dy, kind) in enumerate([(x0 + 3, 4.5, "SMOKE"), (x0 + 3, 7.5, "SMOKE"), (x0 + 7.5, 4.5, "SMOKE"), (x0 + 7.5, 7.5, "HEAT")] if zname == "A" else [(x0 + 2.5, 4.5, "SMOKE"), (x0 + 2.5, 7.5, "SMOKE"), (x0 + 7.5, 4.5, "SMOKE"), (x0 + 7.5, 7.5, "HEAT")]):
+            status, at = det_status.get((name, zname, i), ("NORMAL", None))
+            DET = make("IfcSensor", f"{name}-{zname} {'연기' if kind == 'SMOKE' else '열'}감지기 {i + 1}", [pipe([(dx, dy, z + H - 0.35), (dx, dy, z + H - 0.3)], 0.06), sb.sphere(radius=0.07, center=V(dx, dy, z + H - 0.4))], sp, ST["fa"],
+                       {"Pset_BimStatus": {"Status": status, "AlarmAt": at or "", "LastTest": "2026-07-15"}}, "SMOKESENSOR" if kind == "SMOKE" else "HEATSENSOR")
+            link(DET, RPT, "화재감지")
         # 급수: 분기관 → 구역 밸브 → 위생기구 2개, 배수: 위생기구 → 횡주관
         vx = x0 + 2.5 if zname == "A" else x1 - 2.5
         VL = make("IfcValve", f"V-{name}-{zname} 구역 급수밸브", [box(vx - 0.15, 2.85, z + 2.85, 0.3, 0.3, 0.3)], sp, ST["ws"], None, "ISOLATION")
@@ -169,5 +197,5 @@ for name, z in FLOORS[1:]:
             link(FPB, SPR, "소방")
 
 f.write(sys.argv[1] if len(sys.argv) > 1 else "mep-building.ifc")
-n = {c: len(f.by_type(c)) for c in ("IfcElement", "IfcSpace", "IfcDistributionSystem", "IfcRelConnectsElements")}
+n = {c: len(f.by_type(c)) for c in ("IfcElement", "IfcSpace", "IfcDistributionSystem", "IfcRelConnectsElements", "IfcSensor")}
 print("written:", n)

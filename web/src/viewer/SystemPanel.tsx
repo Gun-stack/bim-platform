@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDownToLine, ArrowUpToLine, Cable, Droplets, Flame, Focus, Waves, X, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, Droplets, Flame, Focus, Waves, X, type LucideIcon } from 'lucide-react'
 import { api, type Route, type System, type SystemMember } from '../api'
 
 /** 계통별 색 (ColorPanel 팔레트와 별개로 의미색 고정) */
-export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xf59e0b, DOMESTICCOLDWATER: 0x2563eb, WASTEWATER: 0x78350f, FIREPROTECTION: 0xdc2626 }
-const SYSTEM_ICON: Record<string, LucideIcon> = { ELECTRICAL: Cable, DOMESTICCOLDWATER: Droplets, WASTEWATER: Waves, FIREPROTECTION: Flame }
+export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xf59e0b, DOMESTICCOLDWATER: 0x2563eb, WASTEWATER: 0x78350f, FIREPROTECTION: 0xdc2626, SIGNAL: 0x9333ea, 비상전원: 0xea580c, 화재감지: 0x9333ea }
+export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? 0x888888
+const SYSTEM_ICON: Record<string, LucideIcon> = { ELECTRICAL: Cable, DOMESTICCOLDWATER: Droplets, WASTEWATER: Waves, FIREPROTECTION: Flame, SIGNAL: Bell, 비상전원: BatteryCharging, 화재감지: Bell }
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 선택 요소의 상류/하류 추적 */
@@ -25,6 +26,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
 
   const gid = selection.length === 1 ? selection[0] : undefined
   const inSystems = useMemo(() => systems.filter(s => (members.get(s.id) ?? []).some(m => m.globalId === gid)), [systems, members, gid])
+  const signal = inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
   const trace = (dir: 'up' | 'down') => { if (!gid) return; setBusy(true); api(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}`).then(setRoute).finally(() => setBusy(false)) }
 
   if (!systems.length) return <p style={{ color: '#888', padding: 8 }}>이 모델에는 계통(IfcDistributionSystem) 정보가 없습니다.<br /><span style={{ fontSize: 12 }}>samples/mep-building.ifc 로 확인할 수 있습니다.</span></p>
@@ -32,7 +34,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
     <div style={{ padding: '4px 6px' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', fontSize: 12, color: '#444' }}>
         <input type="checkbox" checked={colorMode} onChange={e => setColorMode(e.target.checked)} /> 계통별 색으로 보기</label>
-      {systems.map(s => { const Icon = SYSTEM_ICON[s.predefinedType ?? ''] ?? Cable, c = SYSTEM_COLOR[s.predefinedType ?? ''] ?? 0x888888; return (
+      {systems.map(s => { const Icon = SYSTEM_ICON[s.name] ?? SYSTEM_ICON[s.predefinedType ?? ''] ?? Cable, c = systemColor(s); return (
         <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 6px', borderRadius: 5 }}>
           <span style={{ width: 12, height: 12, borderRadius: 3, background: hex(c), flexShrink: 0 }} />
           <Icon size={14} style={{ color: hex(c) }} />
@@ -46,17 +48,18 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
       {gid && <>
         <div style={{ fontSize: 12, color: '#666', padding: '0 6px 6px' }}>선택 요소 계통: {inSystems.length ? inSystems.map(s => s.name).join(', ') : '없음'}</div>
         <div style={{ display: 'flex', gap: 6, padding: '0 6px' }}>
-          <button disabled={!inSystems.length || busy} onClick={() => trace('up')} style={btn}><ArrowUpToLine size={13} /> 상류 (원천까지)</button>
-          <button disabled={!inSystems.length || busy} onClick={() => trace('down')} style={btn}><ArrowDownToLine size={13} /> 하류 (말단까지)</button>
+          {/* 신호 계통(화재감지)은 흐름이 감지기 → 수신기 라 라벨을 바꾼다 */}
+          <button disabled={!inSystems.length || busy} onClick={() => trace('up')} style={btn}><ArrowUpToLine size={13} /> {signal ? '감지기 쪽' : '상류 (원천까지)'}</button>
+          <button disabled={!inSystems.length || busy} onClick={() => trace('down')} style={btn}><ArrowDownToLine size={13} /> {signal ? '수신기까지' : '하류 (말단까지)'}</button>
         </div>
       </>}
       {route && <div style={{ marginTop: 8, padding: 8, background: '#f5f5f5', borderRadius: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-          <b style={{ flex: 1 }}>{route.direction === 'up' ? '상류 경로' : '하류 범위'} · {route.nodes.length}개</b>
+          <b style={{ flex: 1 }}>{route.direction === 'up' ? (signal ? '감지기 쪽' : '상류 경로') : (signal ? '수신기까지 경로' : '하류 범위')} · {route.nodes.length}개</b>
           <span title="경로만 보기" onClick={() => onSolo(`${route.direction === 'up' ? '상류' : '하류'} 경로`, route.nodes.map(n => n.globalId), 'route')} style={{ cursor: 'pointer', color: '#2563eb', display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
           <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => setRoute(undefined)} />
         </div>
-        {route.direction === 'up'
+        {route.direction === 'up' || route.nodes.length <= 12
           ? route.nodes.map(n => <RouteRow key={n.globalId} n={n} onClick={() => onSelect([n.globalId])} />)
           : Object.entries(groupBy(route.nodes, n => n.ifcClass)).map(([cls, ns]) => <div key={cls} style={{ display: 'flex', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }} onClick={() => onSelect(ns.map(n => n.globalId))}>
               <span style={{ flex: 1 }}>{cls.replace('Ifc', '')}</span><span style={{ color: '#888' }}>{ns.length}</span></div>)}

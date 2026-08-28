@@ -20,6 +20,10 @@
 | 급수 | DOMESTICCOLDWATER | 저수조 → 펌프 → 입상관 → 층 분기관 → 구역 밸브 → 위생기구 | IfcTank, IfcPump, IfcPipeSegment, IfcValve, IfcSanitaryTerminal |
 | 배수 | WASTEWATER | 위생기구 → 횡주관 → 입상관 → 집수정 | (역방향) |
 | 소방 | FIREPROTECTION | 소화수조 → 소화펌프 → 입상관 → 층 알람밸브 → 주관 → 스프링클러 | IfcFireSuppressionTerminal, IfcValve(알람밸브) |
+| 비상전원 | ELECTRICAL | 비상발전기 → ATS(한전/발전 절체, MDB 도 입력) → 비상분전반 EMDB → 입상 → 층 비상분전반 → 비상조명 · 소화펌프 · 화재수신기 | IfcElectricGenerator, IfcSwitchingDevice(TRANSFERSWITCH), IfcLightFixture(EMERGENCY) |
+| 화재감지 | SIGNAL | **감지기 → 층 중계기 → 간선 → 화재수신기(방재실)** — 신호 방향이라 수신기가 "하류" | IfcSensor(SMOKESENSOR/HEATSENSOR), IfcUnitaryControlElement(ALARMPANEL), IfcCableSegment |
+
+**상태**: 감지기·발전기·ATS·비상조명·수신기에 `Pset_BimStatus`(Status NORMAL/ALARM/FAULT/STANDBY, AlarmAt, LastTest, FuelLevel, BatteryLevel, Source UTILITY/GENERATOR). 표준 Pset 에 "현재 상태" 자리는 없어서(IFC 는 설계 정보) 프로젝트 Pset 으로 뒀다. 실제 운영에선 BMS/수신기 연동값이 여기로 들어오고, 뷰어 "속성별 색상 → Pset_BimStatus.Status" 가 곧 상태판(ALARM 빨강·FAULT 주황·NORMAL 초록). 예시 데이터: 2F-B 연기감지기 1 = ALARM, 3F-A 열감지기 = FAULT.
 
 ## IFC 에서 계통과 흐름을 담는 자리
 
@@ -48,7 +52,8 @@ SELECT DISTINCT ON (id) ... ORDER BY id, depth
 
 ## 뷰어에서
 
-- "계통별 색": 계통 멤버는 의미색(전기 주황·급수 파랑·배수 갈색·소방 빨강), 구조체는 반투명 — 건물 안의 배관·트레이가 보인다.
+- "계통별 색": 계통 멤버는 의미색(전기 주황·급수 파랑·배수 갈색·소방 빨강·비상전원 진주황·화재감지 보라), 구조체는 반투명 — 건물 안의 배관·트레이가 보인다. 표시 옵션 "구조체 숨김"(벽·슬래브·지붕) 으로 아예 뺄 수도 있다.
+- 신호 계통(SIGNAL)은 버튼 라벨이 "감지기 쪽 / 수신기까지" 로 바뀐다 — 데이터는 같은 `connection`, 의미만 다르다.
 - 요소 하나 선택 → 상류/하류. 경로는 파랑(상류)/초록(하류), 선택 요소 주황, 나머지 반투명. "경로만 보기" 는 솔로 모델 재사용.
 - 층·구역 필터(트리 눈/솔로)와 조합: "2F-B 구역 소방" = 트리에서 2F-B 솔로 + 계통 색.
 
@@ -57,6 +62,8 @@ SELECT DISTINCT ON (id) ... ORDER BY id, depth
 1. 3층 B구역 조명 고장 신고 → 조명 선택 → 상류 → `LP-3F-B 구역 분전반` 부터 확인, 그래도 안 되면 `LP-3F` → `MDB`.
 2. 급수 펌프 교체 예정 → 펌프 선택 → 하류 → 영향 범위 = 전 층 위생기구 26개 → 작업지시에 첨부(뷰포인트 저장).
 3. 1층 A구역 스프링클러 오작동 → 상류 → `AV-1F 알람밸브` 잠그면 1층만 차단, 그 위 `소화 입상관` 잠그면 전 층.
+4. 수신기 ALARM 1건 → 상태 색상 모드로 빨간 감지기 찾기(2F-B) → 수신기까지 경로로 중계기 확인 → 작업지시.
+5. 정전 → ATS `Source` 가 GENERATOR 로 바뀌면 비상전원 계통 하류(비상조명·소화펌프·수신기)만 살아있음을 뷰어에서 확인, 발전기 `FuelLevel` 로 잔여 운전 시간.
 
 ## 참고
 

@@ -66,8 +66,9 @@ curl -X POST localhost:8080/api/models/<id>/retry                               
 
 ![M6 계통별 색](docs/images/m6-systems.png)
 ![M6 계통 추적](docs/images/m6-route.png)
+![M6 상태](docs/images/m6-status.png)
 
-`samples/mep-building.ifc` — `samples/gen/gen_mep.py` 로 만든 가상 업무동(지하 변전실·펌프실·수조 + 3개 층, 층별 A/B 구역). 전기·급수·배수·소방 4계통을 IfcDistributionSystem 과 흐름 연결로 넣었다. 뷰어 "계통" 탭에서 계통별 색, 요소 선택 → **상류(원천까지) / 하류(말단까지)** 추적.
+`samples/mep-building.ifc` — `samples/gen/gen_mep.py` 로 만든 가상 업무동(지하 변전실·펌프실·수조 + 3개 층, 층별 A/B 구역). 전기·급수·배수·소방·비상전원·화재감지 6계통을 IfcDistributionSystem 과 흐름 연결로 넣었고, 감지기·발전기엔 상태(`Pset_BimStatus`)가 있다. 뷰어 "계통" 탭에서 계통별 색, 요소 선택 → **상류(원천까지) / 하류(말단까지)** 추적.
 
 ### 지도 (M3)
 

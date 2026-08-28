@@ -6,6 +6,8 @@ import { api, type ElementRow, type SpatialNode } from '../api'
 export const PALETTE = [0x4e79a7, 0xf28e2b, 0xe15759, 0x76b7b2, 0x59a14f, 0xedc948, 0xb07aa1, 0xff9da7, 0x9c755f, 0xbab0ac, 0x1b9e77, 0x7570b3]
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 const BUILTIN = ['ifcClass', 'storey']
+/** 상태값은 의미색 고정 (팔레트 순번이 아니라) */
+const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, OK: 0x16a34a, STANDBY: 0x6b7280, ALARM: 0xdc2626, FAULT: 0xf59e0b, TROUBLE: 0xf59e0b, OFF: 0x9ca3af, UTILITY: 0x2563eb, GENERATOR: 0xea580c }
 
 export type Legend = { value: string; color: number; gids: string[] }[]
 
@@ -34,7 +36,7 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
     if (!values) return []
     const groups = new Map<string, string[]>()
     for (const v of values) (groups.get(v.value) ?? groups.set(v.value, []).get(v.value)!).push(v.globalId)
-    return [...groups].sort((a, b) => b[1].length - a[1].length).map(([value, gids], i) => ({ value, gids, color: PALETTE[i % PALETTE.length] }))
+    return [...groups].sort((a, b) => b[1].length - a[1].length).map(([value, gids], i) => ({ value, gids, color: STATUS_COLOR[value.toUpperCase()] ?? PALETTE[i % PALETTE.length] }))
   }, [values])
   useEffect(() => {
     const m = new Map<string, number>(); for (const l of legend) for (const g of l.gids) m.set(g, l.color)
