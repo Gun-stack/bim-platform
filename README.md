@@ -28,10 +28,11 @@ IFC 모델을 업로드하면 서버에서 변환하고, 웹에서 3D로 보고,
 ## 실행
 
 ```bash
+cp .env.example .env            # 자격증명(로컬 기본값 bim / minio123). 외부 배포 전 변경 — docs/05-scale-and-security.md
 docker compose up -d --build --wait
 # web   → http://localhost:5173
-# api   → http://localhost:8080/actuator/health
-# minio → http://localhost:9001  (minio / minio123)
+# api   → http://localhost:8080/actuator/health   (api·postgis·minio 는 127.0.0.1 바인딩 — 외부엔 web 만)
+# minio → http://localhost:9001  (.env 의 MINIO_ROOT_USER / PASSWORD)
 # db    → localhost:5432  bim / bim / bim
 docker compose down -v   # 볼륨까지 초기화
 ```

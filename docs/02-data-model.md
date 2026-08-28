@@ -78,6 +78,8 @@ erDiagram
     int progress
     int attempts "재시도 횟수, 3 초과 시 FAILED"
     text error
+    timestamptz heartbeat_at "V5: worker 가 30초마다 갱신. 오래되면 lease 회수"
+    uuid lease_owner "V5: 잡을 잡은 worker 인스턴스. UPDATE 는 owner 일치할 때만"
     timestamptz started_at
     timestamptz finished_at
     timestamptz created_at
@@ -122,8 +124,9 @@ erDiagram
 - **asset ↔ element 선택적 FK**: IFC에 없는 자산(추가 설치 장비)도 등록 가능. 그래서 `asset.model_id`를 따로 둔다 — element가 NULL이어도 어느 모델(건물) 소속인지는 알아야 한다. COBie의 Component–Type 관계는 `category` + `attributes`로 단순화. COBie 정식 내보내기는 M5.
 - **work_order.viewpoint**: BCF 3.0 viewpoint(카메라·컴포넌트 선택)를 jsonb로 축소 저장. BCF 파일 포맷 자체는 만들지 않음.
 - **footprint 계산**: 지리참조가 있으면 IfcSite 하위 IfcBuilding 요소의 XY 바운딩 박스(또는 convex hull)를 EPSG 변환 후 저장. 없으면 NULL, UI에서 수동 핀(Point) → `project.location`.
-- **conversion_job 1:N**: 재시도는 새 행 insert. 실패 이력이 남고 `model.status`는 최신 잡 기준.
-- **인덱스**: `element(model_id, ifc_class)`, `element(model_id, global_id)` unique, `model USING GIST(footprint)`, `conversion_job(status)`.
+- **conversion_job 1:N**: 재시도는 새 행 insert. 실패 이력이 남고 `model.status`는 최신 잡 기준. **V5**: `(model_id) WHERE status IN ('PENDING','RUNNING')` 부분 unique 로 모델당 활성 잡 1개 — 재시도 연타·동시 worker 가 같은 모델을 두 번 변환하지 못한다. `lease_owner` 로 잡을 잡은 worker 만 진행률·완료·실패를 쓸 수 있어, 회수된 잡을 좀비 worker 가 덮어쓰지 않는다.
+- **인덱스**: `element(model_id, ifc_class)`, `element(model_id, global_id)` unique, `element USING GIN(properties jsonb_path_ops)`, `model USING GIST(footprint)`, `conversion_job(status)`, `conversion_job(heartbeat_at) WHERE status='RUNNING'`(V5, stale 회수 스캔).
+- **work_order.priority/description (V4)**: 보드용. `priority CHECK (LOW|NORMAL|HIGH|URGENT)` 기본 NORMAL. 상태 API 자동 생성은 ALARM→URGENT, FAULT→HIGH.
 - **ifc_schema 정규화**: 헤더 `FILE_SCHEMA`는 `IFC4X3_ADD2` 처럼 접미가 붙지만 IfcOpenShell `file.schema` 가 이미 `IFC2X3` / `IFC4` / `IFC4X3` 로 정규화해 준다(M0 확인). worker는 그 값을 그대로 저장.
 - **제약은 DB에**: status/result 류는 전부 `CHECK`, `asset UNIQUE(model_id, tag)`, `element UNIQUE(model_id, global_id)`. 앱 코드에서 enum 검증 안 함.
 - **계통·연결(M6)**: `IfcSystem`/`IfcDistributionSystem` 의 `IfcRelAssignsToGroup` 멤버 → `element_system`, `IfcRelConnectsElements`(Relating=상류, Related=하류) → `connection`. 경로 추적은 `WITH RECURSIVE` 로 상류/하류 그래프 탐색. 요소가 여러 계통에 속할 수 있어 N:M.

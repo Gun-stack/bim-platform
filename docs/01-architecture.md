@@ -17,7 +17,7 @@ flowchart LR
 
 | 서비스 | 이미지 | 역할 |
 |---|---|---|
-| `web` | node 빌드 → nginx 정적 서빙 | UI. API 프록시(`/api`), MinIO 프록시(`/files`) |
+| `web` | node 빌드 → nginx 정적 서빙 | UI. API 프록시(`/api`, gzip·레이트리밋), MinIO 프록시(`/files/glb/` 만). **외부에 노출되는 유일한 컨테이너** — 나머지는 `127.0.0.1` 바인딩 ([05](05-scale-and-security.md)) |
 | `api` | eclipse-temurin:25 | 모델/요소/공간/지도/FMS API, SSE 진행상태, 잡 등록 |
 | `ifc-worker` | python:3.13-slim + IfcOpenShell 0.8.5 (pip) | IFC → glb, 요소/속성/공간계층/지리참조 추출, (M5) IDS 검증 |
 | `postgis` | postgis/postgis:16-3.4 | 메타데이터, 요소 속성(jsonb), 공간 데이터, 잡 큐 |
@@ -56,17 +56,18 @@ sequenceDiagram
 ### api (Gradle 단일 모듈, 패키지로 분리)
 
 ```
-com.bim.api
-  model/      업로드, 상태, 목록, SSE
-  element/    요소 조회, 속성, 검색 (jsonb)
-  spatial/    Site/Building/Storey/Space 트리
-  geo/        프로젝트 위치, 풋프린트 GeoJSON, 수동 핀
-  fm/         asset, inspection, work_order
-  job/        conversion_job 등록/조회
-  storage/    MinIO 클라이언트 (S3 SDK). glb 는 `bim/glb/` 프리픽스 익명 읽기라 presigned 불필요, source.ifc 는 비공개
+com.bim.api  (실제는 단일 패키지 — 파일 = 관심사)
+  ProjectController / ModelController   프로젝트, 업로드(S3 put → DB insert, 실패 시 객체 삭제), 상태, SSE, 재시도
+  ElementController                     공간 트리, 요소 검색(limit/offset 선택), 속성 키/값, 요소 상세
+  MapController                         풋프린트 GeoJSON, 수동 핀
+  SystemController                      계통·멤버, 재귀 CTE 경로 추적
+  FmController → FmService              자산·점검·작업지시. 컨트롤러는 HTTP 어댑터, 서비스가 SQL·검증·409
+  StatusController → StatusService      Pset_BimStatus 병합(트랜잭션), 작업지시 자동 생성·억제 3규칙, 정전 시나리오
+  MonitorController                     팀×층 집계
+  ApiErrors / Json / S3Config           DB 제약→400, jsonb 파싱, S3 클라이언트(자격증명은 env)
 ```
 
-멀티모듈은 안 한다. 패키지 하나가 커지면 그때 분리.
+컨트롤러↔서비스 분리는 **트랜잭션·규칙이 있는 두 곳(FM·Status)만**. 나머지는 SQL 한 줄짜리라 컨트롤러에 둔다. 멀티모듈은 안 한다.
 
 ### ifc-worker (Python 단일 패키지)
 
@@ -105,7 +106,7 @@ src/
 | GET | `/api/models/{id}/events` | SSE 진행 상태 |
 | POST | `/api/models/{id}/retry` | FAILED 모델 잡 재등록 |
 | GET | `/api/models/{id}/spatial` | 공간 계층 트리 |
-| GET | `/api/models/{id}/elements?ifcClass=&storey=&q=` | 요소 검색 (속성 제외, 가벼운 목록) |
+| GET | `/api/models/{id}/elements?ifcClass=&storey=&q=&limit=&offset=` | 요소 검색 (속성 제외, 가벼운 목록). limit/offset 선택, 기본 전체 |
 | GET | `/api/models/{id}/property-keys` · `/property-values?key=Pset.Prop` | 뷰어 색상 모드: 키 목록(상위 200)·키별 값 |
 | GET | `/api/models/{id}/elements/{globalId}` | 요소 + Pset. GlobalId 는 모델 안에서만 유일(같은 파일 재업로드 시 중복)이라 모델 스코프 |
 | PUT | `/api/models/{id}/footprint` | 수동 핀 {lon,lat,rotation} → 로컬 bbox 폭의 사각 풋프린트(aeqd 투영) |
@@ -132,11 +133,11 @@ glb 노드 이름 = IFC GlobalId (serializer `use-element-guids`, ADR 0005). 프
 - DB 제약(CHECK/UNIQUE/FK) 위반 → `ApiErrors` 가 400 으로 매핑. 상태 enum 검증을 앱이 아니라 DB 에 두는 결정([02-data-model](02-data-model.md))의 짝.
 
 - 변환 실패 → `model.status=FAILED`, `conversion_job.error` 에 stderr 마지막 2KB. UI에 표시, 재시도 버튼(잡 재등록)
-- worker 크래시·hang → `RUNNING` 인데 `started_at` 10분 경과한 잡은 다시 PENDING. 기동 시가 아니라 **매 폴링 회전마다** 실행 (IfcOpenShell이 대형 파일에서 멈추는 경우 컨테이너는 살아 있음). 재시도 횟수 3회 초과 시 FAILED
+- worker 크래시·hang → worker 는 잡을 잡을 때 `lease_owner` 를 쓰고 30초마다 `heartbeat_at` 을 갱신(V5). `RUNNING` 인데 heartbeat 가 오래된 잡은 **매 폴링 회전마다** PENDING 으로 회수(IfcOpenShell이 대형 파일에서 멈추는 경우 컨테이너는 살아 있음). 진행률·완료·실패 UPDATE 는 `lease_owner` 가 일치할 때만 — 회수된 잡을 원래 worker 가 뒤늦게 덮어쓰지 못한다. 모델당 활성 잡은 부분 unique 로 1개. 재시도 횟수 3회 초과 시 FAILED
 - 업로드 크기 제한 500MB (nginx/api 동일 값)
 
 ## 테스트
 
-- api: Testcontainers(PostGIS) 기반 통합 테스트, WebTestClient
-- worker: 샘플 IFC 3종(2x3 / 4 / 4x3, buildingSMART 공개 샘플)으로 추출 결과 스냅샷 테스트
-- web: Playwright 1 시나리오 (업로드 → READY → 요소 클릭)
+- api: Testcontainers(PostGIS) — `ApiApplicationTests`(컨텍스트·빈), `ConversionJobIntegrationTests`(lease 회수·활성 잡 1개·재변환 정합성). `cd api && ./gradlew test` (Docker 필요)
+- worker: `ifc-worker/tests/` pytest — `test_job_lease.py`, `test_retry_consistency.py`
+- web: 자동 테스트 없음. 헤드리스 Chrome(puppeteer-core) 스크립트로 수동 검증(뷰어·보드·모니터) — 결과는 커밋 메시지·문서에 기록
