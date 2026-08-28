@@ -103,7 +103,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && setMeasuring(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
   useEffect(() => {   // 격리(반투명) — 선택 집합 기준. "나머지 숨김" 은 트리 솔로와 같은 모델
-    scene.current?.setFocus(focus !== 'ghost' || !selection.length ? undefined : { mode: 'ghost', gids: selSet })
+    scene.current?.setFocus(focus !== 'ghost' || !selSet.size ? undefined : { mode: 'ghost', gids: selSet })
   }, [focus, selSet])
   const soloSelected = () => {
     if (!selection.length) return
