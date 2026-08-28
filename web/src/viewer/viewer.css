@@ -6,3 +6,8 @@
 
 @keyframes spin { to { transform: rotate(360deg) } }
 .spin { animation: spin 1s linear infinite; }
+
+/* 모델 목록: 삭제는 행 hover 에서만 보이고, 주 동작(뷰어)과 떨어진 마지막 열 */
+.row-trash { opacity: 0; transition: opacity .15s; }
+.model-row:hover .row-trash, .row-trash:focus-visible { opacity: 1; }
+.row-trash:hover { color: #b91c1c !important; background: #fef2f2 !important; }
