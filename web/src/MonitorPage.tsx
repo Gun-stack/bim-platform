@@ -11,7 +11,7 @@ const TEAMS: { key: string; name: string; icon: LucideIcon; color: string; syste
   { key: 'fire', name: '소방팀', icon: Flame, color: '#dc2626', systems: ['소방', '화재감지'] },
   { key: 'mech', name: '설비팀', icon: Wrench, color: '#2563eb', systems: ['공조', '냉난방수', '환기', '급수', '급탕', '배수', '가스'] },
   { key: 'comm', name: '통신·제어팀', icon: Network, color: '#4f46e5', systems: ['통신'] },
-  { key: 'trans', name: '수송팀', icon: ArrowUpDown, color: '#78716c', systems: ['수송'] },
+  { key: 'trans', name: '수송팀', icon: ArrowUpDown, color: '#78716c', systems: ['수송', '주차관제'] },
 ]
 const STATUS: Record<string, { label: string; color: string }> = { NORMAL: { label: '정상', color: '#16a34a' }, ONLINE: { label: '온라인', color: '#16a34a' }, RUNNING: { label: '운전', color: '#16a34a' }, STANDBY: { label: '대기', color: '#6b7280' }, TRANSFERRED: { label: '절체', color: '#ea580c' }, ALARM: { label: '경보', color: '#dc2626' }, FAULT: { label: '장애', color: '#f59e0b' }, OFFLINE: { label: '오프라인', color: '#f59e0b' } }
 const rank = (r: Row, dead = false) => ({ ALARM: 0, FAULT: 1, OFFLINE: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (dead ? 2 : r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : 9))

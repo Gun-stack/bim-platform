@@ -6,7 +6,7 @@ import { StatusBadge, day } from './viewer/FmPanel'
 /** 팀 색 — MonitorPage 의 TEAMS 와 같은 계통 매핑 (설정 한 곳으로 합치려면 공용 모듈로) */
 const TEAMS: { key: string; name: string; color: string; systems: string[] }[] = [
   { key: 'fire', name: '소방', color: '#dc2626', systems: ['소방', '화재감지'] },
-  { key: 'trans', name: '수송', color: '#78716c', systems: ['수송'] },
+  { key: 'trans', name: '수송', color: '#78716c', systems: ['수송', '주차관제'] },
   { key: 'mech', name: '설비', color: '#2563eb', systems: ['공조', '냉난방수', '환기', '급수', '급탕', '배수', '가스'] },
   { key: 'comm', name: '통신', color: '#4f46e5', systems: ['통신'] },
   { key: 'elec', name: '전기', color: '#f59e0b', systems: ['전기', '비상전원'] },
