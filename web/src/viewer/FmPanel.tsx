@@ -14,7 +14,7 @@ export default function FmPanel({ modelId, selection, byGid, detail, assets, rel
 
   if (selection.length > 1) return <Bulk selection={selection} byGid={byGid} byElement={byElement} modelId={modelId} run={run} err={err} />
   const gid = selection[0]
-  if (!gid || !byGid.has(gid)) return <p style={{ color: '#888' }}>요소를 선택하면 자산으로 등록하거나 점검·작업지시를 기록할 수 있습니다.</p>
+  if (!gid || !byGid.has(gid)) return <p style={{ color: '#888' }}>요소를 선택하면 자산 등록·점검·작업지시를 기록할 수 있습니다.</p>
   const asset = byElement.get(gid)
   return asset
     ? <AssetCard asset={asset} run={run} err={err} viewpoint={viewpoint} />
@@ -37,10 +37,10 @@ function Register({ gid, el, detail, modelId, run, err }: { gid: string; el: Ele
   const attrs = snapshot(detail)
   return (
     <form onSubmit={e => { e.preventDefault(); run(post(`/models/${modelId}/assets`, { globalId: gid, tag, category, attributes: attrs })) }}>
-      <div style={{ color: '#666', marginBottom: 8 }}>이 요소는 아직 자산이 아닙니다.</div>
+      <div style={{ color: '#666', marginBottom: 8 }}>아직 자산으로 등록되지 않은 요소입니다.</div>
       <Field label="자산 태그"><input value={tag} onChange={e => setTag(e.target.value)} required style={inp} /></Field>
       <Field label="분류"><input value={category} onChange={e => setCategory(e.target.value)} style={inp} /></Field>
-      {Object.keys(attrs).length > 0 && <Field label="IFC 에서 가져올 속성">
+      {Object.keys(attrs).length > 0 && <Field label="IFC 속성 가져오기">
         <div style={{ fontSize: 12, color: '#555' }}>{Object.entries(attrs).map(([k, v]) => <div key={k}>{k}: <b>{String(v)}</b></div>)}</div></Field>}
       <Err e={err} />
       <button type="submit" style={btnPrimary}><Tag size={13} /> 자산으로 등록</button>
@@ -59,7 +59,7 @@ function Bulk({ selection, byGid, byElement, modelId, run, err }: { selection: s
     <div>
       <div style={{ color: '#666', marginBottom: 8 }}>{selection.length}개 선택 · 이미 자산 {done} · 미등록 {todo.length}</div>
       <Field label="태그 접두사"><input value={prefix} onChange={e => setPrefix(e.target.value)} style={inp} /></Field>
-      <Field label="분류 (비우면 클래스명)"><input value={category} onChange={e => setCategory(e.target.value)} style={inp} /></Field>
+      <Field label="분류 (비우면 종류명)"><input value={category} onChange={e => setCategory(e.target.value)} style={inp} /></Field>
       <Err e={err} />
       <button disabled={!todo.length} onClick={() => run(register())} style={btnPrimary}><Tag size={13} /> {todo.length}개 일괄 등록</button>
     </div>

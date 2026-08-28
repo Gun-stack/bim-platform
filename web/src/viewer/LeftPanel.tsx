@@ -50,7 +50,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     if (tab !== 'class') {
       const rows = (childrenOf.get(null) ?? []).map(spRow)
       const orphan = byNode.get(null) ?? []
-      if (orphan.length) rows.push({ key: 'orphan', label: '컨테이너 없음', icon: Tag, count: orphan.length, hidden: false, solo: hidden.solo?.key === 'orphan', gids: () => orphan.map(e => e.globalId), children: () => orphan.map(elRow) })
+      if (orphan.length) rows.push({ key: 'orphan', label: '위치 미지정', icon: Tag, count: orphan.length, hidden: false, solo: hidden.solo?.key === 'orphan', gids: () => orphan.map(e => e.globalId), children: () => orphan.map(elRow) })
       return rows
     }
     const byClass = new Map<string, ElementRow[]>()
@@ -114,9 +114,9 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
 
       {statusBoard}
       <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: '1px solid #e5e5e5' }}>
-        <Toggle icon={Square} label="Opening (창·문 구멍)" on={opts.openings} onClick={() => setOpts(o => ({ ...o, openings: !o.openings }))} />
-        <Toggle icon={Box} label="Space 반투명" on={opts.spaces} onClick={() => setOpts(o => ({ ...o, spaces: !o.spaces }))} />
-        <Toggle icon={Combine} label="재질별 병합" on={opts.merged} onClick={() => setOpts(o => ({ ...o, merged: !o.merged }))} />
+        <Toggle icon={Square} label="개구부 표시" on={opts.openings} onClick={() => setOpts(o => ({ ...o, openings: !o.openings }))} />
+        <Toggle icon={Box} label="공간(구역) 표시" on={opts.spaces} onClick={() => setOpts(o => ({ ...o, spaces: !o.spaces }))} />
+        <Toggle icon={Combine} label="병합 렌더 (성능)" on={opts.merged} onClick={() => setOpts(o => ({ ...o, merged: !o.merged }))} />
         <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕)" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h) }} />
         <span style={{ flex: 1 }} />
         <Toggle icon={Eye} label="숨긴 것 모두 표시" on={false} disabled={!anyHidden} onClick={allVisible} />
@@ -124,13 +124,13 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
 
       <div style={{ position: 'relative', margin: '8px 12px 4px' }}>
         <Search size={14} style={{ position: 'absolute', left: 8, top: 8, color: '#999' }} />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="이름 · 클래스 · GlobalId" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px 6px 28px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="이름 · 종류 · ID 검색" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px 6px 28px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
       </div>
 
       {!q && <div style={{ display: 'flex', margin: '0 12px', borderBottom: '1px solid #e5e5e5' }}>
         {(['spatial', 'class', 'system'] as const).map(t => <button key={t} onClick={() => setTab(t)}
           style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
-          {{ spatial: '공간 구조', class: '클래스', system: '계통' }[t]}</button>)}
+          {{ spatial: '공간', class: '종류', system: '계통' }[t]}</button>)}
       </div>}
 
       {tab === 'system' && !q ? <div style={{ flex: 1, overflow: 'auto' }}>{systemPanel}</div> :

@@ -79,9 +79,9 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         <Stat icon={Siren} label="경보" n={tot.alarm} color="#dc2626" /><Stat icon={AlertTriangle} label="장애" n={tot.fault} color="#f59e0b" />
         <Stat icon={Gauge} label="계측 주의" n={tot.reading} color="#b45309" />
         <Stat icon={Wrench} label="열린 작업지시" n={tot.wo} color="#1d4ed8" sub={tot.unassigned ? `미배정 ${tot.unassigned}` : undefined} />
-        <Stat icon={PlugZap} label={power === 'GENERATOR' ? '정전 — 비상발전' : power === 'UTILITY' ? '한전 수전' : '전원 —'} n={tot.dead} color={power === 'GENERATOR' ? '#c2410c' : '#15803d'} sub={tot.dead ? '무전원' : '정상'} />
+        <Stat icon={PlugZap} label={power === 'GENERATOR' ? '정전 — 비상발전' : power === 'UTILITY' ? '한전 수전 정상' : '전원 정보 없음'} n={tot.dead} color={power === 'GENERATOR' ? '#c2410c' : '#15803d'} sub={tot.dead ? '무전원' : '정상'} />
         <Stat icon={Car} label="주차" n={`${val('PCS', 'Occupied') ?? '—'}/${val('PCS', 'Capacity') ?? '—'}`} color="#0f766e" sub={val('DISP', 'Text') as string | undefined} />
-        {tot.noAsset > 0 && !kiosk && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(load)} style={{ ...btn, marginLeft: 'auto', cursor: 'pointer' }} title="배관·트레이 제외 장비 전부"><Box size={12} /> 미등록 {tot.noAsset}개 자산 등록</button>}
+        {tot.noAsset > 0 && !kiosk && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(load)} style={{ ...btn, marginLeft: 'auto', cursor: 'pointer' }} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록"><Box size={12} /> 미등록 {tot.noAsset}개 자산 등록</button>}
         <span style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto', color: '#888', fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? new Date(events[0].at).toLocaleTimeString() : '—'}</span>
       </div>
 
@@ -144,7 +144,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         {/* 최근 이벤트 — 격자는 '지금'만 보여주므로 '언제 무슨 일이' 는 여기 */}
         <div className="monitor-events" style={{ width: 300, flexShrink: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '8px 10px', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflow: 'auto' }}>
           <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Activity size={14} /> 최근 이벤트 <span style={{ color: '#999', fontWeight: 400, fontSize: 11 * fs }}>{events.length}</span></div>
-          {!events.length && <div style={{ color: '#bbb', fontSize: 12 * fs }}>아직 없음 — 상태 API 를 거친 변경·작업지시만 기록됩니다</div>}
+          {!events.length && <div style={{ color: '#bbb', fontSize: 12 * fs }}>아직 이벤트가 없습니다</div>}
           {events.map((e, i) => { const abn = e.status === 'ALARM' || e.status === 'FAULT'; return (
             <a key={i} href={e.globalId ? `#/models/${modelId}?sel=${encodeURIComponent(e.globalId)}&focus=1` : undefined} style={{ display: 'grid', gridTemplateColumns: `${40 * fs}px 1fr`, gap: 6, padding: '4px 4px', borderTop: '1px solid #f1f5f9', textDecoration: 'none', color: '#222', fontSize: 12 * fs }}>
               <span style={{ color: '#999', fontSize: 11 * fs, whiteSpace: 'nowrap' }}>{e.at ? new Date(e.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'}</span>

@@ -59,9 +59,9 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
       <div style={{ padding: '8px 10px' }}>
         <select value={key} onChange={e => setKey(e.target.value)} style={{ width: '100%', fontSize: 12 }}>
           <optgroup label="기본">
-            {BUILTIN.map(k => <option key={k} value={k}>{k === 'ifcClass' ? '클래스' : '층'}</option>)}
+            {BUILTIN.map(k => <option key={k} value={k}>{k === 'ifcClass' ? '종류' : '층'}</option>)}
           </optgroup>
-          <optgroup label="Pset / 수량">
+          <optgroup label="속성 그룹">
             {sorted.map(k => <option key={k.key} value={k.key}>{k.key} ({k.n})</option>)}
           </optgroup>
         </select>

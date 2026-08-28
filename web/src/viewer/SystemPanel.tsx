@@ -34,7 +34,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
   const signal = inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
   const trace = (dir: 'up' | 'down') => { if (!gid) return; setBusy(true); api(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}`).then(setRoute).finally(() => setBusy(false)) }
 
-  if (!systems.length) return <p style={{ color: '#888', padding: 8 }}>이 모델에는 계통(IfcDistributionSystem) 정보가 없습니다.<br /><span style={{ fontSize: 12 }}>samples/mep-building.ifc 로 확인할 수 있습니다.</span></p>
+  if (!systems.length) return <p style={{ color: '#888', padding: 8 }}>이 모델에는 설비 계통 정보가 없습니다.<br /><span style={{ fontSize: 12 }}>계통이 정의된 IFC 에서만 표시됩니다.</span></p>
   return (
     <div style={{ padding: '4px 6px' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', fontSize: 12, color: '#444' }}>
@@ -54,7 +54,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
         </div>) })}</div>)}
 
       <div style={{ borderTop: '1px solid #e5e5e5', margin: '8px 0' }} />
-      {!gid && <div style={{ color: '#888', fontSize: 12, padding: 6 }}>요소를 하나 선택하면 흐름을 추적할 수 있습니다.</div>}
+      {!gid && <div style={{ color: '#888', fontSize: 12, padding: 6 }}>장비를 하나 선택하면 상류·하류를 추적할 수 있습니다.</div>}
       {gid && <>
         <div style={{ fontSize: 12, color: '#666', padding: '0 6px 6px' }}>선택 요소 계통: {inSystems.length ? inSystems.map(s => s.name).join(', ') : '없음'}</div>
         <div style={{ display: 'flex', gap: 6, padding: '0 6px' }}>

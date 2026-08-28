@@ -29,7 +29,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
         <Stat icon={Tag} label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />
-        <Stat icon={ClipboardList} label="점검됨" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} />
+        <Stat icon={ClipboardList} label="점검 완료" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} />
         <Stat icon={Wrench} label="열린 작업지시" value={wos.filter(w => w.status !== 'DONE').length} sub={`완료 ${wos.filter(w => w.status === 'DONE').length}`} />
       </div>
       <div style={{ display: 'flex', borderBottom: '1px solid #e5e5e5', marginBottom: 14 }}>
@@ -46,7 +46,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
 
       {tab === 'assets' && <>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{ color: '#888', fontSize: 12 }}>모델 요소는 뷰어에서 등록. 준공 후 설치한 장비(CCTV·소화기 등)는 여기서 요소 없이 추가.</span>
+          <span style={{ color: '#888', fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
           <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={{ ...btn, marginLeft: 'auto' }}><Plus size={12} /> 자산 추가</button>
         </div>
         {add && <form onSubmit={e => { e.preventDefault(); setErr(undefined); post(`/models/${modelId}/assets`, add).then(() => { setAdd(null); reload() }).catch(e => setErr(e.message)) }}
@@ -73,7 +73,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}` : '—'}</span>
           <span style={{ textAlign: 'right' }}>{a.globalId && <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}><ExternalLink size={12} /> 3D</a>}</span>
         </div>)}
-        {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>자산이 없습니다. 뷰어에서 요소를 선택해 "자산 · FM" 탭에서 등록하거나, 모니터링 페이지의 "자산 일괄 등록"을 쓰세요.</div>}
+        {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 모니터링의 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>조건에 맞는 자산이 없습니다.</div>}
         </div>
       </>}

@@ -276,7 +276,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <div style={{ position: 'absolute', top: clip ? 128 : 8, left: 8, background: '#fff', padding: '8px 10px', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, minWidth: 200 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}><Ruler size={13} /> <b style={{ flex: 1 }}>측정</b>
                 <Trash2 size={13} style={{ cursor: 'pointer', color: measures.length ? '#666' : '#ccc' }} onClick={() => { scene.current?.clearMeasures(); setMeasures([]) }} /></div>
-              <div style={{ color: '#888' }}>면 위 두 점을 클릭 · Esc 로 종료</div>
+              <div style={{ color: '#888' }}>표면의 두 점을 클릭하세요 · Esc 로 종료</div>
               {measures.map((m, i) => <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <b style={{ width: 64 }}>{m.d.toFixed(2)} m</b>
                 <span style={{ color: '#888' }}>Δx {Math.abs(m.b[0] - m.a[0]).toFixed(2)} · Δy {Math.abs(m.b[1] - m.a[1]).toFixed(2)} · Δz {Math.abs(m.b[2] - m.a[2]).toFixed(2)}</span></div>)}
@@ -294,11 +294,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Tool icon={EyeOff} label="선택만 보기 (나머지 숨김)" hint="요소를 먼저 선택" active={hidden.solo?.key === 'sel'} disabled={!selection.length} onClick={soloSelected} />
             <Tool icon={RotateCcw} label="격리·솔로 해제" hint="적용된 격리·솔로 없음" disabled={focus === 'none' && !hidden.solo} onClick={() => { setFocus('none'); if (hidden.solo) setHidden({ ...hidden, solo: undefined }) }} />
             <Gap />
-            <Tool icon={Scissors} label="섹션 박스 — X/Y/Z 범위, 층 스냅" active={!!clip} disabled={!bounds} onClick={() => setClip(clip ? null : bounds!.min.flatMap((m, i) => [m, bounds!.max[i]]))} />
+            <Tool icon={Scissors} label="단면 — X/Y/Z 범위, 층별 자르기" active={!!clip} disabled={!bounds} onClick={() => setClip(clip ? null : bounds!.min.flatMap((m, i) => [m, bounds!.max[i]]))} />
             <Tool icon={Ruler} label="측정 — 면 위 두 점 거리" active={measuring} onClick={() => setMeasuring(!measuring)} />
-            <Tool icon={Palette} label="속성별 색상 — 클래스·층·Pset 값으로 색칠" active={colorMode} onClick={() => setColorMode(!colorMode)} />
+            <Tool icon={Palette} label="속성별 색상 — 종류·층·속성값으로 칠하기" active={colorMode} onClick={() => setColorMode(!colorMode)} />
             <Gap />
-            <Tool icon={copied ? Check : Link} label="현재 뷰·선택·단면을 URL 로 복사" onClick={share} />
+            <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" onClick={share} />
           </div>
         </div>
       </Panel>
@@ -320,13 +320,13 @@ export default function Viewer({ modelId }: { modelId: string }) {
           <div style={{ display: 'flex', borderBottom: '1px solid #e5e5e5', marginBottom: 10 }}>
             {(['props', 'fm'] as const).map(t => <button key={t} onClick={() => setTab(t)}
               style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
-              {t === 'props' ? '속성' : `자산 · FM${selection.length === 1 && assetByGid.has(selection[0]) ? ' ●' : ''}`}</button>)}
+              {t === 'props' ? '속성' : `자산·점검${selection.length === 1 && assetByGid.has(selection[0]) ? ' ●' : ''}`}</button>)}
           </div>
           {tab === 'fm' && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpointForWorkOrder} />}
           {tab === 'props' && <>
           {!selection.length && <p style={{ color: '#888' }} title="Cmd/Ctrl+클릭: 추가 선택 · Shift+클릭(트리): 범위 · Esc: 해제 · 더블클릭: 맞춤">요소를 클릭하면 속성이 표시됩니다. <span style={{ color: '#bbb', cursor: 'help' }}>단축키 ?</span></p>}
-          {selection.length === 1 && detail && !('properties' in detail) && <p>glb 노드 <code>{detail.globalId}</code> — {detail.kind === 'space' ? 'IfcSpace (spatial_node)' : 'IfcOpeningElement (element 테이블 제외)'}</p>}
-          {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: '#a60', fontSize: 12 }}>이 요소는 glb 에 형상이 없습니다 (IFC 에 Representation 없음 또는 변환 시 제외).</p>}
+          {selection.length === 1 && detail && !('properties' in detail) && <p style={{ color: '#666' }}>{detail.kind === 'space' ? '공간(구역) 형상입니다. 구역 정보는 왼쪽 공간 트리에서 확인하세요.' : '개구부 형상입니다 (요소 아님).'}</p>}
+          {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: '#a60', fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
           {selection.length === 1 && detail && 'properties' in detail && <><StatusEditor modelId={modelId} e={detail} reload={reloadStatus} /><Props e={detail} /></>}
           {selection.length > 1 && <MultiProps selection={selection} byGid={byGid} details={details} />}
           </>}

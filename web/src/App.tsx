@@ -81,8 +81,8 @@ function Models() {
 
       <div style={{ marginTop: 20, border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 180px 170px 28px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
-          <span>모델</span><span>상태</span><span>스키마</span><span style={{ textAlign: 'right' }}>요소</span><span>진행</span><span /></div>
-        {models.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>아직 모델이 없습니다. 위에서 IFC 를 올려보세요 — <code>samples/</code> 에 예제 4개가 있습니다.</div>}
+          <span>모델</span><span>상태</span><span>스키마</span><span style={{ textAlign: 'right' }}>요소 수</span><span>진행</span><span /></div>
+        {models.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>아직 모델이 없습니다. IFC 파일을 올리면 변환 후 3D 로 볼 수 있습니다 — <code>samples/</code> 에 예제 4개가 있습니다.</div>}
         {models.map(m => <Row key={m.id} m={m} onRetry={() => retry(m.id)} onRemove={() => remove(m)} />)}
       </div>
     </main>
@@ -115,9 +115,9 @@ function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove
       </div>
       <div style={{ textAlign: 'right' }}>
         {m.status === 'READY' && <span style={{ display: 'inline-flex', gap: 4 }}>
-          <a href={`#/models/${m.id}/monitor`} title="설비 모니터링" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>모니터</a>
-          <a href={`#/models/${m.id}/fm`} title="자산·작업지시" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>FM</a>
-          <a href={`#/models/${m.id}`} style={{ padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 12 }}>뷰어</a></span>}
+          <a href={`#/models/${m.id}/monitor`} title="모니터링" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>모니터링</a>
+          <a href={`#/models/${m.id}/fm`} title="시설관리" style={{ padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', fontSize: 12, color: '#222' }}>시설관리</a>
+          <a href={`#/models/${m.id}`} style={{ padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 12 }}>3D 뷰어</a></span>}
         {m.status === 'FAILED' && <button onClick={onRetry} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12 }}><RotateCcw size={12} /> 재시도</button>}
       </div>
       {m.status !== 'PROCESSING' && <button onClick={onRemove} title="모델 삭제" className="row-trash" style={{ padding: 6, border: 0, borderRadius: 6, background: 'transparent', cursor: 'pointer', color: '#999', display: 'inline-flex' }}><Trash2 size={14} /></button>}

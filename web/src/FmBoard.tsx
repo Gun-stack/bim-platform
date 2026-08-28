@@ -59,7 +59,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload }: { mode
                 : s !== 'DONE' && items.some(overdue) && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 'auto' }}><AlertTriangle size={11} style={{ verticalAlign: -1 }} /> 초과 {items.filter(overdue).length}</span>}</div>
             {items.map(w => <Card key={w.id} w={w} dragging={dragging === w.id} busy={w.id in pending} onOpen={() => setOpen(w)} viewerUrl={viewerUrl(w)}
                                   onDragStart={() => setDragging(w.id)} onDragEnd={() => { setDragging(undefined); setDragOver(undefined) }} onNext={() => move(w, NEXT[w.status].s)} />)}
-            {!items.length && <div style={{ color: '#bbb', textAlign: 'center', padding: 24, fontSize: 12 }}>여기로 끌어다 놓기</div>}
+            {!items.length && <div style={{ color: '#bbb', textAlign: 'center', padding: 24, fontSize: 12 }}>카드를 여기로 끌어다 놓으세요</div>}
           </div>) })}
       </div>
 
@@ -116,10 +116,10 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
           <span style={lbl}>생성 / 변경</span><span style={{ color: '#666', fontSize: 12 }}>{new Date(w.createdAt).toLocaleString()} / {w.updatedAt ? new Date(w.updatedAt).toLocaleString() : '—'}</span>
         </div>
         <div style={{ marginTop: 12 }}><div style={lbl}>설명</div>
-          <textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={5} placeholder="작업 내용, 조치 사항…" style={{ ...inp, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} /></div>
+          <textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={5} placeholder="작업 내용과 조치 사항" style={{ ...inp, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} /></div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <button disabled={saving} onClick={save} style={{ ...btn, background: '#2563eb', color: '#fff', border: 0 }}>저장</button>
-          <a href={`#/models/${modelId}?sel=${encodeURIComponent(w.globalId ?? '')}&fm=1`} style={btn}>자산 탭에서 보기</a>
+          <a href={`#/models/${modelId}?sel=${encodeURIComponent(w.globalId ?? '')}&fm=1`} style={btn}>뷰어에서 자산·점검 보기</a>
         </div>
       </div>
     </div>
@@ -138,7 +138,7 @@ function CreateModal({ assets, onClose, reload }: { assets: Asset[]; onClose: ()
         <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>
           <span style={lbl}>자산</span><div><input value={q} onChange={e => setQ(e.target.value)} placeholder="태그 · 이름 · 층 · 구역 · 분류 검색" autoFocus style={{ ...inp, width: '100%', marginBottom: 4 }} />
             <select value={f.assetId} onChange={e => setF({ ...f, assetId: e.target.value })} size={8} style={{ ...inp, width: '100%', fontFamily: 'inherit' }}>{list.map(a => <option key={a.id} value={a.id}>{a.storey ? `[${a.storey}${a.zone ? ' ' + a.zone.split('-').pop() : ''}] ` : ''}{a.tag} · {a.elementName ?? '(모델에 없음)'}</option>)}</select>
-            <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>{list.length}{list.length === 300 ? '+' : ''} / {assets.length} · 뷰어에서 요소를 고른 뒤 "자산 · FM" 탭에서 만드는 편이 빠릅니다</div></div>
+            <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>{list.length}{list.length === 300 ? '+' : ''} / {assets.length} · 뷰어에서 요소를 고른 뒤 "자산·점검" 탭에서 만드는 편이 빠릅니다</div></div>
           <span style={lbl}>제목 *</span><input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} style={inp} />
           <span style={lbl}>우선순위</span><select value={f.priority} onChange={e => setF({ ...f, priority: e.target.value as Priority })} style={inp}>{(Object.keys(PRIO) as Priority[]).map(p => <option key={p} value={p}>{PRIO[p].label}</option>)}</select>
           <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} style={inp} />
