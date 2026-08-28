@@ -9,6 +9,7 @@ export type Stats = { calls: number; triangles: number; fps: number }
 const HIGHLIGHT = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 })
 const SPACE = new THREE.MeshStandardMaterial({ color: 0x4488ff, transparent: true, opacity: 0.25, depthWrite: false })
 const GHOST = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, transparent: true, opacity: 0.12, depthWrite: false })
+const FOCUS_SPACE = new THREE.MeshStandardMaterial({ color: 0x2563eb, emissive: 0x1e3a8a, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
 export type View = { p: number[]; t: number[] }
 export type Focus = { mode: 'ghost' | 'hide'; gids: Set<string> } | undefined
 
@@ -29,6 +30,7 @@ export class Scene3D {
   private mergedRanges: { mesh: THREE.Mesh; ranges: { start: number; end: number; gid: string }[] }[] = []
   private picked = new Set<string>()
   private focusSet: Focus
+  private focusSpace?: string   // 포커스 모드에서 강조할 IfcSpace
   private colors?: Map<string, number>   // 색상 모드: gid → hex. 없는 요소는 회색 또는 반투명(ghostOthers)
   private ghostOthers = false
   private colorMats = new Map<number, THREE.Material>()
@@ -45,6 +47,7 @@ export class Scene3D {
   onMeasure?: (m: { a: number[]; b: number[]; d: number }) => void
   private measurePt?: THREE.Vector3
   private measureGroup = new THREE.Group()
+  private marker?: THREE.Group
 
   private el: HTMLElement
   private ro: ResizeObserver
@@ -144,8 +147,22 @@ export class Scene3D {
   /** 색상 모드: gid → 색. undefined 면 원래 재질 */
   setColors(map?: Map<string, number>, ghostOthers = false) { this.colors = map; this.ghostOthers = ghostOthers; this.apply() }
 
-  /** 격리(나머지 반투명) / 숨김. undefined 면 복원 */
-  setFocus(f: Focus) { this.focusSet = f; this.apply() }
+  /** 요소 위에 3D 핀 (포커스 모드). 반투명 요소를 뚫고 보이도록 depthTest 끔 */
+  setMarker(gid?: string, color = 0xdc2626) {
+    if (this.marker) { this.scene.remove(this.marker); this.marker = undefined }
+    if (!gid) return
+    const ms = this.meshes.filter(m => m.name === gid); if (!ms.length) return
+    const box = ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()), c = box.getCenter(new THREE.Vector3())
+    const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color, depthTest: false })
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 8), mat); stem.position.set(c.x, box.max.y + 0.6, c.z)
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), mat); head.position.set(c.x, box.max.y + 1.3, c.z)
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 8, 32), mat); ring.rotation.x = Math.PI / 2; ring.position.set(c.x, box.max.y + 0.02, c.z)
+    for (const m of [stem, head, ring]) m.renderOrder = 20
+    g.add(stem, head, ring); this.marker = g; this.scene.add(g)
+  }
+
+  /** 격리(나머지 반투명) / 숨김. undefined 면 복원. space 를 주면 그 구역을 진한 파랑으로 강조 */
+  setFocus(f: Focus, space?: string) { this.focusSet = f; this.focusSpace = space; this.apply() }
 
   /** 섹션 박스 [xmin,xmax,ymin,ymax,zmin,zmax]. null 이면 해제 */
   setClipBox(b: number[] | null) {
@@ -228,7 +245,7 @@ export class Scene3D {
     for (const m of this.meshes) {
       const gid = m.name, kind = this.kind.get(gid)!, inFocus = !this.focusSet || this.focusSet.gids.has(gid)
       m.visible = this.visible(gid, kind) && (inFocus || this.focusSet?.mode === 'ghost')
-      m.material = this.picked.has(gid) ? HIGHLIGHT : !inFocus ? GHOST : kind === 'space' ? SPACE
+      m.material = this.picked.has(gid) ? HIGHLIGHT : !inFocus ? GHOST : gid === this.focusSpace ? FOCUS_SPACE : kind === 'space' ? SPACE
         : this.colors ? (this.colors.has(gid) ? this.colorMat(this.colors.get(gid)!) : this.ghostOthers ? GHOST : this.colorMat(0xd8d8d8)) : this.original.get(m)!
     }
     if (this.merged) this.setMerged(true)  // 병합 모드면 재구성 (하이라이트·고스트가 자기 그룹으로 분리)

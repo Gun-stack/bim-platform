@@ -80,7 +80,7 @@ SELECT DISTINCT ON (id) ... ORDER BY id, depth
 
 ## "어디 있는 감지기인가" — 포커스 모드
 
-모니터·상태판에서 경보/장애를 클릭하면 뷰어가 `?sel=&focus=1` 로 열리며: 요소가 속한 `IfcSpace` 와 요소만 남기고 나머지 반투명(격리), 그 층 위를 수평 단면으로 잘라내고(`storey.elevation + 3.3`), 구역+요소 바운딩에 카메라 핏, 상단 배너 "1F · 1F-B 구역 · 열감지기 4 · 경보". 공간 구조(요소 → Space → Storey)가 DB 에 있어서 좌표를 계산할 필요가 없다 — `spatial_node` 체인만 따라가면 된다.
+모니터·상태판에서 경보/장애를 클릭하면 뷰어가 `?sel=&focus=1` 로 열리며: 요소가 속한 `IfcSpace` 와 요소만 남기고 나머지 반투명(격리), 그 층 위를 수평 단면으로 잘라내고(`storey.elevation + 3.3`), 구역은 진한 파랑 반투명(`FOCUS_SPACE`), 요소 위에 빨간 3D 핀(`setMarker`, depthTest 끔), 구역+요소 바운딩에 카메라 핏, 상단 배너 "1F · 1F-B 구역 · 열감지기 4 · 경보". 공간 구조(요소 → Space → Storey)가 DB 에 있어서 좌표를 계산할 필요가 없다 — `spatial_node` 체인만 따라가면 된다.
 
 ## 살아 움직이게 — BMS 시뮬레이터
 

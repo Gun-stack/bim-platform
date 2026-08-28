@@ -41,7 +41,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [statusRows, setStatusRows] = useState<StatusRow[]>([])
   const [power, setPower] = useState<PowerResult>()
   const [statusView, setStatusView] = useState(false)
-  const [focusInfo, setFocusInfo] = useState<{ gid: string; name: string; zone?: string; storey?: string; status?: string }>()
+  const [focusInfo, setFocusInfo] = useState<{ gid: string; name: string; zone?: string; storey?: string; status?: string; spaceGid?: string }>()
   /** 경보/장애 요소로 포커스: 구역 반투명 강조 + 요소 하이라이트 + 위층 단면 + 구역에 카메라 */
   const focusOn = (gid: string) => {
     const s = scene.current, el = byGid.get(gid); if (!s || !el) return
@@ -51,13 +51,16 @@ export default function Viewer({ modelId }: { modelId: string }) {
     setOpts(o => ({ ...o, spaces: true })); setRoute(undefined); setPower(undefined)
     setHidden(h => ({ ...h, solo: undefined }))
     s.select([gid])
-    setFocus('ghost'); s.setFocus({ mode: 'ghost', gids: new Set([gid, ...(space ? [space.globalId] : [])]) })
+    setFocus('ghost')
+    s.preset('home')   // 위에서 비스듬히 — 단면 아래 구역이 보이는 각도
     if (storey?.elevation != null && bounds) setClip([bounds.min[0], bounds.max[0], bounds.min[1], storey.elevation + 3.3, bounds.min[2], bounds.max[2]])
     s.fitAll(space ? [space.globalId, gid] : [gid])
     const st = statusRows.find(r => r.globalId === gid)?.status.Status
-    setFocusInfo({ gid, name: el.name ?? gid, zone: space?.name ?? undefined, storey: storey?.name ?? undefined, status: st })
+    setFocusInfo({ gid, name: el.name ?? gid, zone: space?.name ?? undefined, storey: storey?.name ?? undefined, status: st, spaceGid: space?.globalId })
+    s.setMarker(gid, st === 'FAULT' ? 0xf59e0b : 0xdc2626)
   }
   const focusRef = useRef(focusOn); focusRef.current = focusOn
+  useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); scene.current?.setMarker(undefined) } }, [selSet])
   const reloadStatus = () => api(`/models/${modelId}/status`).then(setStatusRows).catch(() => setStatusRows([]))
   useEffect(() => { reloadStatus() }, [modelId])
   useEffect(() => { api(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
@@ -152,9 +155,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => { scene.current?.setClipBox(clip) }, [clip, bounds])
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && setMeasuring(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
-  useEffect(() => {   // 격리(반투명) — 선택 집합 기준. "나머지 숨김" 은 트리 솔로와 같은 모델
-    scene.current?.setFocus(focus !== 'ghost' || !selSet.size ? undefined : { mode: 'ghost', gids: selSet })
-  }, [focus, selSet])
+  useEffect(() => {   // 격리(반투명) — 선택 집합 기준 (+ 포커스 모드면 구역도 함께, 구역은 진한 파랑)
+    const spaceGid = focusInfo?.spaceGid
+    scene.current?.setFocus(focus !== 'ghost' || !selSet.size ? undefined : { mode: 'ghost', gids: spaceGid ? new Set([...selSet, spaceGid]) : selSet }, spaceGid)
+  }, [focus, selSet, focusInfo?.spaceGid])
   const soloSelected = () => {
     if (!selection.length) return
     const cur = hidden.solo?.key === 'sel'
@@ -217,12 +221,12 @@ export default function Viewer({ modelId }: { modelId: string }) {
             onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
 
           {/* 경보/장애 포커스 배너 */}
-          {focusInfo && <div style={{ position: 'absolute', top: wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: focusInfo.status === 'ALARM' ? '#fef2f2' : focusInfo.status === 'FAULT' ? '#fffbeb' : '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 460 }}>
+          {focusInfo && <div style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: focusInfo.status === 'ALARM' ? '#fef2f2' : focusInfo.status === 'FAULT' ? '#fffbeb' : '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 460 }}>
             <MapPinned size={14} style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#2563eb' }} />
             <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
             {focusInfo.status && <b style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#16a34a' }}>{{ ALARM: '경보', FAULT: '장애', NORMAL: '정상' }[focusInfo.status] ?? focusInfo.status}</b>}
             <span style={{ color: '#888' }}>구역 강조 · 위층 단면</span>
-            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); setClip(null) }} /></div>}
+            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined); setClip(null) }} /></div>}
 
           {/* 작업지시로 진입: 배너 */}
           {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 420 }}>
