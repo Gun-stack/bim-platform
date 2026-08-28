@@ -69,6 +69,8 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
 
   const isOpen = (r: Row, depth: number) => open.has(r.key) || (!open.has('!' + r.key) && r.key.startsWith('n:') && depth < 2)
+  // isOpen 이 open 을 읽으므로 open 은 실제 의존성 (lint 는 클로저를 못 봄)
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   const flat = useMemo(() => {   // 보이는 행을 순서대로 — Shift 범위·선택 배경에 쓴다
     const out: { row: Row; depth: number; open: boolean }[] = []
     const walk = (rows: Row[], depth: number) => { for (const r of rows) { const o = !!r.children && isOpen(r, depth); out.push({ row: r, depth, open: o }); if (o) walk(r.children!(), depth + 1) } }
