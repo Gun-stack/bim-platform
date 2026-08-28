@@ -1,10 +1,12 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import type React from 'react'
 import { ArrowLeft, Box, Building2, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
 
 /** 트리 한 행. children 은 지연 계산(펼칠 때만) */
 export type Row = { key: string; gid?: string; label: string; sub?: string; icon: LucideIcon; count: number; hidden: boolean; solo: boolean; gids: () => string[]; children?: () => Row[] }
+export type SelectMode = 'set' | 'toggle' | 'range'
 
 /** 숨김 3종 + 솔로(이것만 보기). 보임 = (solo 없음 || gid ∈ solo) && !hidden */
 export type Hidden = { nodes: Set<number>; classes: Set<string>; gids: Set<string>; solo?: { key: string; label: string; gids: Set<string> } }
@@ -13,13 +15,15 @@ export type Opts = { openings: boolean; spaces: boolean; merged: boolean }
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 export const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
-export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, onFocus }: {
+export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect }: {
   model?: Model; stats: Stats; spatial: SpatialNode[]; elements: ElementRow[]
   hidden: Hidden; setHidden: (h: Hidden) => void; opts: Opts; setOpts: (f: (o: Opts) => Opts) => void
-  onFocus: (gids: string[], select?: string) => void
+  selected: Set<string>; onSelect: (gids: string[], mode: SelectMode) => void
 }) {
   const [tab, setTab] = useState<'spatial' | 'class'>('spatial')
   const [q, setQ] = useState('')
+  const [open, setOpen] = useState<Set<string>>(new Set())   // 펼친 행 key. Site·Building 은 기본 펼침
+  const [anchor, setAnchor] = useState<string>()             // Shift 범위 선택 시작 행
 
   const byNode = useMemo(() => { const m = new Map<number | null, ElementRow[]>(); for (const e of elements) (m.get(e.spatialNodeId) ?? m.set(e.spatialNodeId, []).get(e.spatialNodeId)!).push(e); return m }, [elements])
   const childrenOf = useMemo(() => { const m = new Map<number | null, SpatialNode[]>(); for (const s of spatial) (m.get(s.parentId) ?? m.set(s.parentId, []).get(s.parentId)!).push(s); return m }, [spatial])
@@ -64,6 +68,24 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   const allVisible = () => setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() })
   const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
 
+  const isOpen = (r: Row, depth: number) => open.has(r.key) || (!open.has('!' + r.key) && r.key.startsWith('n:') && depth < 2)
+  const flat = useMemo(() => {   // 보이는 행을 순서대로 — Shift 범위·선택 배경에 쓴다
+    const out: { row: Row; depth: number; open: boolean }[] = []
+    const walk = (rows: Row[], depth: number) => { for (const r of rows) { const o = !!r.children && isOpen(r, depth); out.push({ row: r, depth, open: o }); if (o) walk(r.children!(), depth + 1) } }
+    walk(roots, 0); return out
+  }, [roots, open])
+  const toggleOpen = (r: Row, depth: number) => { const o = new Set(open); const cur = isOpen(r, depth); o.delete(r.key); o.delete('!' + r.key); o.add(cur ? '!' + r.key : r.key); setOpen(o) }
+  /** 행 클릭 → 선택. Shift 는 앵커부터 이 행까지(보이는 행 기준), Cmd/Ctrl 은 토글 */
+  const clickRow = (r: Row, e: React.MouseEvent) => {
+    if (e.shiftKey && anchor) {
+      const keys = flat.map(f => f.row.key), a = keys.indexOf(anchor), b = keys.indexOf(r.key)
+      if (a >= 0 && b >= 0) { const [lo, hi] = a < b ? [a, b] : [b, a]; return onSelect([...new Set(flat.slice(lo, hi + 1).flatMap(f => f.row.gids()))], 'set') }
+    }
+    setAnchor(r.key)
+    onSelect(r.gids(), e.metaKey || e.ctrlKey ? 'toggle' : 'set')
+  }
+  const rowSelected = (r: Row) => r.gid ? selected.has(r.gid) : r.count > 0 && r.gids().every(g => selected.has(g))
+
   // 검색: 요소 이름/GlobalId/클래스 → 평면 목록
   const found = useMemo(() => { const t = q.trim().toLowerCase(); return t ? elements.filter(e => e.globalId === q.trim() || e.name?.toLowerCase().includes(t) || e.ifcClass.toLowerCase().includes(t)).slice(0, 100) : [] }, [elements, q])
 
@@ -94,35 +116,35 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
           {t === 'spatial' ? '공간 구조' : '클래스'}</button>)}
       </div>}
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }}>
-        {q ? (found.length ? found.map(e => <TreeRow key={e.globalId} row={elRow(e)} depth={0} onToggle={toggle} onSolo={solo} onFocus={onFocus} />) : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
-           : roots.map(r => <TreeRow key={r.key} row={r} depth={0} onToggle={toggle} onSolo={solo} onFocus={onFocus} openDepth={r.key.startsWith('n:') ? 2 : 0} />)}
+      <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }} onClick={e => { if (e.target === e.currentTarget) onSelect([], 'set') }}>
+        {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => clickRow(r, ev)} /> })
+                          : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
+           : flat.map(f => <TreeRow key={f.row.key} row={f.row} depth={f.depth} open={f.open} selected={rowSelected(f.row)} onToggle={toggle} onSolo={solo} onOpen={() => toggleOpen(f.row, f.depth)} onClick={ev => clickRow(f.row, ev)} />)}
       </div>
     </aside>
   )
 }
 
-function TreeRow({ row, depth, onToggle, onSolo, onFocus, openDepth = 0 }: { row: Row; depth: number; onToggle: (r: Row) => void; onSolo: (r: Row) => void; onFocus: (gids: string[], select?: string) => void; openDepth?: number }) {
-  const [open, setOpen] = useState(depth < openDepth)   // Site·Building 은 펼침, 층부터 접힘
+function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick }: {
+  row: Row; depth: number; open: boolean; selected: boolean; onToggle: (r: Row) => void; onSolo: (r: Row) => void; onOpen: () => void; onClick: (e: React.MouseEvent) => void
+}) {
   const [hov, setHov] = useState(false)
-  const Icon = row.icon, kids = open && row.children ? row.children() : undefined
+  const Icon = row.icon
   return (
-    <>
-      <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}
-           style={{ display: 'flex', alignItems: 'center', gap: 4, height: 26, paddingLeft: 4 + depth * 14, paddingRight: 4, borderRadius: 5, background: hov ? '#eef2ff' : 'transparent', opacity: row.hidden ? 0.45 : 1, fontWeight: row.solo ? 600 : 400, cursor: 'pointer' }}>
-        <span onClick={() => row.children && setOpen(!open)} style={{ width: 14, display: 'grid', placeItems: 'center', color: '#888' }}>
-          {row.children && (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}</span>
-        <Icon size={14} style={{ color: '#666', flexShrink: 0 }} />
-        <span onClick={() => onFocus(row.gids(), row.gid)} title={row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {row.label}{row.sub && <span style={{ color: '#999', marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
-        {row.count > 0 && <span style={{ color: '#999', fontSize: 11, background: '#eee', borderRadius: 8, padding: '0 6px' }}>{row.count}</span>}
-        <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? '#2563eb' : hov ? '#777' : 'transparent' }}>
-          <Focus size={14} /></span>
-        <span onClick={e => { e.stopPropagation(); e.altKey ? onSolo(row) : onToggle(row) }} title={row.hidden ? '표시' : '숨김 · Alt+클릭: 이것만 보기'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? '#bbb' : hov ? '#555' : 'transparent' }}>
-          {row.hidden ? <EyeOff size={14} /> : <Eye size={14} />}</span>
-      </div>
-      {kids?.map(k => <TreeRow key={k.key} row={k} depth={depth + 1} onToggle={onToggle} onSolo={onSolo} onFocus={onFocus} openDepth={openDepth} />)}
-    </>
+    <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)} onClick={onClick}
+         style={{ display: 'flex', alignItems: 'center', gap: 4, height: 26, paddingLeft: 4 + depth * 14, paddingRight: 4, borderRadius: 5, userSelect: 'none',
+                  background: selected ? '#dbe4ff' : hov ? '#eef2ff' : 'transparent', opacity: row.hidden ? 0.45 : 1, fontWeight: row.solo ? 600 : 400, cursor: 'pointer' }}>
+      <span onClick={e => { e.stopPropagation(); onOpen() }} style={{ width: 14, display: 'grid', placeItems: 'center', color: '#888' }}>
+        {row.children && (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}</span>
+      <Icon size={14} style={{ color: '#666', flexShrink: 0 }} />
+      <span title={row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {row.label}{row.sub && <span style={{ color: '#999', marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
+      {row.count > 0 && <span style={{ color: '#999', fontSize: 11, background: '#eee', borderRadius: 8, padding: '0 6px' }}>{row.count}</span>}
+      <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? '#2563eb' : hov ? '#777' : 'transparent' }}>
+        <Focus size={14} /></span>
+      <span onClick={e => { e.stopPropagation(); e.altKey ? onSolo(row) : onToggle(row) }} title={row.hidden ? '표시' : '숨김 · Alt+클릭: 이것만 보기'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? '#bbb' : hov ? '#555' : 'transparent' }}>
+        {row.hidden ? <EyeOff size={14} /> : <Eye size={14} />}</span>
+    </div>
   )
 }
 

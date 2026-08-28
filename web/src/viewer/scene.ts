@@ -27,13 +27,13 @@ export class Scene3D {
   private visible: (gid: string, kind: Kind) => boolean = () => true
   private merged?: THREE.Group
   private mergedRanges: { mesh: THREE.Mesh; ranges: { start: number; end: number; gid: string }[] }[] = []
-  private picked?: string
+  private picked = new Set<string>()
   private focusSet: Focus
   private colors?: Map<string, number>   // 색상 모드: gid → hex. 없는 요소는 회색
   private colorMats = new Map<number, THREE.Material>()
   private clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0)
   private box = new THREE.Box3()
-  onPick?: (gid: string | undefined, kind: Kind | undefined) => void
+  onPick?: (gids: string[]) => void
 
   private el: HTMLElement
   private ro: ResizeObserver
@@ -53,9 +53,12 @@ export class Scene3D {
     this.renderer.domElement.addEventListener('pointerdown', e => down.set(e.clientX, e.clientY))
     this.renderer.domElement.addEventListener('pointerup', e => {
       if (down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 3) return  // 드래그는 회전
-      this.select(this.pick(e.clientX, e.clientY))
+      const gid = this.pick(e.clientX, e.clientY)
+      if (e.metaKey || e.ctrlKey) { if (gid) this.select([gid], 'toggle') }   // Cmd/Ctrl: 토글
+      else this.select(gid ? [gid] : [])
     })
-    this.renderer.domElement.addEventListener('dblclick', e => this.fit(this.pick(e.clientX, e.clientY)))
+    addEventListener('keydown', this.onKey)
+    this.renderer.domElement.addEventListener('dblclick', e => { const g = this.pick(e.clientX, e.clientY); this.fitAll(g ? [g] : []) })
     this.ro = new ResizeObserver(this.onResize); this.ro.observe(el)   // 패널 리사이즈 추종
     this.navCube = new NavCube(el, dir => this.lookFrom(dir), () => this.preset('home'))
     const loop = () => { this.raf = requestAnimationFrame(loop); this.controls.update(); this.renderer.render(this.scene, this.camera); this.navCube.sync(this.camera); this.frames++ }
@@ -107,13 +110,15 @@ export class Scene3D {
 
   get isMerged() { return !!this.merged }
 
-  select(gid: string | undefined) {
-    this.picked = gid
+  /** 선택. set = 교체, toggle = 추가/제거 */
+  select(gids: string[], mode: 'set' | 'toggle' = 'set') {
+    if (mode === 'set') this.picked = new Set(gids)
+    else for (const g of gids) this.picked.has(g) ? this.picked.delete(g) : this.picked.add(g)
     this.apply()
-    this.onPick?.(gid, gid ? this.kind.get(gid) : undefined)
+    this.onPick?.([...this.picked])
   }
 
-  get selected() { return this.picked }
+  get selected() { return [...this.picked] }
 
   /** glb 에 형상이 있는 요소인지 */
   has(gid: string) { return this.kind.has(gid) }
@@ -135,14 +140,8 @@ export class Scene3D {
   getView(): View { return { p: this.camera.position.toArray().map(n => +n.toFixed(2)), t: this.controls.target.toArray().map(n => +n.toFixed(2)) } }
   setView(v: View) { this.camera.position.fromArray(v.p); this.controls.target.fromArray(v.t); this.controls.update() }
 
-  /** 요소(들) 또는 전체가 화면에 들어오게 */
-  fit(gid?: string) {
-    const ms = gid ? this.meshes.filter(m => m.name === gid) : []
-    const box = ms.length ? ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()) : this.box
-    const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2
-    const dir = this.camera.position.clone().sub(this.controls.target).normalize()
-    this.controls.target.copy(c); this.camera.position.copy(c).addScaledVector(dir, r / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 1.1); this.controls.update()
-  }
+  /** 선택 요소들 또는 전체가 화면에 들어오게 */
+  fit() { this.fitAll(this.selected) }
 
   preset(name: 'home' | 'top' | 'front' | 'side') {
     this.lookFrom({ home: new THREE.Vector3(1, 0.8, 1), top: new THREE.Vector3(0, 1, 0.0001), front: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0) }[name])
@@ -155,19 +154,10 @@ export class Scene3D {
     this.camera.position.copy(t).addScaledVector(dir.clone().normalize(), d); this.controls.update()
   }
 
-  /** 카메라를 해당 요소로 */
-  focus(gid: string) {
-    const ms = this.meshes.filter(m => m.name === gid); if (!ms.length) return
-    const box = new THREE.Box3(); ms.forEach(m => box.expandByObject(m))
-    const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length()
-    this.controls.target.copy(c); this.camera.position.copy(c).add(new THREE.Vector3(r, r * 0.8, r)); this.controls.update()
-    this.select(gid)
-  }
-
-  /** 여러 요소(트리 노드 범위)에 카메라 맞춤 */
+  /** 요소들에 카메라 맞춤. 비었거나 형상이 없으면 전체 */
   fitAll(gids: string[]) {
-    const set = new Set(gids), ms = this.meshes.filter(m => set.has(m.name)); if (!ms.length) return
-    const box = ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3())
+    const set = new Set(gids), ms = this.meshes.filter(m => set.has(m.name))
+    const box = ms.length ? ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()) : this.box
     const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2
     const dir = this.camera.position.clone().sub(this.controls.target).normalize()
     this.controls.target.copy(c); this.camera.position.copy(c).addScaledVector(dir, r / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 1.1); this.controls.update()
@@ -183,13 +173,15 @@ export class Scene3D {
     return { calls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles, fps: this.fps }
   }
 
-  dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); this.navCube.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
+  private onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') this.select([]) }
+
+  dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); this.navCube.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
 
   private apply() {
     for (const m of this.meshes) {
       const gid = m.name, kind = this.kind.get(gid)!, inFocus = !this.focusSet || this.focusSet.gids.has(gid)
       m.visible = this.visible(gid, kind) && (inFocus || this.focusSet?.mode === 'ghost')
-      m.material = gid === this.picked ? HIGHLIGHT : !inFocus ? GHOST : kind === 'space' ? SPACE
+      m.material = this.picked.has(gid) ? HIGHLIGHT : !inFocus ? GHOST : kind === 'space' ? SPACE
         : this.colors ? this.colorMat(this.colors.get(gid) ?? 0xd8d8d8) : this.original.get(m)!
     }
     if (this.merged) this.setMerged(true)  // 병합 모드면 재구성 (하이라이트·고스트가 자기 그룹으로 분리)
