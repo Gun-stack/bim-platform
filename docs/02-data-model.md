@@ -110,6 +110,8 @@ erDiagram
     jsonb viewpoint "카메라 + 선택 GlobalId (BCF viewpoint 축소판)"
     timestamptz created_at
     timestamptz updated_at "상태 변경 시각 — 시간창 중복 억제"
+    text priority "LOW|NORMAL|HIGH|URGENT"
+    text description
   }
 ```
 

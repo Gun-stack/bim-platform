@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft, Box, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
-import { StatusBadge, day } from './viewer/FmPanel'
+import { day } from './viewer/FmPanel'
+import FmBoard from './FmBoard'
 
 /** #/models/{id}/fm — 자산 대장 + 작업지시 보드. 작업지시 → 뷰어 뷰포인트로 이동 */
 export default function FmPage({ modelId }: { modelId: string }) {
@@ -14,16 +15,6 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const reload = () => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) })
   useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId])
 
-  const viewerUrl = (w: WorkOrder) => {
-    const p = new URLSearchParams({ wo: w.id })
-    if (w.viewpoint?.v) p.set('v', w.viewpoint.v.join(','))
-    if (w.viewpoint?.sel) p.set('sel', w.viewpoint.sel.join(','))
-    else if (w.globalId) p.set('sel', w.globalId)
-    if (w.viewpoint?.clip) p.set('clip', w.viewpoint.clip.join(','))
-    return `#/models/${modelId}?${p}`
-  }
-  const cols = useMemo(() => (['OPEN', 'IN_PROGRESS', 'DONE'] as const).map(s => ({ s, items: wos.filter(w => w.status === s) })), [wos])
-  const move = (w: WorkOrder, s: WorkOrder['status']) => post(`/work-orders/${w.id}`, { status: s }, 'PATCH').then(reload)
 
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 1100, margin: '0 auto', padding: '24px 20px' }}>
@@ -43,24 +34,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
           {t === 'board' ? '작업지시 보드' : '자산 대장'}</button>)}
       </div>
 
-      {tab === 'board' && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {cols.map(({ s, items }) => <div key={s} style={{ background: '#f5f5f5', borderRadius: 10, padding: 10, minHeight: 200 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}><StatusBadge s={s} /><span style={{ color: '#888' }}>{items.length}</span></div>
-          {items.map(w => <div key={w.id} style={{ background: '#fff', borderRadius: 8, padding: 10, marginBottom: 8, boxShadow: '0 1px 2px #0001' }}>
-            <div style={{ fontWeight: 600 }}>{w.title}</div>
-            <div style={{ color: '#666', fontSize: 12, margin: '2px 0 6px' }}>{w.assetTag} · {w.ifcClass?.replace('Ifc', '')} {w.elementName?.split(':')[0]}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-              <span style={{ color: '#888' }}>{w.assignee ?? '미배정'}</span>
-              {w.dueOn && <span style={{ color: new Date(w.dueOn) < new Date() && w.status !== 'DONE' ? '#b91c1c' : '#888' }}>~{day(w.dueOn)}</span>}
-              <span style={{ flex: 1 }} />
-              {(w.viewpoint || w.globalId) && <a href={viewerUrl(w)} style={btn} title="뷰어에서 위치 보기"><ExternalLink size={12} /> 3D</a>}
-              {s !== 'DONE' && <button onClick={() => move(w, s === 'OPEN' ? 'IN_PROGRESS' : 'DONE')} style={btn}>{s === 'OPEN' ? '시작' : '완료'}</button>}
-              {s === 'DONE' && <button onClick={() => move(w, 'OPEN')} style={btn}>다시 열기</button>}
-            </div>
-          </div>)}
-          {!items.length && <div style={{ color: '#aaa', textAlign: 'center', padding: 20 }}>없음</div>}
-        </div>)}
-      </div>}
+      {tab === 'board' && <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} />}
 
       {tab === 'assets' && <>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>

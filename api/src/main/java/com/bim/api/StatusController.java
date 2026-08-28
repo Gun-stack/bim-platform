@@ -67,8 +67,8 @@ class StatusController {
 					} else {
 						var name = db.sql("SELECT name FROM element WHERE model_id = :id AND global_id = :gid").param("id", id).param("gid", globalId).query(String.class).single();
 						UUID wid = db.sql("""
-							INSERT INTO work_order (asset_id, title, viewpoint) VALUES (:a, :t, :v::jsonb) RETURNING id""")
-							.param("a", asset.get("id")).param("t", (status.equals("ALARM") ? "경보 확인: " : "장애 점검: ") + name)
+							INSERT INTO work_order (asset_id, title, viewpoint, priority, description) VALUES (:a, :t, :v::jsonb, :p, :d) RETURNING id""")
+							.param("a", asset.get("id")).param("t", (status.equals("ALARM") ? "경보 확인: " : "장애 점검: ") + name).param("p", status.equals("ALARM") ? "URGENT" : "HIGH").param("d", "상태 API 자동 생성 (" + status + ")")
 							.param("v", JSON.writeValueAsString(Map.of("sel", List.of(globalId)))).query(UUID.class).single();
 						wo = Map.of("id", wid, "assetTag", asset.get("tag"), "existing", false);
 					}

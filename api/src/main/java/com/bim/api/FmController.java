@@ -114,18 +114,22 @@ class FmController {
 	}
 
 	// ---------- work order ----------
-	record WorkOrderIn(String title, String assignee, LocalDate dueOn, UUID inspectionId, Map<String, Object> viewpoint) {}
+	record WorkOrderIn(String title, String assignee, LocalDate dueOn, UUID inspectionId, Map<String, Object> viewpoint, String priority, String description) {}
 
 	/** 모델의 작업지시 목록 (보드용). status 로 필터 가능 */
 	@GetMapping("/models/{id}/work-orders")
 	List<Map<String, Object>> workOrders(@PathVariable UUID id, @RequestParam(required = false) String status) {
 		return db.sql("""
-			SELECT w.id, w.title, w.status, w.assignee, w.due_on "dueOn", w.inspection_id "inspectionId", w.viewpoint::text viewpoint, w.created_at "createdAt",
-			       a.id "assetId", a.tag "assetTag", e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName"
+			SELECT w.id, w.title, w.status, w.priority, w.description, w.assignee, w.due_on "dueOn", w.inspection_id "inspectionId", w.viewpoint::text viewpoint, w.created_at "createdAt", w.updated_at "updatedAt",
+			       a.id "assetId", a.tag "assetTag", a.category "assetCategory", e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName",
+			       coalesce(st.name, sn.name) storey, CASE WHEN sn.ifc_class = 'IfcSpace' THEN sn.name END zone,
+			       (SELECT string_agg(s.name, ',' ORDER BY s.id) FROM element_system es JOIN system s ON s.id = es.system_id WHERE es.element_id = e.id) systems,
+			       (SELECT note FROM inspection i WHERE i.id = w.inspection_id) "inspectionNote"
 			  FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element e ON e.id = a.element_id
+			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
 			 WHERE a.model_id = :id AND (:s::text IS NULL OR w.status = :s)
-			 ORDER BY CASE w.status WHEN 'OPEN' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END, w.due_on NULLS LAST, w.created_at DESC""")
-			.param("id", id).param("s", status).query().listOfRows().stream().map(w -> json(w, "viewpoint")).toList();
+			 ORDER BY CASE w.status WHEN 'OPEN' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END, CASE w.priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, w.due_on NULLS LAST, w.created_at DESC""")
+			.param("id", id).param("s", status).query().listOfRows().stream().map(w -> { json(w, "viewpoint"); w.put("systems", w.get("systems") == null ? List.of() : List.of(((String) w.get("systems")).split(","))); return w; }).toList();
 	}
 
 	@PostMapping("/assets/{id}/work-orders")
@@ -133,9 +137,9 @@ class FmController {
 	Map<String, Object> createWorkOrder(@PathVariable UUID id, @RequestBody WorkOrderIn in) {
 		if (in.title() == null || in.title().isBlank()) throw new ProjectController.BadRequest("title required");
 		UUID wid = db.sql("""
-			INSERT INTO work_order (asset_id, inspection_id, title, assignee, due_on, viewpoint)
-			VALUES (:a, :i, :t, :as, :d, :v::jsonb) RETURNING id""")
-			.param("a", id).param("i", in.inspectionId()).param("t", in.title()).param("as", in.assignee()).param("d", in.dueOn())
+			INSERT INTO work_order (asset_id, inspection_id, title, assignee, due_on, viewpoint, priority, description)
+			VALUES (:a, :i, :t, :as, :d, :v::jsonb, coalesce(:p, 'NORMAL'), :desc) RETURNING id""")
+			.param("a", id).param("i", in.inspectionId()).param("t", in.title()).param("as", in.assignee()).param("d", in.dueOn()).param("p", in.priority()).param("desc", in.description())
 			.param("v", in.viewpoint() == null ? null : JSON.writeValueAsString(in.viewpoint())).query(UUID.class).single();
 		return workOrder(wid);
 	}
@@ -143,17 +147,17 @@ class FmController {
 	@GetMapping("/work-orders/{id}")
 	Map<String, Object> workOrder(@PathVariable UUID id) {
 		return json(db.sql("""
-			SELECT w.id, w.title, w.status, w.assignee, w.due_on "dueOn", w.inspection_id "inspectionId", w.viewpoint::text viewpoint, w.created_at "createdAt",
+			SELECT w.id, w.title, w.status, w.priority, w.description, w.assignee, w.due_on "dueOn", w.inspection_id "inspectionId", w.viewpoint::text viewpoint, w.created_at "createdAt", w.updated_at "updatedAt",
 			       a.id "assetId", a.tag "assetTag", a.model_id "modelId", e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName"
 			  FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element e ON e.id = a.element_id WHERE w.id = :id""")
 			.param("id", id).query().listOfRows().stream().findFirst().orElseThrow(() -> new ProjectController.NotFound("work order " + id)), "viewpoint");
 	}
 
-	record WorkOrderPatch(String status, String assignee, LocalDate dueOn) {}
+	record WorkOrderPatch(String status, String assignee, LocalDate dueOn, String priority, String description, String title) {}
 	@PatchMapping("/work-orders/{id}")
 	Map<String, Object> patchWorkOrder(@PathVariable UUID id, @RequestBody WorkOrderPatch p) {
-		db.sql("UPDATE work_order SET status = coalesce(:s, status), assignee = coalesce(:a, assignee), due_on = coalesce(:d, due_on), updated_at = now() WHERE id = :id")
-			.param("s", p.status()).param("a", p.assignee()).param("d", p.dueOn()).param("id", id).update();
+		db.sql("UPDATE work_order SET status = coalesce(:s, status), assignee = coalesce(:a, assignee), due_on = coalesce(:d, due_on), priority = coalesce(:p, priority), description = coalesce(:desc, description), title = coalesce(:t, title), updated_at = now() WHERE id = :id")
+			.param("s", p.status()).param("a", p.assignee()).param("d", p.dueOn()).param("p", p.priority()).param("desc", p.description()).param("t", p.title()).param("id", id).update();
 		return workOrder(id);
 	}
 
