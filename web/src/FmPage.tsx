@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Box, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
 import { day } from './viewer/FmPanel'
+import { ifcKo } from './ifcNames'
 import FmBoard from './FmBoard'
 
 /** #/models/{id}/fm — 자산 대장 + 작업지시 보드. 작업지시 → 뷰어 뷰포인트로 이동 */
@@ -12,8 +13,11 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [tab, setTab] = useState<'board' | 'assets'>('board')
   const [add, setAdd] = useState<{ tag: string; category: string } | null>(null)   // 모델에 없는 자산 추가 폼
   const [err, setErr] = useState<string>()
-  const reload = useCallback(() => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
+  const [abnormal, setAbnormal] = useState<{ name: string; assetTag?: string }[]>([]); const [syncMsg, setSyncMsg] = useState<string>()
+  const [aq, setAq] = useState(''); const [acat, setAcat] = useState(''); const [ast, setAst] = useState('')   // 자산 대장 필터
+  const reload = useCallback(() => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`), api(`/models/${modelId}/status`).catch(() => [])]).then(([a, w, s]) => { setAssets(a); setWos(w); setAbnormal((s as { name: string; status: { Status?: string } }[]).filter(r => r.status.Status === 'ALARM' || r.status.Status === 'FAULT')) }), [modelId])
   useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
+  const filteredAssets = assets.filter(a => (!acat || a.category === acat) && (!ast || a.storey === ast) && (!aq || [a.tag, a.elementName].some(x => x?.toLowerCase().includes(aq.toLowerCase()))))
 
 
   return (
@@ -34,6 +38,10 @@ export default function FmPage({ modelId }: { modelId: string }) {
           {t === 'board' ? '작업지시 보드' : '자산 대장'}</button>)}
       </div>
 
+      {tab === 'board' && abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8 }}>
+        <span style={{ color: '#9a3412' }}>상태판 이상 <b>{abnormal.length}</b>건 ({abnormal.slice(0, 3).map(r => r.name).join(', ')}{abnormal.length > 3 ? ' …' : ''}) — 열린 작업지시 {wos.filter(w => w.status !== 'DONE').length}건</span>
+        <button onClick={() => { setSyncMsg(undefined); post(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: '#ea580c', color: '#fff', border: 0 }}>작업지시 동기화</button>
+        {syncMsg && <span style={{ fontSize: 12, color: '#666' }}>{syncMsg}</span>}</div>}
       {tab === 'board' && <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} />}
 
       {tab === 'assets' && <>
@@ -48,18 +56,25 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <button type="submit" style={{ ...btn, background: '#2563eb', color: '#fff', border: 0 }}>등록</button>
           {err && <span style={{ color: '#b91c1c', fontSize: 12 }}>{err}</span>}
         </form>}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+          <input value={aq} onChange={e => setAq(e.target.value)} placeholder="태그 · 이름 검색" style={{ ...inp, width: 200 }} />
+          <select value={acat} onChange={e => setAcat(e.target.value)} style={inp}><option value="">분류 전체</option>{[...new Set(assets.map(a => a.category).filter(Boolean) as string[])].sort((x, y) => ifcKo(x).localeCompare(ifcKo(y))).map(c => <option key={c} value={c}>{ifcKo(c)}</option>)}</select>
+          <select value={ast} onChange={e => setAst(e.target.value)} style={inp}><option value="">층 전체</option>{[...new Set(assets.map(a => a.storey).filter(Boolean) as string[])].map(s => <option key={s}>{s}</option>)}</select>
+          <span style={{ color: '#888', fontSize: 12 }}>{filteredAssets.length} / {assets.length}</span>
+        </div>
         <div style={{ border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 110px 1fr 90px 110px 90px 80px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
-          <span>태그</span><span>분류</span><span>연결 요소</span><span>상태</span><span>최근 점검</span><span>작업지시</span><span /></div>
-        {assets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 110px 1fr 90px 110px 90px 80px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #eee' }}>
-          <b>{a.tag}</b><span>{a.category}</span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: a.globalId ? '#222' : '#999' }} title={a.elementName ?? ''}>{a.globalId ? `${a.ifcClass?.replace('Ifc', '')} · ${a.elementName}` : '(모델에 없음)'}</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 80px 70px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
+          <span>태그</span><span>분류</span><span>층</span><span>연결 요소</span><span>상태</span><span>최근 점검</span><span>작업지시</span><span /></div>
+        {filteredAssets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 80px 70px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #eee' }}>
+          <b>{a.tag}</b><span title={a.category ?? ''}>{ifcKo(a.category)}</span><span style={{ color: '#666' }}>{a.storey ?? '—'}{a.zone ? <span style={{ color: '#aaa' }}> {a.zone.split('-').pop()}</span> : ''}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: a.globalId ? '#222' : '#999' }} title={a.elementName ?? ''}>{a.globalId ? a.elementName : '(모델에 없음)'}</span>
           <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? '#15803d' : '#b91c1c' }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '중지', RETIRED: '폐기' }[a.status]}</span>
           <span style={{ fontSize: 12, color: a.lastResult === 'DEFECT' ? '#b91c1c' : '#666' }}>{a.lastInspectedOn ? `${day(a.lastInspectedOn)} ${a.lastResult}` : '—'}</span>
           <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}` : '—'}</span>
           <span style={{ textAlign: 'right' }}>{a.globalId && <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}><ExternalLink size={12} /> 3D</a>}</span>
         </div>)}
-        {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>자산이 없습니다. 뷰어에서 요소를 선택해 "자산 · FM" 탭에서 등록하세요.</div>}
+        {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>자산이 없습니다. 뷰어에서 요소를 선택해 "자산 · FM" 탭에서 등록하거나, 모니터링 페이지의 "자산 일괄 등록"을 쓰세요.</div>}
+        {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>조건에 맞는 자산이 없습니다.</div>}
         </div>
       </>}
     </main>

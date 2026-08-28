@@ -12,7 +12,7 @@ export const api = (path: string, init?: RequestInit) => fetch('/api' + path, in
 })
 
 export type Asset = { id: string; tag: string; category: string | null; status: 'ACTIVE' | 'OUT_OF_SERVICE' | 'RETIRED'; installedOn: string | null; attributes: Record<string, unknown>
-  globalId: string | null; ifcClass: string | null; elementName: string | null; lastInspectedOn?: string | null; lastResult?: 'OK' | 'DEFECT' | null; openWorkOrders?: number }
+  globalId: string | null; ifcClass: string | null; elementName: string | null; lastInspectedOn?: string | null; lastResult?: 'OK' | 'DEFECT' | null; openWorkOrders?: number; storey?: string | null; zone?: string | null }
 export type Inspection = { id: string; inspectedOn: string; result: 'OK' | 'DEFECT'; note: string | null }
 export type Viewpoint = { v?: number[]; sel?: string[]; clip?: number[] }
 export type Priority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'

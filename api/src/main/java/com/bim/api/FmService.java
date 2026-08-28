@@ -27,8 +27,10 @@ class FmService {
 			       e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName",
 			       (SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id) "lastInspectedOn",
 			       (SELECT result FROM inspection i WHERE i.asset_id = a.id ORDER BY inspected_on DESC, id DESC LIMIT 1) "lastResult",
-			       (SELECT count(*) FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE') "openWorkOrders"
+			       (SELECT count(*) FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE') "openWorkOrders",
+			       coalesce(st.name, sn.name) storey, CASE WHEN sn.ifc_class = 'IfcSpace' THEN sn.name END zone
 			  FROM asset a LEFT JOIN element e ON e.id = a.element_id
+			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
 			 WHERE a.model_id = :id ORDER BY a.tag""").param("id", id).query().listOfRows().stream().map(FmService::json).toList();
 	}
 

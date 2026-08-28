@@ -87,6 +87,7 @@ tests/           pytest — lease 회수, 재시도 정합성
 src/
   main.tsx / App.tsx  해시 라우팅: #/ 목록·업로드(SSE) · #/models/{id} 뷰어 · /fm 시설관리 · /monitor 모니터링 · #/map 지도. 페이지는 React.lazy 분할
   api.ts         fetch 래퍼(api/post), 공용 타입(Model·Asset·WorkOrder·System…)
+  ifcNames.ts    IFC 클래스 한글 라벨(클래스 탭·자산 분류·검색)
   teams.ts       팀 ↔ 계통 매핑 한 곳(순서 = 표시·우선순위). 모니터 격자, FM 보드 색, 뷰어 계통 탭 묶음이 공유
   FmPage.tsx     시설관리 페이지(탭: 작업지시 보드 · 자산 대장)
   FmBoard.tsx    지라형 칸반(드래그 낙관적 이동·되돌리기, 팀/담당/기한 필터, 드로어 편집, 생성 모달) → 뷰어(?wo=&v=&sel=&clip=)
@@ -123,6 +124,7 @@ src/
 | GET | `/api/models/{id}/systems` · `/systems/{sid}/elements` | 설비 계통 목록·멤버 |
 | GET | `/api/models/{id}/elements/{globalId}/route?dir=up\|down&scope=system\|all` | 흐름 추적 (재귀 CTE, 원천까지 / 말단까지). 기본은 출발 요소의 계통 안으로 제한 |
 | GET/PATCH | `/api/models/{id}/status` · `/elements/{globalId}/status` | 런타임 상태(Pset_BimStatus jsonb 병합 — 키 하나씩 보내도 됨. 파생값은 서버 집계: 수신기 ActiveAlarms/Faults ← 감지기, 주차관제 PCS Capacity/Occupied·표시판 Text ← 주차면 센서 Occupied. 자산이면 작업지시 자동) |
+| POST | `/api/models/{id}/status/sync` | 이미 ALARM/FAULT 인데 열린 작업지시가 없는 자산 요소에 작업지시 생성(규칙 동일). 자산 일괄 등록 뒤 자동 호출, FM 보드 배너에서 수동 |
 | GET | `/api/models/{id}/monitor?segments=` | 모니터링: 계통 장비 × 층/구역 × 상태 × 자산 × 작업지시 (배관·트레이 제외) |
 | GET/POST | `/api/models/{id}/power[?source=UTILITY\|GENERATOR]` | 전원 상태 조회 / 정전 시나리오(ATS·발전기 상태 변경) — 전원 있음/없음 집합 |
 

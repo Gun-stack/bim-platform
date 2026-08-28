@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, Calendar, ChevronsUp, ExternalLink, 
 import { post, type Asset, type Priority, type WorkOrder } from './api'
 import { StatusBadge, day } from './viewer/FmPanel'
 import { TEAMS, teamOfSystems } from './teams'
+import { ifcKo } from './ifcNames'
 
 const teamOf = (w: WorkOrder) => teamOfSystems(w.systems)
 const PRIO: Record<Priority, { label: string; color: string; icon?: typeof ArrowUp }> = {
@@ -128,15 +129,16 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
 function CreateModal({ assets, onClose, reload }: { assets: Asset[]; onClose: () => void; reload: () => Promise<unknown> }) {
   const [f, setF] = useState({ assetId: assets[0]?.id ?? '', title: '', assignee: '', dueOn: '', priority: 'NORMAL' as Priority, description: '' }); const [q, setQ] = useState(''); const [err, setErr] = useState<string>()
   useEsc(onClose)
-  const list = assets.filter(a => !q || a.tag.toLowerCase().includes(q.toLowerCase()) || a.elementName?.toLowerCase().includes(q.toLowerCase())).slice(0, 200)
+  const list = assets.filter(a => { const t = q.toLowerCase(); return !t || [a.tag, a.elementName, a.storey, a.zone, a.category, ifcKo(a.ifcClass)].some(x => x?.toLowerCase().includes(t)) }).slice(0, 300)
   const submit = () => { setErr(undefined); post(`/assets/${f.assetId}/work-orders`, { title: f.title, assignee: f.assignee || null, dueOn: f.dueOn || null, priority: f.priority, description: f.description || null }).then(() => { onClose(); reload() }).catch(e => setErr(e.message)) }
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: '#0004', zIndex: 40, display: 'grid', placeItems: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 480, background: '#fff', borderRadius: 12, padding: 18, fontSize: 13, boxShadow: '0 10px 40px #0003' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}><b style={{ fontSize: 15 }}>새 작업지시</b><X size={16} style={{ marginLeft: 'auto', cursor: 'pointer', color: '#666' }} onClick={onClose} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>
-          <span style={lbl}>자산</span><div><input value={q} onChange={e => setQ(e.target.value)} placeholder="태그·요소명 검색" style={{ ...inp, width: '100%', marginBottom: 4 }} />
-            <select value={f.assetId} onChange={e => setF({ ...f, assetId: e.target.value })} size={5} style={{ ...inp, width: '100%' }}>{list.map(a => <option key={a.id} value={a.id}>{a.tag} · {a.elementName ?? '(모델에 없음)'}</option>)}</select></div>
+          <span style={lbl}>자산</span><div><input value={q} onChange={e => setQ(e.target.value)} placeholder="태그 · 이름 · 층 · 구역 · 분류 검색" autoFocus style={{ ...inp, width: '100%', marginBottom: 4 }} />
+            <select value={f.assetId} onChange={e => setF({ ...f, assetId: e.target.value })} size={8} style={{ ...inp, width: '100%', fontFamily: 'inherit' }}>{list.map(a => <option key={a.id} value={a.id}>{a.storey ? `[${a.storey}${a.zone ? ' ' + a.zone.split('-').pop() : ''}] ` : ''}{a.tag} · {a.elementName ?? '(모델에 없음)'}</option>)}</select>
+            <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>{list.length}{list.length === 300 ? '+' : ''} / {assets.length} · 뷰어에서 요소를 고른 뒤 "자산 · FM" 탭에서 만드는 편이 빠릅니다</div></div>
           <span style={lbl}>제목 *</span><input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} style={inp} />
           <span style={lbl}>우선순위</span><select value={f.priority} onChange={e => setF({ ...f, priority: e.target.value as Priority })} style={inp}>{(Object.keys(PRIO) as Priority[]).map(p => <option key={p} value={p}>{PRIO[p].label}</option>)}</select>
           <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} style={inp} />

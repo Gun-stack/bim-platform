@@ -18,6 +18,7 @@ class StatusController {
 	}
 
 	@GetMapping("/status") List<Map<String, Object>> list(@PathVariable UUID id) { return service.list(id); }
+	@PostMapping("/status/sync") Map<String, Object> sync(@PathVariable UUID id) { return service.sync(id); }
 	@PostMapping("/power") Map<String, Object> power(@PathVariable UUID id, @RequestParam String source) { return service.power(id, source); }
 	@GetMapping("/power") Map<String, Object> powerNow(@PathVariable UUID id) { return service.powerNow(id); }
 }

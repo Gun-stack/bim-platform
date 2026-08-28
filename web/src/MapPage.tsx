@@ -31,7 +31,7 @@ export default function MapPage() {
   useEffect(() => {
     if (!el.current) return
     const m = new maplibregl.Map({
-      container: el.current, center: [10, 45], zoom: 2,
+      container: el.current, center: [127.8, 36.3], zoom: 6,   // 한국 전역
       style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' } },
                layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
     })
@@ -86,7 +86,7 @@ export default function MapPage() {
             <Box size={14} style={{ color: f ? (f.properties.manual ? '#b45309' : '#2563eb') : '#bbb', flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>{m.name}</div>
-              <div style={{ color: '#888', fontSize: 11 }}>{f ? `${f.properties.manual ? '수동 배치' : f.properties.georefSource}${f.properties.crs ? ' · ' + f.properties.crs : ''} · ${f.properties.areaM2} m²` : '지리참조 없음'}</div>
+              <div style={{ color: '#888', fontSize: 11 }}>{f ? `${f.properties.manual ? '수동 배치' : f.properties.georefSource}${f.properties.crs ? ' · ' + f.properties.crs : ''} · ${f.properties.areaM2} m²` : '지리참조 없음 — 배치 → 지도 클릭'}</div>
             </div>
             {f ? <button onClick={() => flyTo(f)} style={btn}>이동</button> : <button onClick={() => startPlacing(m)} style={{ ...btn, borderColor: '#f59e0b', color: '#b45309' }}>배치</button>}
             {f && <button onClick={() => startPlacing(m)} title="다시 배치" style={btn}><MapPin size={12} /></button>}

@@ -2,6 +2,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import type React from 'react'
 import { ArrowLeft, Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
+import { ifcKo } from '../ifcNames'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
 
@@ -35,7 +36,8 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     return m }, [spatial])
   const desc = (n: SpatialNode): string[] => [...(byNode.get(n.id) ?? []).map(e => e.globalId), ...(childrenOf.get(n.id) ?? []).flatMap(desc)]
 
-  const elRow = (e: ElementRow): Row => ({ key: 'e:' + e.globalId, gid: e.globalId, label: e.name ?? '(이름 없음)', sub: e.ifcClass.replace('Ifc', ''), icon: classIcon(e.ifcClass), count: 0,
+  const storeyOf = useMemo(() => { const byId = new Map(spatial.map(s => [s.id, s])); const m = new Map<number, string>(); for (const s of spatial) { let n: SpatialNode | undefined = s; while (n && n.ifcClass !== 'IfcBuildingStorey') n = n.parentId == null ? undefined : byId.get(n.parentId); if (n?.name) m.set(s.id, n.name) } return m }, [spatial])
+  const elRow = (e: ElementRow): Row => ({ key: 'e:' + e.globalId, gid: e.globalId, label: e.name ?? '(이름 없음)', sub: ifcKo(e.ifcClass) + (e.spatialNodeId != null && storeyOf.get(e.spatialNodeId) ? ' · ' + storeyOf.get(e.spatialNodeId) : ''), icon: classIcon(e.ifcClass), count: 0,
     hidden: hidden.gids.has(e.globalId) || hidden.classes.has(e.ifcClass), solo: hidden.solo?.key === 'e:' + e.globalId, gids: () => [e.globalId] })
   const spRow = (n: SpatialNode): Row => {
     const g = desc(n)
@@ -53,7 +55,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     }
     const byClass = new Map<string, ElementRow[]>()
     for (const e of elements) (byClass.get(e.ifcClass) ?? byClass.set(e.ifcClass, []).get(e.ifcClass)!).push(e)
-    return [...byClass].sort((a, b) => b[1].length - a[1].length).map(([c, es]) => ({ key: 'c:' + c, label: c, icon: classIcon(c), count: es.length, hidden: hidden.classes.has(c), solo: hidden.solo?.key === 'c:' + c, gids: () => es.map(e => e.globalId), children: () => es.map(elRow) }))
+    return [...byClass].sort((a, b) => b[1].length - a[1].length).map(([c, es]) => ({ key: 'c:' + c, label: ifcKo(c), sub: c.replace('Ifc', ''), icon: classIcon(c), count: es.length, hidden: hidden.classes.has(c), solo: hidden.solo?.key === 'c:' + c, gids: () => es.map(e => e.globalId), children: () => es.map(elRow) }))
   }, [tab, elements, hidden, byNode, childrenOf])
 
   const clone = (): Hidden => ({ nodes: new Set(hidden.nodes), classes: new Set(hidden.classes), gids: new Set(hidden.gids), solo: hidden.solo })
@@ -96,7 +98,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   const rowSelected = (r: Row) => r.gid ? selected.has(r.gid) : r.count > 0 && r.gids().every(g => selected.has(g))
 
   // 검색: 요소 이름/GlobalId/클래스 → 평면 목록
-  const found = useMemo(() => { const t = q.trim().toLowerCase(); return t ? elements.filter(e => e.globalId === q.trim() || e.name?.toLowerCase().includes(t) || e.ifcClass.toLowerCase().includes(t)).slice(0, 100) : [] }, [elements, q])
+  const found = useMemo(() => { const t = q.trim().toLowerCase(); return t ? elements.filter(e => e.globalId === q.trim() || e.name?.toLowerCase().includes(t) || e.ifcClass.toLowerCase().includes(t) || ifcKo(e.ifcClass).includes(t)).slice(0, 100) : [] }, [elements, q])
 
   return (
     <aside style={{ height: '100%', display: 'flex', flexDirection: 'column', fontSize: 13, background: '#fafafa' }}>
@@ -107,7 +109,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
           <a href={`#/models/${model?.id}/fm`} style={{ marginLeft: 10, textDecoration: 'none', color: '#2563eb' }}>시설관리 →</a>
         </div>
         <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model?.name}>{model?.name ?? '…'}</div>
-        <div style={{ color: '#777', fontSize: 12 }}>{model?.ifcSchema} · 요소 {model?.elementCount} · {stats.calls} calls · {stats.triangles.toLocaleString()} tri · {stats.fps} fps</div>
+        <div style={{ color: '#777', fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · ${stats.fps} fps`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}</div>
       </div>
 
       <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: '1px solid #e5e5e5' }}>

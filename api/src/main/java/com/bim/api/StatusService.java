@@ -89,6 +89,21 @@ class StatusService {
 		});
 	}
 
+	/** 이미 ALARM/FAULT 인데 열린 작업지시가 없는 자산 요소에 작업지시를 만든다 — 규칙(억제·재사용·시간창)은 patch 와 같다.
+	 *  IFC 초기값·외부 갱신은 상태 API 를 안 거쳐 작업지시가 없는 채로 남기 때문. 자산 일괄 등록 뒤와 보드에서 호출 */
+	Map<String, Object> sync(UUID id) {
+		var rows = db.sql("""
+			SELECT e.global_id gid, e.properties->'Pset_BimStatus'->>'Status' st FROM element e JOIN asset a ON a.element_id = e.id
+			 WHERE e.model_id = :id AND e.properties->'Pset_BimStatus'->>'Status' IN ('ALARM', 'FAULT')
+			   AND NOT EXISTS (SELECT 1 FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE')""").param("id", id).query().listOfRows();
+		int created = 0, suppressed = 0;
+		for (var r : rows) {
+			var wo = patch(id, (String) r.get("gid"), Map.of("Status", r.get("st"))).get("workOrder");
+			if (wo instanceof Map<?, ?> m) { if (m.containsKey("suppressedBy")) suppressed++; else created++; }
+		}
+		return Map.of("checked", rows.size(), "created", created, "suppressed", suppressed);
+	}
+
 	/** 상태 있는 요소 목록 (상태판) */
 	List<Map<String, Object>> list(UUID id) {
 		return db.sql("""

@@ -64,7 +64,7 @@ function Models() {
     <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 860, margin: '0 auto', padding: '32px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={22} /> bim-platform</h1>
-        <span style={{ color: '#888' }}>IFC 업로드 → 서버 변환 → 3D 뷰어</span>
+        <span style={{ color: '#888' }}>프로젝트 demo · 모델 {models.length}개{models.some(m => m.status === 'PROCESSING' || m.status === 'UPLOADED') ? ' · 변환 중' : ''}</span>
         <a href="#/map" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, textDecoration: 'none', color: '#222', fontSize: 12 }}><MapPin size={13} /> 지도</a>
       </div>
 
@@ -92,7 +92,7 @@ function Models() {
 const STATUS: Record<Model['status'], { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
   UPLOADED: { label: '대기', color: '#666', bg: '#eee', icon: Loader2 },
   PROCESSING: { label: '변환 중', color: '#1d4ed8', bg: '#dbe4ff', icon: Loader2 },
-  READY: { label: 'READY', color: '#15803d', bg: '#dcfce7', icon: CheckCircle2 },
+  READY: { label: '변환 완료', color: '#15803d', bg: '#dcfce7', icon: CheckCircle2 },
   FAILED: { label: '실패', color: '#b91c1c', bg: '#fee2e2', icon: AlertCircle },
 }
 
@@ -102,7 +102,7 @@ function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove
     <div className="model-row" style={{ display: 'grid', gridTemplateColumns: '1fr 110px 80px 70px 180px 170px 28px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: '1px solid #eee' }}>
       <div style={{ overflow: 'hidden' }}>
         <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>{m.name}</div>
-        <div style={{ color: '#999', fontSize: 11 }}>{m.id.slice(0, 8)} · {new Date((m as any).createdAt).toLocaleString()}</div>
+        <div style={{ color: '#999', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.id.slice(0, 8)} · {new Date((m as any).createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}</div>
       </div>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: st.bg, color: st.color, fontSize: 12, width: 'fit-content' }}>
         <Icon size={12} className={running ? 'spin' : undefined} /> {st.label}</span>
