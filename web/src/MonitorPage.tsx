@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, AlertTriangle, ArrowLeft, Box, Cable, ExternalLink, Flame, PlugZap, Siren, Wrench, type LucideIcon } from 'lucide-react'
-import { api, type Model } from './api'
+import { api, post, type Model } from './api'
 
 type Row = { globalId: string; ifcClass: string; name: string; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
   status: (Record<string, unknown> & { Status?: string }) | null; assetId: string | null; assetTag: string | null; assetStatus: string | null; lastResult: string | null; openWorkOrders: number }
@@ -54,7 +54,11 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
               <span style={{ color: k.wo ? '#1d4ed8' : '#999' }}><Wrench size={12} style={{ verticalAlign: -2 }} /> 작업지시 <b>{k.wo}</b></span>
             </div>
           </div>) })}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#444' }}><input type="checkbox" checked={onlyAbnormal} onChange={e => setOnlyAbnormal(e.target.checked)} /> 이상만</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#444' }}><input type="checkbox" checked={onlyAbnormal} onChange={e => setOnlyAbnormal(e.target.checked)} /> 이상만</label>
+          {rows.some(r => !r.assetId) && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(load)} style={{ ...btn, cursor: 'pointer', whiteSpace: 'nowrap' }} title="배관·트레이 제외 장비 전부">
+            <Box size={12} /> 미등록 {rows.filter(r => !r.assetId).length}개 자산 등록</button>}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleTeams.length}, 1fr)`, gap: 10 }}>

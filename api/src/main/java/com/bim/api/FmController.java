@@ -51,6 +51,32 @@ class FmController {
 		return asset(aid);
 	}
 
+	/** 장비 일괄 자산 등록: 계통 멤버 중 배관·트레이·케이블을 뺀 요소 가운데 자산이 없는 것 전부. 태그 = 클래스 약어-층-순번 */
+	@PostMapping("/models/{id}/assets/bulk")
+	Map<String, Object> bulk(@PathVariable UUID id) {
+		var rows = db.sql("""
+			SELECT DISTINCT e.id, e.global_id, e.ifc_class, e.name, coalesce(st.name, sn.name) storey
+			  FROM element e JOIN element_system es ON es.element_id = e.id
+			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id
+			  LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
+			  LEFT JOIN asset a ON a.element_id = e.id
+			 WHERE e.model_id = :id AND a.id IS NULL
+			   AND e.ifc_class NOT IN ('IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment')
+			 ORDER BY e.ifc_class, e.name""").param("id", id).query().listOfRows();
+		var seq = new java.util.HashMap<String, Integer>();
+		int n = 0;
+		for (var r : rows) {
+			String cls = ((String) r.get("ifc_class")).replace("Ifc", "");
+			String abbr = cls.replaceAll("[a-z]", ""); if (abbr.length() < 2) abbr = cls.substring(0, Math.min(3, cls.length())).toUpperCase();
+			String key = abbr + "-" + r.get("storey");
+			String tag = key + "-" + String.format("%02d", seq.merge(key, 1, Integer::sum));
+			db.sql("INSERT INTO asset (model_id, element_id, tag, category, attributes) VALUES (:m, :e, :t, :c, '{}'::jsonb) ON CONFLICT DO NOTHING")
+				.param("m", id).param("e", r.get("id")).param("t", tag).param("c", cls).update();
+			n++;
+		}
+		return Map.of("registered", n);
+	}
+
 	@GetMapping("/assets/{id}")
 	Map<String, Object> asset(@PathVariable UUID id) {
 		var a = json(db.sql("""
