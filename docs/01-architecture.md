@@ -84,7 +84,7 @@ worker/
 ```
 src/
   pages/    Models, Viewer, Map, Assets, WorkOrders
-  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·단면·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈 토글·검색)
+  viewer/   scene.ts (Three.js 씬·분류·필터·병합·픽킹·단면·뷰포인트·기즈모) + Viewer.tsx (레이아웃·툴바·속성) + LeftPanel.tsx (트리 탭·눈/솔로 토글·검색) + ColorPanel.tsx (속성별 색상 범례)
             뷰포인트 URL: #/models/{id}?v=px,py,pz,tx,ty,tz&sel={GlobalId}&clip={y} — M4 work_order.viewpoint 와 같은 필드
   map/      MapLibre, 풋프린트 레이어, 핀 배치
   api/      fetch 래퍼, SSE 훅
@@ -102,6 +102,7 @@ src/
 | POST | `/api/models/{id}/retry` | FAILED 모델 잡 재등록 |
 | GET | `/api/models/{id}/spatial` | 공간 계층 트리 |
 | GET | `/api/models/{id}/elements?ifcClass=&storey=&q=` | 요소 검색 (속성 제외, 가벼운 목록) |
+| GET | `/api/models/{id}/property-keys` · `/property-values?key=Pset.Prop` | 뷰어 색상 모드: 키 목록(상위 200)·키별 값 |
 | GET | `/api/models/{id}/elements/{globalId}` | 요소 + Pset. GlobalId 는 모델 안에서만 유일(같은 파일 재업로드 시 중복)이라 모델 스코프 |
 | PUT | `/api/models/{id}/footprint` | 수동 풋프린트/핀 |
 | GET | `/api/map/footprints?bbox=` | 지도용 GeoJSON |

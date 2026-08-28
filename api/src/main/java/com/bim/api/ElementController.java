@@ -39,6 +39,27 @@ class ElementController {
 			.param("id", id).param("ifcClass", ifcClass).param("storey", storey).param("q", q).query().listOfRows();
 	}
 
+	/** 색상 모드용: 모델에 등장하는 "Pset.속성" 키와 요소 수. 상위 200개 */
+	@GetMapping("/property-keys")
+	List<Map<String, Object>> propertyKeys(@PathVariable UUID id) {
+		return db.sql("""
+			SELECT p.key || '.' || q.key AS key, count(*) AS n
+			  FROM element e, jsonb_each(e.properties) p, jsonb_each(p.value) q
+			 WHERE e.model_id = :id AND jsonb_typeof(p.value) = 'object'
+			 GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 200""").param("id", id).query().listOfRows();
+	}
+
+	/** 색상 모드용: key("Pset.속성") 의 값을 가진 요소 → {globalId, value(text)} */
+	@GetMapping("/property-values")
+	List<Map<String, Object>> propertyValues(@PathVariable UUID id, @RequestParam String key) {
+		int dot = key.indexOf('.');
+		if (dot < 1) throw new ProjectController.BadRequest("key must be Pset.Property");
+		return db.sql("""
+			SELECT global_id "globalId", properties #>> ARRAY[:pset, :prop] AS value
+			  FROM element WHERE model_id = :id AND properties #> ARRAY[:pset, :prop] IS NOT NULL""")
+			.param("id", id).param("pset", key.substring(0, dot)).param("prop", key.substring(dot + 1)).query().listOfRows();
+	}
+
 	@GetMapping("/elements/{globalId}")
 	Map<String, Object> element(@PathVariable UUID id, @PathVariable String globalId) {
 		return db.sql("""
