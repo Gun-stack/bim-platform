@@ -6,7 +6,7 @@ BIM 서비스 기업 이직용 포트폴리오. 다음 경험을 **하나의 동
 
 | 이력서 경험 | 이 프로젝트에서 대응하는 부분 |
 |---|---|
-| Java 17 / Spring Boot 3 / WebFlux | `api` 서비스 |
+| Java 17 / Spring Boot 3 / WebFlux | `api` 서비스 — 이 프로젝트는 MVC 선택, 이유는 [ADR 0006](adr/0006-mvc-jdbc-over-webflux-r2dbc.md) |
 | PostGIS, GeoTools, 타일·공간데이터 파이프라인 | 지리참조 추출, 풋프린트 저장, 지도 API |
 | 대용량 바이너리 서빙(FlatBuffers/MVT) | glTF 변환·저장·서빙 파이프라인 |
 | React + Unity WebGL 3D 편집기 | React + Three.js 뷰어 |
@@ -27,7 +27,7 @@ BIM 서비스 기업 이직용 포트폴리오. 다음 경험을 **하나의 동
 
 | 결정 | 선택 | ADR |
 |---|---|---|
-| 백엔드 언어 | Java 25 + Spring Boot 4 (WebFlux) | [0001](adr/0001-java-api-plus-python-worker.md) |
+| 백엔드 언어 | Java 25 + Spring Boot 4 (MVC + JDBC, 가상 스레드) | [0001](adr/0001-java-api-plus-python-worker.md), [0006](adr/0006-mvc-jdbc-over-webflux-r2dbc.md) |
 | IFC 처리 | Python + IfcOpenShell 사이드카 워커 | [0001](adr/0001-java-api-plus-python-worker.md) |
 | 3D 포맷 | 서버에서 glTF(glb) 변환, 프론트 Three.js | [0002](adr/0002-server-gltf-over-browser-parsing.md) |
 | 잡 큐 | PostgreSQL 테이블 폴링 (`FOR UPDATE SKIP LOCKED`) | [0003](adr/0003-db-table-queue.md) |

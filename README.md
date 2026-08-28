@@ -7,7 +7,7 @@ IFC 모델을 업로드하면 서버에서 변환하고, 웹에서 3D로 보고,
 ## 무엇을 보여주려는가
 
 - **BIM 데이터 파이프라인**: IFC → IfcOpenShell 변환 → glTF + 속성 DB (서버 사이드, 대용량 대응)
-- **플랫폼 백엔드**: Java 25 / Spring Boot 4 WebFlux, PostgreSQL + PostGIS, MinIO
+- **플랫폼 백엔드**: Java 25 / Spring Boot 4 MVC (가상 스레드), PostgreSQL + PostGIS, MinIO
 - **3D 웹 뷰어**: React + Three.js, 요소 선택·속성·공간 계층
 - **GIS 통합**: IFC 지리참조 → PostGIS 풋프린트 → MapLibre 지도
 - **FMS 통합**: 요소 → 자산 → 점검 → 작업지시 (COBie / BCF 개념 반영)
@@ -34,6 +34,14 @@ docker compose up -d --build --wait
 # minio → http://localhost:9001  (minio / minio123)
 # db    → localhost:5432  bim / bim / bim
 docker compose down -v   # 볼륨까지 초기화
+```
+
+### 업로드 확인 (M1-1)
+
+```bash
+PID=$(curl -s -X POST localhost:8080/api/projects -H 'content-type: application/json' -d '{"name":"demo"}' | jq -r .id)
+curl -F file=@samples/Duplex_A_20110907.ifc localhost:8080/api/projects/$PID/models   # 202, {id,...}
+curl localhost:8080/api/models/<id>                                                   # status, jobStatus, progress, error
 ```
 
 샘플 IFC 는 `samples/README.md` 참고. 로컬 개발: `cd api && ./gradlew test` (Testcontainers, Docker 필요), `cd web && npm run dev`.

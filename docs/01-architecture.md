@@ -7,7 +7,7 @@ flowchart LR
   subgraph browser
     WEB[web<br/>React + TS + Vite<br/>Three.js / MapLibre]
   end
-  WEB -- REST / SSE --> API[api<br/>Spring Boot 4 WebFlux<br/>Java 25]
+  WEB -- REST / SSE --> API[api<br/>Spring Boot 4 MVC<br/>Java 25]
   API --> PG[(postgis<br/>PostgreSQL 16 + PostGIS)]
   API --> S3[(minio<br/>S3 호환)]
   WORKER[ifc-worker<br/>Python + IfcOpenShell] -- 폴링 --> PG
