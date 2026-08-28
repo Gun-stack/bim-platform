@@ -15,7 +15,7 @@ WHERE id = (SELECT id FROM conversion_job WHERE status='PENDING'
 RETURNING *;
 ```
 
-worker는 2초 간격 폴링. 진행률은 같은 행의 `progress` 갱신. `RUNNING` 인데 `started_at` 이 10분 넘은 잡은 worker 기동 시 `PENDING` 으로 복구.
+worker는 2초 간격 폴링. 진행률은 같은 행의 `progress` 갱신. `RUNNING` 인데 `started_at` 이 10분 넘은 잡은 매 폴링 회전에서 `PENDING` 으로 복구 (기동 시에만 하면 hang된 잡을 못 잡는다).
 
 ## 대안
 

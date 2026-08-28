@@ -64,7 +64,7 @@ print(ue.get_container(w))               # IfcBuildingStorey
 
 - buildingSMART Sample-Test-Files: https://github.com/buildingSMART/Sample-Test-Files
 - IfcOpenShell test files: https://github.com/IfcOpenShell/files
-- 선정 후보: IFC2x3 Duplex Apartment, IFC4 Schependomlaan, IFC4x3 공식 샘플 1종 (M0에서 확정)
+- 확정 (2026-08-28): IFC2x3 `Duplex_A_20110907.ifc` (Duplex Apartment), IFC4 `Schependomlaan.ifc`, IFC4x3 `IFC 4.3.2.0 (IFC4X3_ADD2)/PCERT-Sample-Scene/Building-Architecture.ifc` (헤더 `FILE_SCHEMA` 는 `IFC4X3_ADD2` — 정규화 규칙은 [02-data-model](../02-data-model.md))
 
 ## 참고
 

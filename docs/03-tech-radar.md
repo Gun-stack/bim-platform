@@ -7,7 +7,7 @@
 | 구분 | 항목 | 버전 (조사일) | 라이선스 | 판단 |
 |---|---|---|---|---|
 | **채택** | IfcOpenShell / ifcopenshell.geom / IfcConvert | 0.8.5 (공식 사이트), PyPI 0.8.3.post1 | LGPL-3.0 | IFC 파싱·기하·glTF 변환의 사실상 표준. IDS(ifctester)·BCF·COBie(ifccobie) 도구 포함 |
-| **채택** | Three.js + glTF | three 0.18x | MIT | glb 로드. 프론트에 IFC 파서 없음 |
+| **채택** | Three.js + glTF | three 0.185.1 | MIT | glb 로드. 프론트에 IFC 파서 없음 |
 | **채택** | MapLibre GL JS | 5.x | BSD-3 | 2D 지도, 풋프린트 |
 | **채택** | PostGIS | 3.4 | GPL-2.0 (서버) | 공간 저장·변환 |
 | **채택** | Flyway, Testcontainers, MinIO | — | Apache-2.0 / AGPL(MinIO 서버) | MinIO 서버 AGPL은 자체 호스팅·미수정이면 문제 없음. 배포 시 다른 S3로 교체 가능하게 SDK만 의존 |

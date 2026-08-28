@@ -112,7 +112,7 @@ IfcConvert `--use-element-guids` 로 glb 노드 이름 = IFC GlobalId. 프론트
 ## 에러 처리
 
 - 변환 실패 → `model.status=FAILED`, `conversion_job.error` 에 stderr 마지막 2KB. UI에 표시, 재시도 버튼(잡 재등록)
-- worker 크래시 → `RUNNING` 상태로 남은 잡은 `started_at` 10분 경과 시 다시 PENDING (worker 시작 시 정리)
+- worker 크래시·hang → `RUNNING` 인데 `started_at` 10분 경과한 잡은 다시 PENDING. 기동 시가 아니라 **매 폴링 회전마다** 실행 (IfcOpenShell이 대형 파일에서 멈추는 경우 컨테이너는 살아 있음). 재시도 횟수 3회 초과 시 FAILED
 - 업로드 크기 제한 500MB (nginx/api 동일 값)
 
 ## 테스트
