@@ -115,13 +115,14 @@ class StatusService {
 	}
 
 	/** 정전 시나리오: source=UTILITY(한전) | GENERATOR(발전기). ATS·발전기 상태를 바꾸고, 전원 있는/없는 요소를 흐름 그래프로 계산.
-	 *  한전: MDB 하류 전부 + EMDB 하류. 발전기: EMDB 하류만 (MDB 하류 중 비상 아닌 것은 무전원). */
+	 *  한전: MDB 하류 전부 + 비상 계통. 발전기: 비상 계통만 (MDB 하류 중 비상 아닌 것은 무전원).
+	 *  비상 계통의 뿌리는 EMDB 가 아니라 발전기(EG-%)와 그 직접 공급원(연료탱크) — 탱크→발전기→ATS→EMDB→하류. EMDB 를 뿌리로 잡으면 발전기·ATS 가 상류라 빠져 무전원/비활성으로 보인다. */
 	Map<String, Object> power(UUID id, String source) {
 		boolean gen = source.equals("GENERATOR");
 		if (!gen && !source.equals("UTILITY")) throw new ProjectController.BadRequest("source=UTILITY|GENERATOR");
 		set(id, "IfcSwitchingDevice", Map.of("Status", gen ? "TRANSFERRED" : "NORMAL", "Source", source));
 		set(id, "IfcElectricGenerator", Map.of("Status", gen ? "RUNNING" : "STANDBY"));
-		List<String> normal = downstream(id, "MDB%"), emergency = downstream(id, "EMDB%");
+		List<String> normal = downstream(id, "MDB%"), emergency = downstream(id, "EG-%");
 		List<String> powered = gen ? emergency : java.util.stream.Stream.concat(normal.stream(), emergency.stream()).distinct().toList();
 		List<String> unpowered = gen ? normal.stream().filter(g -> !emergency.contains(g)).toList() : List.of();
 		return Map.of("source", source, "powered", powered, "unpowered", unpowered);
@@ -131,7 +132,7 @@ class StatusService {
 	Map<String, Object> powerNow(UUID id) {
 		String source = db.sql("SELECT properties->'Pset_BimStatus'->>'Source' FROM element WHERE model_id = :id AND ifc_class = 'IfcSwitchingDevice' LIMIT 1").param("id", id).query(String.class).optional().orElse("UTILITY");
 		boolean gen = "GENERATOR".equals(source);
-		List<String> normal = downstream(id, "MDB%"), emergency = downstream(id, "EMDB%");
+		List<String> normal = downstream(id, "MDB%"), emergency = downstream(id, "EG-%");
 		return Map.of("source", source, "powered", gen ? emergency : java.util.stream.Stream.concat(normal.stream(), emergency.stream()).distinct().toList(),
 		              "unpowered", gen ? normal.stream().filter(g -> !emergency.contains(g)).toList() : List.of());
 	}
@@ -144,7 +145,8 @@ class StatusService {
 	private List<String> downstream(UUID id, String namePattern) {
 		return db.sql("""
 			WITH RECURSIVE r AS (
-			  SELECT e.id, ARRAY[e.id] path FROM element e WHERE e.model_id = :id AND e.name LIKE :n
+			  SELECT e.id, ARRAY[e.id] path FROM element e WHERE e.model_id = :id
+			     AND (e.name LIKE :n OR e.id IN (SELECT c.from_element_id FROM connection c JOIN element t ON t.id = c.to_element_id WHERE t.model_id = :id AND t.name LIKE :n))  -- 뿌리 + 뿌리에 직접 공급하는 요소(발전기 연료탱크)
 			  UNION ALL
 			  SELECT e.id, r.path || e.id FROM r JOIN connection c ON c.from_element_id = r.id JOIN element e ON e.id = c.to_element_id WHERE NOT e.id = ANY(r.path))
 			SELECT DISTINCT e.global_id FROM r JOIN element e ON e.id = r.id""").param("id", id).param("n", namePattern).query(String.class).list();
