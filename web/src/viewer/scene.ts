@@ -6,7 +6,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export type Kind = 'element' | 'space' | 'opening'
 const GID = /^[0-9A-Za-z_$]{22}$/
 export type Stats = { calls: number; triangles: number; fps: number }
-const HIGHLIGHT = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 })
+// 선택: 색상 모드의 어떤 팔레트와도 겹치지 않는 마젠타, 반투명 + 항상 앞에(depthTest off) + 외곽선. 가려져 있어도 어디가 선택됐는지 보인다
+const HIGHLIGHT = new THREE.MeshBasicMaterial({ color: 0xff2d95, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide })
+const OUTLINE = new THREE.LineBasicMaterial({ color: 0xff2d95, depthTest: false })
 const SPACE = new THREE.MeshStandardMaterial({ color: 0x4488ff, transparent: true, opacity: 0.25, depthWrite: false })
 const GHOST = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, transparent: true, opacity: 0.12, depthWrite: false })
 const FOCUS_SPACE = new THREE.MeshStandardMaterial({ color: 0x2563eb, emissive: 0x1e3a8a, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
@@ -29,6 +31,7 @@ export class Scene3D {
   private merged?: THREE.Group
   private mergedRanges: { mesh: THREE.Mesh; ranges: { start: number; end: number; gid: string }[] }[] = []
   private picked = new Set<string>()
+  private outlines = new THREE.Group()   // 선택 요소 외곽선(EdgesGeometry). apply() 마다 재구성
   private focusSet: Focus
   private focusSpace?: string   // 포커스 모드에서 강조할 IfcSpace
   private colors?: Map<string, number>   // 색상 모드: gid → hex. 없는 요소는 회색 또는 반투명(ghostOthers)
@@ -97,7 +100,7 @@ export class Scene3D {
       this.kind.set(gid, classify(gid))
       if (this.kind.get(gid) === 'space') m.material = SPACE
     })
-    this.scene.add(gltf.scene); this.scene.add(this.measureGroup)
+    this.scene.add(gltf.scene); this.scene.add(this.measureGroup); this.scene.add(this.outlines); this.outlines.renderOrder = 9
     this.box.setFromObject(gltf.scene)
     this.preset('home')
     this.apply()
@@ -246,7 +249,9 @@ export class Scene3D {
   dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); this.navCube.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
 
   private apply() {
+    this.outlines.traverse(o => (o as THREE.LineSegments).geometry?.dispose()); this.outlines.clear()
     for (const m of this.meshes) {
+      if (this.picked.has(m.name)) { const l = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 20), OUTLINE); l.matrixAutoUpdate = false; l.matrix.copy(m.matrixWorld); l.renderOrder = 9; this.outlines.add(l) }
       const gid = m.name, kind = this.kind.get(gid)!, inFocus = !this.focusSet || this.focusSet.gids.has(gid)
       m.visible = this.visible(gid, kind) && (inFocus || this.focusSet?.mode === 'ghost')
       m.material = this.picked.has(gid) ? HIGHLIGHT : !inFocus ? GHOST : gid === this.focusSpace ? FOCUS_SPACE : kind === 'space' ? SPACE
