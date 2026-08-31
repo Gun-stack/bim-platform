@@ -7,6 +7,7 @@ import { day } from './viewer/FmPanel'
 import { ifcKo } from './ifcNames'
 import FmBoard from './FmBoard'
 import { useHashQuery } from './useHashQuery'
+import { AlertToast, useAlerts } from './useAlerts'
 
 /** #/models/{id}/fm — 자산 대장 + 작업지시 보드. 작업지시 → 뷰어 뷰포인트로 이동 */
 export default function FmPage({ modelId }: { modelId: string }) {
@@ -16,9 +17,10 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [open, toggle] = useSections('fm.sections', { board: true, assets: false })
   const [add, setAdd] = useState<{ tag: string; category: string } | null>(null)   // 모델에 없는 자산 추가 폼
   const [err, setErr] = useState<string>()
-  const [abnormal, setAbnormal] = useState<{ name: string; assetTag?: string }[]>([]); const [syncMsg, setSyncMsg] = useState<string>()
+  const [syncMsg, setSyncMsg] = useState<string>()
   const [aq, setAq] = useState(''); const [acat, setAcat] = useState(''); const [ast, setAst] = useState('')   // 자산 대장 필터
-  const reload = useCallback(() => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`), api(`/models/${modelId}/status`).catch(() => [])]).then(([a, w, s]) => { setAssets(a); setWos(w); setAbnormal((s as { name: string; status: { Status?: string } }[]).filter(r => r.status.Status === 'ALARM' || r.status.Status === 'FAULT')) }), [modelId])
+  const reload = useCallback(() => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
+  const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 5초 폴링 — 이상 배너 + 전역 경보 토스트
   useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
 
   // 딥링크: ?wo={id} → 보드 펼침 + 카드 하이라이트/Drawer, ?sel={gid} → 열린 WO 있으면 그 카드, 없으면 자산 대장 필터
@@ -35,7 +37,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <a href="#/" style={{ color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={14} /> 모델 목록</a>
         <h1 style={{ margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={18} /> {model?.name ?? '…'} <span style={{ color: '#888', fontWeight: 400 }}>시설관리</span></h1>
-        <a href={`#/models/${modelId}/monitor`} style={{ marginLeft: 'auto', ...btn }}>모니터링</a><a href={`#/models/${modelId}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a>
+        <a href={`#/models/${modelId}/monitor`} style={{ marginLeft: 'auto', ...btn }}>모니터링{abnormal.length > 0 && <b style={{ color: '#dc2626' }}>{abnormal.length}</b>}</a><a href={`#/models/${modelId}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a>
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
         <Stat icon={Tag} label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />
@@ -83,6 +85,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>조건에 맞는 자산이 없습니다.</div>}
         </div>
       </Section>
+      <AlertToast modelId={modelId} fresh={fresh} dismiss={dismiss} />
     </main>
   )
 }

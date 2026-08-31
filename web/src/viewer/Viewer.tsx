@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { MapPinned, Check, Copy, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
-import { api, type Asset, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type StatusRow, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
+import { api, type Asset, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
+import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { STATUS_COLOR, StatusBoard, systemColor } from './SystemPanel'
 import { ifcKo } from '../ifcNames'
 import { TEAMS } from '../teams'
@@ -42,7 +43,6 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [sysColor, setSysColor] = useState(false)     // 계통별 색
   const [route, setRoute] = useState<Route>()          // 추적 결과
   const [systemsMeta, setSystemsMeta] = useState<{ id: number; name: string; predefinedType: string | null }[]>([])
-  const [statusRows, setStatusRows] = useState<StatusRow[]>([])
   const [power, setPower] = useState<PowerResult>()
   const [statusView, setStatusView] = useState(false); const [boardCollapsed, setBoardCollapsed] = useState(false)
   const [assetDetail, setAssetDetail] = useState<{ id: string; workOrders: WorkOrder[] }>()
@@ -65,8 +65,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }
   const focusRef = useRef(focusOn); focusRef.current = focusOn
   useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])
-  const reloadStatus = useCallback(() => api(`/models/${modelId}/status`).then(setStatusRows).catch(() => setStatusRows([])), [modelId])
-  useEffect(() => { reloadStatus() }, [reloadStatus])
+  const { rows: statusRows, fresh: freshAlerts, dismiss: dismissAlert, reload: reloadStatus } = useAlerts(modelId)   // 5초 폴링 — 상태판·트리 배지도 함께 최신 유지
   useEffect(() => { api(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
   // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
   useEffect(() => {
@@ -312,6 +311,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Gap />
             <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" onClick={share} />
           </div>
+
+          <AlertToast modelId={modelId} fresh={freshAlerts} dismiss={dismissAlert} onFocus={g => focusOn(g)} />
         </div>
       </Panel>
       <Separator style={sep} />
