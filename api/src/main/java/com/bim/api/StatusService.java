@@ -144,14 +144,19 @@ class StatusService {
 
 	private List<String> downstream(UUID id, String namePattern) {
 		return db.sql("""
-			WITH RECURSIVE r AS (
-			  SELECT e.id, ARRAY[e.id] path FROM element e WHERE e.model_id = :id
+			WITH RECURSIVE elec AS (
+			  SELECT es.element_id FROM element_system es JOIN system s ON s.id = es.system_id WHERE s.model_id = :id AND s.predefined_type = 'ELECTRICAL'
+			), r AS (
+			  SELECT e.id, ARRAY[e.id] path, true trav, e.ifc_class FROM element e WHERE e.model_id = :id
 			     AND (e.name LIKE :n OR e.id IN (SELECT c.from_element_id FROM connection c JOIN element t ON t.id = c.to_element_id WHERE t.model_id = :id AND t.name LIKE :n))  -- 뿌리 + 뿌리에 직접 공급하는 요소(발전기 연료탱크)
 			  UNION ALL
-			  SELECT e.id, r.path || e.id FROM r JOIN connection c ON c.from_element_id = r.id JOIN element e ON e.id = c.to_element_id
-			   WHERE NOT e.id = ANY(r.path)
-			     -- connection 엔 계통이 없어 통신·공조·화재감지 링크까지 타고 간다(UPS→MDF→IDF→DDC→VAV→디퓨저). 전기 계통(ELECTRICAL) 멤버만 통과
-			     AND e.id IN (SELECT es.element_id FROM element_system es JOIN system s ON s.id = es.system_id WHERE s.model_id = :id AND s.predefined_type = 'ELECTRICAL'))
+			  -- connection 엔 계통이 없어 통신·공조 링크까지 타고 간다(UPS→MDF→IDF→DDC→VAV→디퓨저) → 전기 계통(ELECTRICAL) 멤버만 통과.
+			  -- 예외: 분전반·개폐기 직결 요소는 계통 무관하게 부하로 도달(trav=false, 더 타진 않음) — 엘리베이터처럼 IfcDistributionSystem 에 못 들어가는 부하용
+			  SELECT e.id, r.path || e.id, e.id IN (SELECT element_id FROM elec), e.ifc_class
+			    FROM r JOIN connection c ON c.from_element_id = r.id JOIN element e ON e.id = c.to_element_id
+			   WHERE NOT e.id = ANY(r.path) AND r.trav
+			     AND (e.id IN (SELECT element_id FROM elec) OR r.ifc_class IN ('IfcElectricDistributionBoard', 'IfcSwitchingDevice'))
+			)
 			SELECT DISTINCT e.global_id FROM r JOIN element e ON e.id = r.id""").param("id", id).param("n", namePattern).query(String.class).list();
 	}
 }
