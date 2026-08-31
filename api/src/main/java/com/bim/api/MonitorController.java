@@ -48,20 +48,18 @@ class MonitorController {
 		return Map.of("power", power == null ? "UNKNOWN" : power, "rows", rows);
 	}
 
-	/** 최근 이벤트: 상태 변경(Pset_BimStatus.UpdatedAt — 상태 API 를 거친 것만 시각이 있다) + 작업지시 생성/변경. 최신순 limit */
+	/** 최근 이벤트: op_event 이력 — 상태 패치·작업지시 생성/상태 변경이 그때 값으로 쌓인다 (V6). 최신순 limit */
 	@GetMapping("/monitor/events")
 	List<Map<String, Object>> events(@PathVariable UUID id, @RequestParam(defaultValue = "30") int limit) {
 		return db.sql("""
-			SELECT * FROM (
-			  SELECT (e.properties->'Pset_BimStatus'->>'UpdatedAt')::timestamptz at, 'STATUS' kind, e.global_id "globalId", e.name,
-			         e.properties->'Pset_BimStatus'->>'Status' status, coalesce(st.name, sn.name) storey, NULL::text "woTitle", NULL::text "woStatus"
-			    FROM element e LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
-			   WHERE e.model_id = :id AND e.properties->'Pset_BimStatus'->>'UpdatedAt' IS NOT NULL
-			  UNION ALL
-			  SELECT coalesce(w.updated_at, w.created_at), 'WORK_ORDER', el.global_id, el.name, NULL, coalesce(st.name, sn.name), w.title, w.status
-			    FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element el ON el.id = a.element_id
-			    LEFT JOIN spatial_node sn ON sn.id = el.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
-			   WHERE a.model_id = :id) x
-			 ORDER BY at DESC NULLS LAST LIMIT :n""").param("id", id).param("n", Math.min(limit, 200)).query().listOfRows();
+			SELECT ev.at, ev.kind, ev.global_id "globalId", e.name,
+			       CASE WHEN ev.kind = 'STATUS' THEN ev.status END status,
+			       coalesce(st.name, sn.name) storey,
+			       ev.wo_title "woTitle", CASE WHEN ev.kind = 'WORK_ORDER' THEN ev.status END "woStatus"
+			  FROM op_event ev
+			  LEFT JOIN element e ON e.model_id = ev.model_id AND e.global_id = ev.global_id
+			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id
+			  LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
+			 WHERE ev.model_id = :id ORDER BY ev.at DESC, ev.id DESC LIMIT :n""").param("id", id).param("n", Math.min(limit, 200)).query().listOfRows();
 	}
 }

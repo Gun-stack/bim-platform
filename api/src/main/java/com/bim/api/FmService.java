@@ -127,6 +127,7 @@ class FmService {
 			VALUES (:a, :i, :t, :as, :d, :v::jsonb, coalesce(:p, 'NORMAL'), :desc) RETURNING id""")
 			.param("a", id).param("i", in.inspectionId()).param("t", in.title()).param("as", in.assignee()).param("d", in.dueOn()).param("p", in.priority()).param("desc", in.description())
 			.param("v", in.viewpoint() == null ? null : JSON.writeValueAsString(in.viewpoint())).query(UUID.class).single();
+		OpEvents.workOrder(db, wid);
 		return workOrder(wid);
 	}
 	Map<String, Object> workOrder(UUID id) {
@@ -141,6 +142,7 @@ class FmService {
 	Map<String, Object> patchWorkOrder(UUID id, WorkOrderPatch p) {
 		db.sql("UPDATE work_order SET status = coalesce(:s, status), assignee = coalesce(:a, assignee), due_on = coalesce(:d, due_on), priority = coalesce(:p, priority), description = coalesce(:desc, description), title = coalesce(:t, title), updated_at = now() WHERE id = :id")
 			.param("s", p.status()).param("a", p.assignee()).param("d", p.dueOn()).param("p", p.priority()).param("desc", p.description()).param("t", p.title()).param("id", id).update();
+		if (p.status() != null) OpEvents.workOrder(db, id);   // 상태 변경만 이벤트 — 설명·담당자 수정은 이력 잡음
 		return workOrder(id);
 	}
 

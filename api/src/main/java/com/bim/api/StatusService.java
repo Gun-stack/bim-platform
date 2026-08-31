@@ -27,6 +27,7 @@ class StatusService {
 				UPDATE element SET properties = jsonb_set(properties, '{Pset_BimStatus}', coalesce(properties->'Pset_BimStatus', '{}'::jsonb) || :p::jsonb)
 				 WHERE model_id = :id AND global_id = :gid""").param("id", id).param("gid", globalId).param("p", JSON.writeValueAsString(p)).update();
 			if (n == 0) throw new ProjectController.NotFound("element " + globalId);
+			OpEvents.status(db, id, globalId, JSON.writeValueAsString(p));
 			// 수신기 집계: 모델 안의 ALARM/FAULT 감지기 수
 			db.sql("""
 				UPDATE element SET properties = jsonb_set(properties, '{Pset_BimStatus}', (properties->'Pset_BimStatus') || jsonb_build_object(
@@ -70,6 +71,7 @@ class StatusService {
 						wo = Map.of("id", open.get(), "assetTag", asset.get("tag"), "existing", true);
 					} else if (recent.isPresent()) {
 						db.sql("UPDATE work_order SET status = 'OPEN', updated_at = now() WHERE id = :w").param("w", recent.get()).update();
+						OpEvents.workOrder(db, recent.get());
 						wo = Map.of("id", recent.get(), "assetTag", asset.get("tag"), "existing", true, "reopened", true);
 					} else {
 						var name = db.sql("SELECT name FROM element WHERE model_id = :id AND global_id = :gid").param("id", id).param("gid", globalId).query(String.class).single();
@@ -77,6 +79,7 @@ class StatusService {
 							INSERT INTO work_order (asset_id, title, viewpoint, priority, description) VALUES (:a, :t, :v::jsonb, :p, :d) RETURNING id""")
 							.param("a", asset.get("id")).param("t", (status.equals("ALARM") ? "경보 확인: " : "장애 점검: ") + name).param("p", status.equals("ALARM") ? "URGENT" : "HIGH").param("d", "상태 API 자동 생성 (" + status + ")")
 							.param("v", JSON.writeValueAsString(Map.of("sel", List.of(globalId)))).query(UUID.class).single();
+						OpEvents.workOrder(db, wid);
 						wo = Map.of("id", wid, "assetTag", asset.get("tag"), "existing", false);
 					}
 				}
