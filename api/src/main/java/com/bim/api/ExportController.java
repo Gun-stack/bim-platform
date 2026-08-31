@@ -75,6 +75,70 @@ class ExportController {
 		return new ResponseEntity<>(out.toByteArray(), h, org.springframework.http.HttpStatus.OK);
 	}
 
+	/** BCF 2.1 내보내기: 작업지시 → topic, 저장된 뷰포인트 → viewpoint.bcfv 카메라·선택 요소.
+	 *  뷰어 좌표는 glTF Y-up (IfcOpenShell 이 Z-up 을 -90° X 회전) → IFC 좌표 복원: (x, y, z)_scene → (x, -z, y)_ifc.
+	 *  작업지시 viewpoint 필드가 BCF viewpoint 와 맞게 설계됨 (README "조정·검토" 절) — 이슈를 Navisworks/BIMcollab 쪽으로 넘길 수 있다 */
+	@GetMapping("/bcf")
+	ResponseEntity<byte[]> bcf(@PathVariable UUID id) throws IOException {
+		var wos = db.sql("""
+			SELECT w.id, w.title, w.status, w.priority, w.description, w.assignee,
+			       to_char(w.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') created, w.due_on due, w.viewpoint::text vp
+			  FROM work_order w JOIN asset a ON a.id = w.asset_id WHERE a.model_id = :id ORDER BY w.created_at""").param("id", id).query().listOfRows();
+		var out = new ByteArrayOutputStream();
+		try (var zip = new ZipOutputStream(out)) {
+			entry(zip, "bcf.version", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Version VersionId=\"2.1\"><DetailedVersion>2.1</DetailedVersion></Version>");
+			for (var w : wos) {
+				String guid = String.valueOf(w.get("id"));
+				String vpGuid = UUID.nameUUIDFromBytes((guid + ":vp").getBytes(StandardCharsets.UTF_8)).toString();
+				@SuppressWarnings("unchecked") var vp = (java.util.Map<String, Object>) Json.parse((String) w.get("vp"));
+				String status = switch (String.valueOf(w.get("status"))) { case "IN_PROGRESS" -> "In Progress"; case "DONE" -> "Closed"; default -> "Active"; };
+				var m = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Markup><Topic Guid=\"%s\" TopicType=\"Issue\" TopicStatus=\"%s\">".formatted(guid, status));
+				m.append("<Title>").append(xml(w.get("title"))).append("</Title>");
+				if (w.get("priority") != null) m.append("<Priority>").append(xml(w.get("priority"))).append("</Priority>");
+				m.append("<CreationDate>").append(w.get("created")).append("</CreationDate><CreationAuthor>bim-platform</CreationAuthor>");
+				if (w.get("due") != null) m.append("<DueDate>").append(w.get("due")).append("T00:00:00Z</DueDate>");
+				if (w.get("assignee") != null) m.append("<AssignedTo>").append(xml(w.get("assignee"))).append("</AssignedTo>");
+				if (w.get("description") != null) m.append("<Description>").append(xml(w.get("description"))).append("</Description>");
+				m.append("</Topic>");
+				if (vp != null) m.append("<Viewpoints Guid=\"%s\"><Viewpoint>viewpoint.bcfv</Viewpoint></Viewpoints>".formatted(vpGuid));
+				m.append("</Markup>");
+				entry(zip, guid + "/markup.bcf", m.toString());
+				if (vp != null) entry(zip, guid + "/viewpoint.bcfv", bcfv(vpGuid, vp));
+			}
+		}
+		var h = new HttpHeaders();
+		h.setContentDisposition(ContentDisposition.attachment().filename("workorders-" + id + ".bcfzip").build());
+		h.set(HttpHeaders.CONTENT_TYPE, "application/octet-stream");
+		return new ResponseEntity<>(out.toByteArray(), h, org.springframework.http.HttpStatus.OK);
+	}
+
+	private static String bcfv(String guid, java.util.Map<String, Object> vp) {
+		var sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<VisualizationInfo Guid=\"" + guid + "\">");
+		if (vp.get("sel") instanceof List<?> sel && !sel.isEmpty()) {
+			sb.append("<Components><Selection>");
+			for (var g : sel) sb.append("<Component IfcGuid=\"").append(xml(g)).append("\"/>");
+			sb.append("</Selection></Components>");
+		}
+		if (vp.get("v") instanceof List<?> v && v.size() >= 6) {
+			// scene(Y-up) → IFC(Z-up): (x, y, z) → (x, -z, y)
+			double px = d(v.get(0)), py = -d(v.get(2)), pz = d(v.get(1));
+			double tx = d(v.get(3)), ty = -d(v.get(5)), tz = d(v.get(4));
+			double dx = tx - px, dy = ty - py, dz = tz - pz, len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+			if (len > 0) { dx /= len; dy /= len; dz /= len; }
+			double ux = -dx * dz, uy = -dy * dz, uz = 1 - dz * dz, ul = Math.sqrt(ux * ux + uy * uy + uz * uz);   // up = Z 를 시선에 직교화
+			if (ul < 1e-6) { ux = 0; uy = 1; uz = 0; } else { ux /= ul; uy /= ul; uz /= ul; }
+			sb.append("<PerspectiveCamera>").append(xyz("CameraViewPoint", px, py, pz)).append(xyz("CameraDirection", dx, dy, dz))
+			  .append(xyz("CameraUpVector", ux, uy, uz)).append("<FieldOfView>60</FieldOfView></PerspectiveCamera>");   // 뷰어 카메라 fov
+		}
+		return sb.append("</VisualizationInfo>").toString();
+	}
+	private static double d(Object o) { return ((Number) o).doubleValue(); }
+	private static String xyz(String tag, double x, double y, double z) { return "<%1$s><X>%2$s</X><Y>%3$s</Y><Z>%4$s</Z></%1$s>".formatted(tag, x + 0.0, y + 0.0, z + 0.0); }   // +0.0: -0.0 정리
+	private static String xml(Object s) { return String.valueOf(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
+	private static void entry(ZipOutputStream zip, String name, String content) throws IOException {
+		zip.putNextEntry(new ZipEntry(name)); zip.write(content.getBytes(StandardCharsets.UTF_8)); zip.closeEntry();
+	}
+
 	private static List<String[]> start(String... header) { var l = new ArrayList<String[]>(); l.add(header); return l; }
 	private static String[] row(Object... v) { return Arrays.stream(v).map(x -> x == null ? "" : String.valueOf(x)).toArray(String[]::new); }
 

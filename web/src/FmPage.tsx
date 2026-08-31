@@ -53,6 +53,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
         <span style={{ color: '#9a3412' }}>상태판 이상 <b>{abnormal.length}</b>건 ({abnormal.slice(0, 3).map(r => r.name).join(', ')}{abnormal.length > 3 ? ' …' : ''}) — 열린 작업지시 {wos.filter(w => w.status !== 'DONE').length}건</span>
         <button onClick={() => { setSyncMsg(undefined); post(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: '#ea580c', color: '#fff', border: 0 }}>작업지시 동기화</button>
         {syncMsg && <span style={{ fontSize: 12, color: '#666' }}>{syncMsg}</span>}</div>}
+      {wos.length > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+        <a href={`/api/models/${modelId}/export/bcf`} title="작업지시를 BCF 2.1 topic·viewpoint 로 — Navisworks·BIMcollab 등에서 열람" style={btn}><Download size={12} /> BCF 내보내기</a></div>}
       <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} openWoId={woId} />
       </Section>
 
