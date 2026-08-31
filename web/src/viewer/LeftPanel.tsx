@@ -118,7 +118,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: '1px solid #e5e5e5' }}>
         <Toggle icon={Square} label="개구부 표시" on={opts.openings} onClick={() => flipOpt('openings')} />
         <Toggle icon={Box} label="공간(구역) 표시" on={opts.spaces} onClick={() => flipOpt('spaces')} />
-        <Toggle icon={Grid3x3} label="바닥 그리드 (1m)" on={opts.grid} onClick={() => flipOpt('grid')} />
+        <Toggle icon={Grid3x3} label="그리드 (평면·간격은 캔버스 좌하단)" on={opts.grid} onClick={() => flipOpt('grid')} />
         <Toggle icon={Combine} label="병합 렌더 (성능)" on={opts.merged} onClick={() => flipOpt('merged')} />
         <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕)" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }} />
         <span style={{ flex: 1 }} />

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { MapPinned, Check, Copy, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
+import { MapPinned, Check, Copy, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Grid3x3, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
 import { api, type Asset, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { STATUS_COLOR, StatusBoard, systemColor } from './SystemPanel'
@@ -164,7 +164,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
     else setDetails([])
   }, [selection, byGid, spaceGids, modelId, statusRows])
   useEffect(() => { scene.current?.setMerged(opts.merged) }, [opts.merged])
-  useEffect(() => { scene.current?.setGrid(opts.grid) }, [opts.grid, bounds])   // bounds: 로드 뒤에야 크기·바닥을 안다
+  const [gridCfg, setGridCfgState] = useState<{ plane: 'floor' | 'front' | 'side'; step: number }>(() => { const d = { plane: 'floor' as const, step: 1 }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.grid') ?? '{}') } } catch { return d } })
+  const setGridCfg = (c: typeof gridCfg) => { setGridCfgState(c); try { localStorage.setItem('viewer.grid', JSON.stringify(c)) } catch { /* 저장 불가 환경 */ } }
+  useEffect(() => { scene.current?.setGrid(opts.grid, gridCfg.plane, gridCfg.step) }, [opts.grid, gridCfg, bounds])   // bounds: 로드 뒤에야 크기·바닥을 안다
   useEffect(() => { scene.current?.setClipBox(clip) }, [clip, bounds])
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && setMeasuring(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
@@ -313,6 +315,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Gap />
             <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" onClick={share} />
           </div>
+
+          {/* 그리드 설정: 평면(건축 z-up 기준 이름)·간격 — 그리드가 켜져 있을 때만 */}
+          {opts.grid && <div style={{ position: 'absolute', left: 8, bottom: 60, display: 'flex', alignItems: 'center', gap: 4, background: '#fff', padding: '4px 8px', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12 }}>{/* bottom 60: 하단 툴바와 안 겹치게 */}
+            <Grid3x3 size={13} style={{ color: '#666' }} />
+            {([['floor', '바닥 XY'], ['front', '정면 XZ'], ['side', '측면 YZ']] as const).map(([p, l]) =>
+              <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: 5, cursor: 'pointer', background: gridCfg.plane === p ? '#2563eb' : 'transparent', color: gridCfg.plane === p ? '#fff' : '#444', fontSize: 12 }}>{l}</button>)}
+            <input type="number" min={0.1} max={50} step={0.5} value={gridCfg.step} onChange={e => { const v = +e.target.value; if (Number.isFinite(v) && v >= 0.1 && v <= 50) setGridCfg({ ...gridCfg, step: v }) }} title="간격 (m)" style={{ width: 48, padding: '2px 4px', border: '1px solid #ddd', borderRadius: 5, fontSize: 12 }} /><span style={{ color: '#888' }}>m</span>
+          </div>}
 
           <AlertToast modelId={modelId} fresh={freshAlerts} dismiss={dismissAlert} onFocus={g => focusOn(g)} />
         </div>
