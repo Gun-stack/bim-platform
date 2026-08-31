@@ -19,6 +19,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [err, setErr] = useState<string>()
   const [syncMsg, setSyncMsg] = useState<string>()
   const [aq, setAq] = useState(''); const [acat, setAcat] = useState(''); const [ast, setAst] = useState('')   // 자산 대장 필터
+  const [aod, setAod] = useState(false)   // 점검 지연만 보기
   const reload = useCallback(() => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
   const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 5초 폴링 — 이상 배너 + 전역 경보 토스트
   useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
@@ -29,7 +30,10 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const selAsset = !woId && selGid ? assets.find(a => a.globalId === selGid) : undefined
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (selAsset) setAq(selAsset.tag) }, [selAsset?.id])
-  const filteredAssets = assets.filter(a => (!acat || a.category === acat) && (!ast || a.storey === ast) && (!aq || [a.tag, a.elementName].some(x => x?.toLowerCase().includes(aq.toLowerCase()))))
+  const today = new Date().toISOString().slice(0, 10)
+  const isOverdue = (a: Asset) => !!a.nextDueOn && a.nextDueOn < today && a.status === 'ACTIVE'   // 폐기·중지 자산은 지연으로 안 센다
+  const overdue = assets.filter(isOverdue).length
+  const filteredAssets = assets.filter(a => (!acat || a.category === acat) && (!ast || a.storey === ast) && (!aod || isOverdue(a)) && (!aq || [a.tag, a.elementName].some(x => x?.toLowerCase().includes(aq.toLowerCase()))))
 
 
   return (
@@ -41,7 +45,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
         <Stat icon={Tag} label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />
-        <Stat icon={ClipboardList} label="점검 완료" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} />
+        <Stat icon={ClipboardList} label="점검 완료" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} />
         <Stat icon={Wrench} label="열린 작업지시" value={wos.filter(w => w.status !== 'DONE').length} sub={`완료 ${wos.filter(w => w.status === 'DONE').length}`} />
       </div>
       <Section title="작업지시 보드" icon={Wrench} count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}>
@@ -52,7 +56,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
       <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} openWoId={woId} />
       </Section>
 
-      <Section title="자산 대장" icon={Tag} count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}>
+      <Section title="자산 대장" icon={Tag} count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: '#888', fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
           <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={{ ...btn, marginLeft: 'auto' }}><Plus size={12} /> 자산 추가</button>
@@ -68,16 +72,23 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <input value={aq} onChange={e => setAq(e.target.value)} placeholder="태그 · 이름 검색" style={{ ...inp, width: 200 }} />
           <select value={acat} onChange={e => setAcat(e.target.value)} style={inp}><option value="">분류 전체</option>{[...new Set(assets.map(a => a.category).filter(Boolean) as string[])].sort((x, y) => ifcKo(x).localeCompare(ifcKo(y))).map(c => <option key={c} value={c}>{ifcKo(c)}</option>)}</select>
           <select value={ast} onChange={e => setAst(e.target.value)} style={inp}><option value="">층 전체</option>{[...new Set(assets.map(a => a.storey).filter(Boolean) as string[])].map(s => <option key={s}>{s}</option>)}</select>
+          <button onClick={() => setAod(!aod)} title="점검 주기를 넘긴 자산만" style={{ ...btn, ...(aod ? { background: '#dc2626', color: '#fff', border: '1px solid #dc2626' } : { color: overdue ? '#b91c1c' : '#888' }) }}>지연 {overdue}</button>
           <span style={{ color: '#888', fontSize: 12 }}>{filteredAssets.length} / {assets.length}</span>
         </div>
         <div style={{ border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 80px 130px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
-          <span>태그</span><span>분류</span><span>층</span><span>연결 요소</span><span>상태</span><span>최근 점검</span><span>작업지시</span><span /></div>
-        {filteredAssets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 80px 130px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #eee' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 120px 80px 130px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
+          <span>태그</span><span>분류</span><span>층</span><span>연결 요소</span><span>상태</span><span>최근 점검</span><span>다음 점검</span><span>작업지시</span><span /></div>
+        {filteredAssets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 120px 80px 130px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #eee' }}>
           <b>{a.tag}</b><span title={a.category ?? ''}>{ifcKo(a.category)}</span><span style={{ color: '#666' }}>{a.storey ?? '—'}{a.zone ? <span style={{ color: '#aaa' }}> {a.zone.split('-').pop()}</span> : ''}</span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: a.globalId ? '#222' : '#999' }} title={a.elementName ?? ''}>{a.globalId ? a.elementName : '(모델에 없음)'}</span>
           <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? '#15803d' : '#b91c1c' }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '중지', RETIRED: '폐기' }[a.status]}</span>
           <span style={{ fontSize: 12, color: a.lastResult === 'DEFECT' ? '#b91c1c' : '#666' }}>{a.lastInspectedOn ? `${day(a.lastInspectedOn)} ${a.lastResult}` : '—'}</span>
+          <span style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <input type="number" min={0} defaultValue={(a.attributes?.intervalMonths as number | undefined) ?? ''} placeholder="주기" title="점검 주기(개월) — 비우거나 0이면 해제"
+                   onBlur={e => { const v = e.target.value === '' ? 0 : +e.target.value; if (v !== ((a.attributes?.intervalMonths as number | undefined) ?? 0)) post(`/assets/${a.id}`, { intervalMonths: v }, 'PATCH').then(reload) }}
+                   style={{ ...inp, width: 42, padding: '2px 4px', fontSize: 12 }} />
+            {a.nextDueOn ? <span style={{ color: isOverdue(a) ? '#b91c1c' : '#666', fontWeight: isOverdue(a) ? 600 : 400 }}>{day(a.nextDueOn)}{isOverdue(a) ? ' 지연' : ''}</span> : <span style={{ color: '#ccc' }}>—</span>}
+          </span>
           <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}` : '—'}</span>
           <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{a.globalId && <><a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(a.globalId)}`} title="모니터링에서 현재 계측값" style={btn}>모니터링</a> <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}><ExternalLink size={12} /> 3D</a></>}</span>
         </div>)}

@@ -28,6 +28,9 @@ class FmService {
 			       (SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id) "lastInspectedOn",
 			       (SELECT result FROM inspection i WHERE i.asset_id = a.id ORDER BY inspected_on DESC, id DESC LIMIT 1) "lastResult",
 			       (SELECT count(*) FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE') "openWorkOrders",
+			       CASE WHEN jsonb_exists(a.attributes, 'intervalMonths') THEN
+			         (coalesce((SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id), a.installed_on, CURRENT_DATE)
+			          + (a.attributes->>'intervalMonths')::int * interval '1 month')::date END "nextDueOn",
 			       coalesce(st.name, sn.name) storey, CASE WHEN sn.ifc_class = 'IfcSpace' THEN sn.name END zone
 			  FROM asset a LEFT JOIN element e ON e.id = a.element_id
 			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
@@ -86,9 +89,14 @@ class FmService {
 		return a;
 	}
 
-	record AssetPatch(String status, String category) {}
+	record AssetPatch(String status, String category, Integer intervalMonths) {}
+	/** intervalMonths: 점검 주기(개월). 0 이하는 해제. 다음 점검일 = 마지막 점검(없으면 설치일, 그것도 없으면 오늘) + 주기 */
 	Map<String, Object> patchAsset(UUID id, AssetPatch p) {
-		db.sql("UPDATE asset SET status = coalesce(:s, status), category = coalesce(:c, category) WHERE id = :id").param("s", p.status()).param("c", p.category()).param("id", id).update();
+		db.sql("""
+			UPDATE asset SET status = coalesce(:s, status), category = coalesce(:c, category),
+			       attributes = CASE WHEN :i::int IS NULL THEN attributes WHEN :i::int <= 0 THEN attributes - 'intervalMonths'
+			                         ELSE attributes || jsonb_build_object('intervalMonths', :i::int) END
+			 WHERE id = :id""").param("s", p.status()).param("c", p.category()).param("i", p.intervalMonths()).param("id", id).update();
 		return asset(id);
 	}
 	void deleteAsset(UUID id) { db.sql("DELETE FROM asset WHERE id = :id").param("id", id).update(); }
