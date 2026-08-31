@@ -74,7 +74,9 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     h.solo = r.solo ? undefined : { key: r.key, label: r.label, gids: new Set(r.gids()) }
     setHidden(h)
   }
-  const allVisible = () => setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() })
+  const allVisible = () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); try { localStorage.setItem('viewer.structHidden', '0') } catch { /* 저장 불가 환경 */ } }
+  /** 표시 옵션 토글 — 사용자 클릭만 저장. focusOn 등 프로그램적 변경은 저장값을 안 건드림 */
+  const flipOpt = (k: keyof Opts) => { const n = { ...opts, [k]: !opts[k] }; try { localStorage.setItem('viewer.opts', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } setOpts(() => n) }
   const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
 
   const isOpen = (r: Row, depth: number) => open.has(r.key) || (!open.has('!' + r.key) && r.key.startsWith('n:') && depth < 2)
@@ -114,10 +116,10 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
 
       {statusBoard}
       <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: '1px solid #e5e5e5' }}>
-        <Toggle icon={Square} label="개구부 표시" on={opts.openings} onClick={() => setOpts(o => ({ ...o, openings: !o.openings }))} />
-        <Toggle icon={Box} label="공간(구역) 표시" on={opts.spaces} onClick={() => setOpts(o => ({ ...o, spaces: !o.spaces }))} />
-        <Toggle icon={Combine} label="병합 렌더 (성능)" on={opts.merged} onClick={() => setOpts(o => ({ ...o, merged: !o.merged }))} />
-        <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕)" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h) }} />
+        <Toggle icon={Square} label="개구부 표시" on={opts.openings} onClick={() => flipOpt('openings')} />
+        <Toggle icon={Box} label="공간(구역) 표시" on={opts.spaces} onClick={() => flipOpt('spaces')} />
+        <Toggle icon={Combine} label="병합 렌더 (성능)" on={opts.merged} onClick={() => flipOpt('merged')} />
+        <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕)" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }} />
         <span style={{ flex: 1 }} />
         <Toggle icon={Eye} label="숨긴 것 모두 표시" on={false} disabled={!anyHidden} onClick={allVisible} />
       </div>
