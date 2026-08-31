@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, AlertTriangle, ArrowLeft, Box, Car, ExternalLink, Gauge, Layers, Users, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowLeft, Box, Car, ExternalLink, Gauge, Layers, TrendingUp, Users, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
+import TrendModal from './TrendModal'
 import { api, post, type Model } from './api'
 import { TEAMS } from './teams'
 import { day } from './viewer/FmPanel'
@@ -33,6 +34,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const [rows, setRows] = useState<Row[]>([]); const [power, setPower] = useState('UNKNOWN'); const [events, setEvents] = useState<Ev[]>([])
   const [team, setTeam] = useState<string>(); const [storeyF, setStoreyF] = useState<string>(); const [mode, setMode] = useState<'abnormal' | 'equipment' | 'all'>(kiosk ? 'abnormal' : 'equipment'); const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
+  const [trend, setTrend] = useState<{ globalId: string; name: string } | null>(null)   // 계측 트렌드 모달
   const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true })
   const [flash, setFlash] = useState<Set<string>>(new Set()); const [sound, setSound] = useState(false); const prevAbn = useRef<Set<string> | null>(null); const soundRef = useRef(false); useEffect(() => { soundRef.current = sound }, [sound])
   const load = useCallback(() => Promise.all([api(`/models/${modelId}/monitor`), api(`/models/${modelId}/power`).catch(() => ({ unpowered: [] })), api(`/models/${modelId}/monitor/events`).catch(() => [])])
@@ -121,7 +123,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (
         <Section title="지금 처리할 것" icon={Siren} color={todo.some(isAbn) ? '#dc2626' : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}{!todo.length && <span style={{ color: '#16a34a', marginLeft: 6 }}>이상·미처리 없음</span>}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
           {todo.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '2px 14px' }}>
-            {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: '#6b7280', fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} /></div>)}
+            {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: '#6b7280', fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} /></div>)}
             {todo.length > 12 && <div style={{ color: '#888', fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
         </Section>) })()}
 
@@ -133,7 +135,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
               <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: '#222', background: isAbn(r) ? (st === 'ALARM' ? '#fef2f2' : '#fffbeb') : w === 'crit' ? '#fff1f2' : w === 'warn' ? '#fffbeb' : '#fff', border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? '#fecaca' : '#fde68a') : '#e5e7eb'), borderLeft: '4px solid ' + (sc?.color ?? '#d1d5db'), borderRadius: 8, padding: '8px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 * fs }} title={r.name}>{r.name}</span><b style={{ color: sc?.color ?? '#bbb', fontSize: 12 * fs, whiteSpace: 'nowrap' }}>{sc?.label ?? '—'}</b></div>
                 <div style={{ color: '#888', fontSize: 11 * fs, marginTop: 2 }}>{r.storey}{r.zone ? ` · ${r.zone.split('-').pop()}` : ''}{r.openWorkOrders ? <b style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309', marginLeft: 6 }}>WO {r.woAssignee ?? '미배정'}</b> : ''}</div>
-                {rs.length > 0 && <div style={{ fontSize: 11.5 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 500 : 700 }}>{x.text}</b></span>)}</div>}
+                {rs.length > 0 && <div style={{ fontSize: 11.5 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'center' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 500 : 700 }}>{x.text}</b></span>)}<span onClick={e => { e.preventDefault(); setTrend(r) }} title="계측 트렌드" style={{ color: '#2563eb', cursor: 'pointer', display: 'inline-flex' }}><TrendingUp size={12} /></span></div>}
               </a>) })}
           </div>
         </Section>) : null })()}
@@ -151,7 +153,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             </div>
             {visibleTeams.map(t => { const rs = cell(st, t); return (
               <div key={st + t.key} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 6, minHeight: 44 }}>
-                {rs.map(r => <RowView key={r.globalId} r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} />)}
+                {rs.map(r => <RowView key={r.globalId} r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} />)}
                 {!rs.length && <div style={{ color: '#bbb', fontSize: 12 * fs, padding: 4 }}>{mode === 'abnormal' ? '이상 없음' : '—'}</div>}
               </div>) })}
           </div> })}
@@ -172,6 +174,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         </div>
       </div>
       </Section>
+      {trend && <TrendModal modelId={modelId} globalId={trend.globalId} name={trend.name} onClose={() => setTrend(null)} />}
     </main>
   )
 }
@@ -179,7 +182,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 const Stat = ({ icon: Icon, label, n, color, sub }: { icon: typeof Siren; label: string; n: number | string; color: string; sub?: string }) => (
   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><Icon size={14} style={{ color: (typeof n === 'number' && n === 0) ? '#9ca3af' : color }} /><span style={{ color: '#555' }}>{label}</span><b style={{ color: (typeof n === 'number' && n === 0) ? '#9ca3af' : color }}>{n}</b>{sub && <span style={{ color: '#888', fontSize: '0.9em' }}>{sub}</span>}</span>)
 
-function RowView({ r, modelId, dead, fresh, fs }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number }) {
+function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number; onTrend?: (t: { globalId: string; name: string }) => void }) {
+  const hasNum = Object.entries(r.status ?? {}).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt')
   const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : s ? STATUS[s] : undefined
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
   return (
@@ -192,7 +196,7 @@ function RowView({ r, modelId, dead, fresh, fs }: { r: Row; modelId: string; dea
           {r.openWorkOrders ? <b onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = `#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}` }} style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309', cursor: 'pointer' }} title={`작업지시 ${r.openWorkOrders}건 — 클릭: 칸반 카드로`}>WO {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
             : r.assetTag ? <><Box size={10} style={{ verticalAlign: -1 }} /> {r.assetTag}</> : ''}
           {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: '#b91c1c', marginLeft: 4 }}>결함</b> : ''}</span>
-        <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}</b>
+        <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}{hasNum && onTrend && <span onClick={e => { e.preventDefault(); e.stopPropagation(); onTrend({ globalId: r.globalId, name: r.name }) }} title="계측 트렌드" style={{ color: '#2563eb', cursor: 'pointer', marginLeft: 5, verticalAlign: -1, display: 'inline-flex' }}><TrendingUp size={11} /></span>}</b>
       </span>
       {rs.length > 0 && <span style={{ display: 'block', paddingLeft: 16, marginTop: 1, fontSize: 11 * fs, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {rs.slice(0, 3).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700, marginRight: 8 }}>{x.label} {x.text}</span>)}{rs.length > 3 && <span style={{ color: '#bbb' }}>+{rs.length - 3}</span>}</span>}

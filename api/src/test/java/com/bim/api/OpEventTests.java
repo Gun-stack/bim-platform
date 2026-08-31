@@ -59,6 +59,16 @@ class OpEventTests {
 	}
 
 	@Test
+	void readingsReturnAscendingSeries() {
+		status.patch(modelId, "G1", Map.of("Temp", 40));
+		status.patch(modelId, "G1", Map.of("Temp", 42));
+		var rs = status.readings(modelId, "G1", 100);
+		assertThat(rs).hasSize(2);
+		assertThat(((Map<?, ?>) rs.getFirst().get("data")).get("Temp")).isEqualTo(40);   // 오름차순
+		assertThat(((Map<?, ?>) rs.getLast().get("data")).get("Temp")).isEqualTo(42);
+	}
+
+	@Test
 	void measurementPatchKeepsDataForTrends() {
 		status.patch(modelId, "G1", Map.of("Temp", 42));
 		var data = db.sql("SELECT data->>'Temp' FROM op_event WHERE model_id = :m AND kind = 'STATUS'").param("m", modelId).query(String.class).single();

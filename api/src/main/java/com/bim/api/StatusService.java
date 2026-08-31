@@ -117,6 +117,16 @@ class StatusService {
 			.param("id", id).query().listOfRows().stream().map(r -> { r.put("status", Json.parse((String) r.remove("s"))); return r; }).toList();
 	}
 
+	/** 계측 이력 (op_event.data — 상태 패치 내용): 최신 limit 건을 시간 오름차순으로. 트렌드 차트용 */
+	List<Map<String, Object>> readings(UUID id, String globalId, int limit) {
+		var rows = new java.util.ArrayList<>(db.sql("""
+			SELECT at, data::text d FROM op_event
+			 WHERE model_id = :id AND global_id = :gid AND kind = 'STATUS' AND data IS NOT NULL
+			 ORDER BY at DESC, id DESC LIMIT :n""").param("id", id).param("gid", globalId).param("n", Math.min(limit, 2000)).query().listOfRows());
+		java.util.Collections.reverse(rows);
+		return rows.stream().map(r -> { r.put("data", Json.parse((String) r.remove("d"))); return r; }).toList();
+	}
+
 	/** 정전 시나리오: source=UTILITY(한전) | GENERATOR(발전기). ATS·발전기 상태를 바꾸고, 전원 있는/없는 요소를 흐름 그래프로 계산.
 	 *  한전: MDB 하류 전부 + 비상 계통. 발전기: 비상 계통만 (MDB 하류 중 비상 아닌 것은 무전원).
 	 *  비상 계통의 뿌리는 EMDB 가 아니라 발전기(EG-%)와 그 직접 공급원(연료탱크) — 탱크→발전기→ATS→EMDB→하류. EMDB 를 뿌리로 잡으면 발전기·ATS 가 상류라 빠져 무전원/비활성으로 보인다. */
