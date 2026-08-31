@@ -240,12 +240,12 @@ export default function Viewer({ modelId }: { modelId: string }) {
             onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
 
           {/* 경보/장애 포커스 배너 (구역 강조 + 위치 비콘) */}
-          {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: focusInfo.status === 'ALARM' ? '#fef2f2' : focusInfo.status === 'FAULT' ? '#fffbeb' : '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 460 }}>
+          {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', background: focusInfo.status === 'ALARM' ? '#fef2f2' : focusInfo.status === 'FAULT' ? '#fffbeb' : '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 460 }}>
             <MapPinned size={14} style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#2563eb' }} />
             <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
             {focusInfo.status && <b style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#16a34a' }}>{{ ALARM: '경보', FAULT: '장애', NORMAL: '정상' }[focusInfo.status] ?? focusInfo.status}</b>}
-            <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(focusInfo.gid)}`} title="모니터링에서 이 장비" style={{ color: '#2563eb', textDecoration: 'none' }}>모니터링</a>
-            {(assetByGid.get(focusInfo.gid)?.openWorkOrders ?? 0) > 0 && <a href={`#/models/${modelId}/fm?sel=${encodeURIComponent(focusInfo.gid)}`} title="칸반 보드에서 이 자산의 카드" style={{ color: '#2563eb', textDecoration: 'none' }}>칸반</a>}
+            <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(focusInfo.gid)}`} title="모니터링에서 이 장비" style={{ color: '#2563eb', textDecoration: 'none', whiteSpace: 'nowrap' }}>모니터링</a>
+            {(assetByGid.get(focusInfo.gid)?.openWorkOrders ?? 0) > 0 && <a href={`#/models/${modelId}/fm?sel=${encodeURIComponent(focusInfo.gid)}`} title="칸반 보드에서 이 자산의 카드" style={{ color: '#2563eb', textDecoration: 'none', whiteSpace: 'nowrap' }}>칸반</a>}
             <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined) }} /></div>}
 
           {/* 작업지시로 진입: 배너 */}
@@ -325,11 +325,12 @@ export default function Viewer({ modelId }: { modelId: string }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.name ?? ''}>{detail.name}</b>
                 {st && <span style={{ padding: '1px 8px', borderRadius: 999, color: '#fff', fontSize: 11, fontWeight: 600, background: '#' + (sc ?? 0x6b7280).toString(16).padStart(6, '0') }}>{{ NORMAL: '정상', ONLINE: '온라인', RUNNING: '운전', STANDBY: '대기', ALARM: '경보', FAULT: '장애', OFFLINE: '오프라인', TRANSFERRED: '절체' }[st] ?? st}</span>}</div>
               <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{ifcKo(detail.ifcClass)} · {detail.spatialName ?? '위치 없음'}{selSystems.length > 0 && <span style={{ marginLeft: 6, display: 'inline-flex', gap: 4 }}>{selSystems.map(sm => { const t = TEAMS.find(t => t.systems.includes(sm.name)); return <span key={sm.id} style={{ fontSize: 10, border: '1px solid ' + (t?.color ?? '#999'), color: t?.color ?? '#666', borderRadius: 4, padding: '0 4px' }}>{sm.name}</span> })}</span>}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, marginTop: 4 }}>
-                {selAsset ? <span><Tag size={11} style={{ verticalAlign: -1, color: '#2563eb' }} /> {selAsset.tag}</span> : <span style={{ color: '#999' }}><Tag size={11} style={{ verticalAlign: -1 }} /> 자산 미등록</span>}
-                {selAsset && (open.length ? <a href={`#/models/${modelId}/fm?wo=${open[0].id}`} title="칸반 보드에서 이 카드 열기" style={{ color: '#1d4ed8', textDecoration: 'none' }}><Wrench size={11} style={{ verticalAlign: -1 }} /> 작업지시 {open.length} · {open[0].assignee ?? <span style={{ color: '#b45309' }}>미배정</span>}{open[0].dueOn ? ` ~${day(open[0].dueOn)}` : ''}</a> : <span style={{ color: '#999' }}><Wrench size={11} style={{ verticalAlign: -1 }} /> 열린 작업지시 없음</span>)}
-                <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(detail.globalId)}`} title="모니터링에서 이 장비" style={{ marginLeft: 'auto', color: '#2563eb', fontSize: 11, textDecoration: 'none' }}>모니터링 →</a>
-                <a onClick={() => setTab('fm')} style={{ color: '#2563eb', cursor: 'pointer', fontSize: 11 }}>자산·점검 →</a></div>
+              {/* 좁은 패널(기본 340px)에서 단어 중간이 꺾이지 않게: 항목별 nowrap + 컨테이너 wrap */}
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px', fontSize: 12, marginTop: 4 }}>
+                {selAsset ? <span style={{ whiteSpace: 'nowrap' }}><Tag size={11} style={{ verticalAlign: -1, color: '#2563eb' }} /> {selAsset.tag}</span> : <span style={{ color: '#999', whiteSpace: 'nowrap' }}><Tag size={11} style={{ verticalAlign: -1 }} /> 자산 미등록</span>}
+                {selAsset && (open.length ? <a href={`#/models/${modelId}/fm?wo=${open[0].id}`} title="칸반 보드에서 이 카드 열기" style={{ color: '#1d4ed8', textDecoration: 'none', whiteSpace: 'nowrap' }}><Wrench size={11} style={{ verticalAlign: -1 }} /> 작업지시 {open.length} · {open[0].assignee ?? <span style={{ color: '#b45309' }}>미배정</span>}{open[0].dueOn ? ` ~${day(open[0].dueOn)}` : ''}</a> : <span style={{ color: '#999', whiteSpace: 'nowrap' }}><Wrench size={11} style={{ verticalAlign: -1 }} /> 열린 작업지시 없음</span>)}
+                <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(detail.globalId)}`} title="모니터링에서 이 장비" style={{ marginLeft: 'auto', color: '#2563eb', fontSize: 11, textDecoration: 'none', whiteSpace: 'nowrap' }}>모니터링 →</a>
+                <a onClick={() => setTab('fm')} style={{ color: '#2563eb', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap' }}>자산·점검 →</a></div>
             </div>) })()}
           <div style={{ display: 'flex', borderBottom: '1px solid #e5e5e5', marginBottom: 10 }}>
             {(['props', 'fm'] as const).map(t => <button key={t} onClick={() => setTab(t)}
