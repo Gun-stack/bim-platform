@@ -162,7 +162,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Activity size={14} /> 최근 이벤트 <span style={{ color: '#999', fontWeight: 400, fontSize: 11 * fs }}>{events.length}</span></div>
           {!events.length && <div style={{ color: '#bbb', fontSize: 12 * fs }}>아직 이벤트가 없습니다</div>}
           {events.map((e, i) => { const abn = e.status === 'ALARM' || e.status === 'FAULT'; return (
-            <a key={i} href={e.globalId ? `#/models/${modelId}?sel=${encodeURIComponent(e.globalId)}&focus=1` : undefined} style={{ display: 'grid', gridTemplateColumns: `${40 * fs}px 1fr`, gap: 6, padding: '4px 4px', borderTop: '1px solid #f1f5f9', textDecoration: 'none', color: '#222', fontSize: 12 * fs }}>
+            <a key={i} href={e.globalId ? e.kind === 'WORK_ORDER' ? `#/models/${modelId}/fm?sel=${encodeURIComponent(e.globalId)}` : `#/models/${modelId}?sel=${encodeURIComponent(e.globalId)}&focus=1` : undefined} style={{ display: 'grid', gridTemplateColumns: `${40 * fs}px 1fr`, gap: 6, padding: '4px 4px', borderTop: '1px solid #f1f5f9', textDecoration: 'none', color: '#222', fontSize: 12 * fs }}>
               <span style={{ color: '#999', fontSize: 11 * fs, whiteSpace: 'nowrap' }}>{e.at ? new Date(e.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'}</span>
               <span style={{ minWidth: 0 }}>
                 <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.kind === 'WORK_ORDER' ? <><Wrench size={11} style={{ verticalAlign: -1, color: '#1d4ed8' }} /> {e.woTitle}</> : <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: STATUS[e.status ?? '']?.color ?? '#9ca3af', marginRight: 4 }} />{e.name} → <b style={{ color: abn ? STATUS[e.status!].color : '#16a34a' }}>{STATUS[e.status ?? '']?.label ?? e.status}</b></>}</div>
@@ -189,7 +189,7 @@ function RowView({ r, modelId, dead, fresh, fs }: { r: Row; modelId: string; dea
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? '#d1d5db' }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: '#999', marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
         <span style={{ color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {r.openWorkOrders ? <b style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309' }} title={`작업지시 ${r.openWorkOrders}건`}>WO {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
+          {r.openWorkOrders ? <b onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = `#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}` }} style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309', cursor: 'pointer' }} title={`작업지시 ${r.openWorkOrders}건 — 클릭: 칸반 카드로`}>WO {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
             : r.assetTag ? <><Box size={10} style={{ verticalAlign: -1 }} /> {r.assetTag}</> : ''}
           {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: '#b91c1c', marginLeft: 4 }}>결함</b> : ''}</span>
         <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}</b>

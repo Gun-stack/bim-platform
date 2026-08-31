@@ -128,7 +128,7 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
           <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} placeholder="미배정" style={inp} />
           <span style={lbl}>기한</span><input type="date" value={f.dueOn} onChange={e => setF({ ...f, dueOn: e.target.value })} style={inp} />
           <span style={lbl}>자산</span><span><b>{w.assetTag}</b> <span style={{ color: '#666' }}>{w.assetCategory}</span></span>
-          <span style={lbl}>위치</span><span>{w.storey}{w.zone ? ` · ${w.zone}` : ''} · {w.elementName} <a href={viewerUrl} style={{ color: '#2563eb', marginLeft: 6 }}><ExternalLink size={12} style={{ verticalAlign: -2 }} /> 3D</a></span>
+          <span style={lbl}>위치</span><span>{w.storey}{w.zone ? ` · ${w.zone}` : ''} · {w.elementName} <a href={viewerUrl} style={{ color: '#2563eb', marginLeft: 6 }}><ExternalLink size={12} style={{ verticalAlign: -2 }} /> 3D</a>{w.globalId && <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(w.globalId)}`} title="모니터링에서 현재 계측값" style={{ color: '#2563eb', marginLeft: 6 }}>모니터링</a>}</span>
           {w.inspectionNote && <><span style={lbl}>점검 메모</span><span style={{ color: '#b91c1c' }}>{w.inspectionNote}</span></>}
           <span style={lbl}>생성 / 변경</span><span style={{ color: '#666', fontSize: 12 }}>{new Date(w.createdAt).toLocaleString()} / {w.updatedAt ? new Date(w.updatedAt).toLocaleString() : '—'}</span>
         </div>

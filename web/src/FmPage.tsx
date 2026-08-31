@@ -69,15 +69,15 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <span style={{ color: '#888', fontSize: 12 }}>{filteredAssets.length} / {assets.length}</span>
         </div>
         <div style={{ border: '1px solid #e5e5e5', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 80px 70px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 80px 130px', gap: 8, padding: '8px 14px', background: '#f5f5f5', color: '#666', fontSize: 12 }}>
           <span>태그</span><span>분류</span><span>층</span><span>연결 요소</span><span>상태</span><span>최근 점검</span><span>작업지시</span><span /></div>
-        {filteredAssets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 80px 70px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #eee' }}>
+        {filteredAssets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 80px 130px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #eee' }}>
           <b>{a.tag}</b><span title={a.category ?? ''}>{ifcKo(a.category)}</span><span style={{ color: '#666' }}>{a.storey ?? '—'}{a.zone ? <span style={{ color: '#aaa' }}> {a.zone.split('-').pop()}</span> : ''}</span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: a.globalId ? '#222' : '#999' }} title={a.elementName ?? ''}>{a.globalId ? a.elementName : '(모델에 없음)'}</span>
           <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? '#15803d' : '#b91c1c' }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '중지', RETIRED: '폐기' }[a.status]}</span>
           <span style={{ fontSize: 12, color: a.lastResult === 'DEFECT' ? '#b91c1c' : '#666' }}>{a.lastInspectedOn ? `${day(a.lastInspectedOn)} ${a.lastResult}` : '—'}</span>
           <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}` : '—'}</span>
-          <span style={{ textAlign: 'right' }}>{a.globalId && <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}><ExternalLink size={12} /> 3D</a>}</span>
+          <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{a.globalId && <><a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(a.globalId)}`} title="모니터링에서 현재 계측값" style={btn}>모니터링</a> <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}><ExternalLink size={12} /> 3D</a></>}</span>
         </div>)}
         {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 모니터링의 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>조건에 맞는 자산이 없습니다.</div>}
