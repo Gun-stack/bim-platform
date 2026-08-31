@@ -6,6 +6,8 @@ FMS·MEP 분야의 실무 경험을 바탕으로 업무 흐름과 기술 구현�
 
 ![데모: 모니터링 → 경보 포커스 → 계통 추적 → 정전 시나리오 → 작업지시 보드](images/demo.gif)
 
+> 📐 화면 구조·기능 배치·화면 간 연관 관계는 [화면 설계서](docs/screen-design.md)에 정리했습니다.
+
 ## 화면으로 보는 흐름
 
 **1. 업로드 → 변환 → 목록.** IFC를 끌어다 놓으면 서버 워커가 glTF로 변환하고 진행률이 SSE로 올라옵니다. 한 모델에서 3D 뷰어·모니터링·시설관리로 진입합니다.
@@ -164,6 +166,7 @@ api/          Spring Boot API, DB migration, 통합 테스트
 ifc-worker/   IFC 변환·추출 워커와 lease/retry 테스트
 web/          React UI, Three.js 뷰어, 모니터링·FMS·지도
 samples/      IFC 안내, MEP 모델 생성기, BMS 시뮬레이터
+docs/         화면 설계서
 images/       주요 기능 스크린샷
 compose.yaml  로컬 실행 환경
 ```
