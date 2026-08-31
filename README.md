@@ -40,7 +40,7 @@ FMS·MEP 분야의 실무 경험을 바탕으로 업무 흐름과 기술 구현�
 
 ![작업지시 보드 — 드래그와 되돌리기](images/demo-3.gif)
 
-**자산 대장**은 IFC 요소에서 일괄 등록한 자산(태그 = 종류-층-순번)을 종류·층으로 걸러 보고, 모델에 없는 장비(추가 설치분)는 태그만으로 추가합니다.
+**자산 대장**은 IFC 요소에서 일괄 등록한 자산(태그 = 종류-층-순번)을 종류·층으로 걸러 보고, 모델에 없는 장비(추가 설치분)는 태그만으로 추가합니다. 자산에 점검 주기(개월)를 두면 다음 점검일과 지연 여부가 표시됩니다.
 
 ![자산 대장](images/11-fm-assets.png)
 
@@ -55,7 +55,7 @@ FMS·MEP 분야의 실무 경험을 바탕으로 업무 흐름과 기술 구현�
 - **IFC 변환 파이프라인** — Python·IfcOpenShell 워커가 IFC를 glTF로 변환하고 요소, Pset, 공간 계층, 설비 계통, 연결, 지리참조를 PostgreSQL/PostGIS와 MinIO에 적재합니다.
 - **장애에 강한 DB 잡 큐** — PostgreSQL `FOR UPDATE SKIP LOCKED`와 lease owner, heartbeat, 재시도로 중복 실행과 중단 작업을 관리해 별도 메시지 브로커 없이 변환 신뢰성을 확보했습니다.
 - **방향성 MEP 그래프** — IFC 계통과 요소 연결을 저장하고 재귀 CTE로 상류 원천과 하류 영향 범위를 추적합니다. 같은 구조로 일반·비상전원의 정전 영향도 계산합니다.
-- **운영 상태에서 업무로 연결** — JSONB 상태 병합 API와 함께 상위 원인 설비 경보 억제, 열린 작업지시 재사용, 완료 직후 재발 처리 규칙을 구현했습니다.
+- **운영 상태에서 업무로 연결** — JSONB 상태 병합 API와 함께 상위 원인 설비 경보 억제, 열린 작업지시 재사용, 완료 직후 재발 처리 규칙을 구현했습니다. 상태·작업지시 변경은 op_event 이력으로 남아 이벤트 목록과 계측 트렌드의 기반이 됩니다.
 - **BIM 3D 탐색 경험** — Three.js 기반 요소 선택·검색, 속성·계통 트리, 단면, 측정, 격리, 색상화, 다중 선택과 뷰포인트 공유를 구현했습니다.
 - **BIM과 FMS 수명주기 분리** — IFC 연결이 없는 자산도 관리하며, 모델을 재변환해도 자산·점검·작업 이력이 보존되도록 운영 데이터를 분리했습니다.
 
@@ -103,9 +103,9 @@ project ─ model ─ element ─ asset ─┬─ inspection
 | 단계 | 현장 도구 | 이 플랫폼과의 관계 |
 |---|---|---|
 | 저작 | Revit · ArchiCAD · Tekla | IFC로 내보낸 결과를 입력받음(IFC2x3 Coordination View, IFC4 Reference View). 저작 도구의 원본은 건드리지 않음 |
-| 조정·검토 | Navisworks · Solibri · BIMcollab | 간섭 검토·이슈(BCF)는 이쪽 몫. 작업지시 viewpoint가 BCF viewpoint와 필드가 맞아 이슈를 운영 단계로 넘길 수 있음 |
+| 조정·검토 | Navisworks · Solibri · BIMcollab | 간섭 검토·이슈(BCF)는 이쪽 몫. 작업지시를 BCF 2.1(topic·viewpoint zip)로 내보내 이슈를 조정 도구로 되넘길 수 있음 |
 | 공통 데이터 환경(CDE) | Autodesk Construction Cloud(BIM 360) · Trimble Connect | 준공 IFC의 출처. 플랫폼은 CDE에서 받은 파일을 변환·저장(MinIO)해 운영 데이터를 덧붙임 |
-| 인수인계 | COBie 스프레드시트 | Component/Type/Job 개념을 자산·점검·작업지시로 축소 반영. 정식 내보내기는 다음 단계 |
+| 인수인계 | COBie 스프레드시트 | Component/Type/Job 개념을 자산·점검·작업지시로 축소 반영, COBie 시트(CSV zip) 내보내기 제공. 정식 xlsx 는 다음 단계 |
 | **운영** | **BMS · 화재수신기 · 주차관제 · FMS** | **이 플랫폼의 자리.** BMS/수신기 값은 상태 API(`PATCH …/status`)로 들어오고, 경보 → 작업지시 → 현장 위치까지 이어짐 |
 
 ## 기술 스택
