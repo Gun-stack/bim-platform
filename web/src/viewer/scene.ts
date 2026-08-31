@@ -9,6 +9,7 @@ export type Stats = { calls: number; triangles: number; fps: number }
 // 선택: 색상 모드의 어떤 팔레트와도 겹치지 않는 마젠타, 반투명 + 항상 앞에(depthTest off) + 외곽선. 가려져 있어도 어디가 선택됐는지 보인다
 const HIGHLIGHT = new THREE.MeshBasicMaterial({ color: 0xff2d95, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide })
 const OUTLINE = new THREE.LineBasicMaterial({ color: 0xff2d95, depthTest: false })
+const HOVER_OUTLINE = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.85, depthTest: false })
 const SPACE = new THREE.MeshStandardMaterial({ color: 0x4488ff, transparent: true, opacity: 0.25, depthWrite: false })
 const GHOST = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, transparent: true, opacity: 0.12, depthWrite: false })
 const FOCUS_SPACE = new THREE.MeshStandardMaterial({ color: 0x2563eb, emissive: 0x1e3a8a, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
@@ -45,10 +46,16 @@ export class Scene3D {
   private box = new THREE.Box3()
   onPick?: (gids: string[]) => void
   onContext?: (x: number, y: number) => void
-  /** 측정 모드. 클릭마다 점을 찍고 두 점이 모이면 onMeasure */
-  measuring = false
+  /** 측정 모드. 클릭마다 점을 찍고 두 점이 모이면 onMeasure. 끄면 스냅 미리보기 점도 정리 */
+  private _measuring = false
+  get measuring() { return this._measuring }
+  set measuring(v: boolean) { this._measuring = v; if (!v) this.clearPreview() }
   /** 스냅: 빈 곳 클릭/호버 시 근처 요소 마그네틱 픽 + 측정 시 꼭짓점·모서리 스냅 */
   snap = true
+  private lastSnap = false          // 직전 hitPoint 가 꼭짓점/모서리에 스냅됐는지 (미리보기 점 색·크기)
+  private previewDot?: THREE.Mesh   // 측정 중 커서를 따라다니는 스냅 위치 미리보기
+  private hoverGroup = new THREE.Group()   // 호버 외곽선 — 마그네틱 픽이 잡은 요소 표시
+  private hoveredGid?: string
   onMeasure?: (m: { a: number[]; b: number[]; d: number }) => void
   private measurePt?: THREE.Vector3
   private measureGroup = new THREE.Group()
@@ -63,6 +70,7 @@ export class Scene3D {
     this.scene.background = new THREE.Color(0xf0f0f0)
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 1.5))
     const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(1, 2, 1); this.scene.add(sun)
+    this.scene.add(this.hoverGroup)
     this.camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 5000)
     this.renderer = new THREE.WebGLRenderer({ antialias: true })
     this.renderer.setSize(el.clientWidth, el.clientHeight); this.renderer.setPixelRatio(devicePixelRatio)
@@ -233,7 +241,7 @@ export class Scene3D {
     this.measureGroup.add(this.label(`${d.toFixed(2)} m`, a.clone().lerp(b, 0.5)))
     this.onMeasure?.({ a: a.toArray(), b: b.toArray(), d })
   }
-  clearMeasures() { this.measurePt = undefined; this.measureGroup.clear() }
+  clearMeasures() { this.measurePt = undefined; this.measureGroup.clear(); this.previewDot = undefined }   // 미리보기 점은 다음 호버에서 재생성
   private dot(p: THREE.Vector3) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3333, depthTest: false })); m.position.copy(p); m.renderOrder = 10; return m }
   private label(text: string, p: THREE.Vector3) {
     const c = document.createElement('canvas'); c.width = 256; c.height = 64
@@ -249,6 +257,7 @@ export class Scene3D {
     const targets = this.merged ? this.merged.children : this.meshes.filter(m => m.visible)
     const planes = this.renderer.clippingPlanes
     const hit = ray.intersectObjects(targets, false).find(h => planes.every(p => p.distanceToPoint(h.point) >= 0))
+    this.lastSnap = false
     if (!hit) return
     if (!this.snap || !hit.face) return hit.point
     const pos = (hit.object as THREE.Mesh).geometry.attributes.position
@@ -261,11 +270,38 @@ export class Scene3D {
       const cp = new THREE.Line3(vs[a], vs[b]).closestPointToPoint(hit.point, true, new THREE.Vector3())
       const d = toScreen(cp).distanceTo(mouse); if (d < 12 && (!best || d < best.d)) best = { d, pt: cp }
     }
+    this.lastSnap = !!best
     return best?.pt ?? hit.point
   }
 
-  /** 호버용: 픽킹만, 선택 안 함 */
-  hover(x: number, y: number) { return this.pick(x, y) }
+  /** 호버: 픽킹 + 스냅 피드백 — 잡힌 요소 파란 외곽선·pointer 커서, 측정 중엔 스냅 위치 미리보기 점 */
+  hover(x: number, y: number) {
+    const gid = this.pick(x, y)
+    this.renderer.domElement.style.cursor = gid && !this._measuring ? 'pointer' : ''
+    this.setHoverHighlight(this._measuring ? undefined : gid && this.kind.get(gid) === 'element' ? gid : undefined)
+    if (this._measuring) this.measurePreview(x, y)
+    return gid
+  }
+
+  private setHoverHighlight(gid?: string) {
+    if (gid === this.hoveredGid) return
+    this.hoveredGid = gid
+    this.hoverGroup.traverse(o => (o as THREE.LineSegments).geometry?.dispose()); this.hoverGroup.clear()
+    if (!gid || this.picked.has(gid)) return   // 선택된 요소는 이미 마젠타 외곽선
+    for (const m of this.meshes) if (m.name === gid && m.visible) {
+      const l = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 20), HOVER_OUTLINE)
+      l.matrixAutoUpdate = false; l.matrix.copy(m.matrixWorld); l.renderOrder = 8; this.hoverGroup.add(l)
+    }
+  }
+
+  private measurePreview(x: number, y: number) {
+    const p = this.hitPoint(x, y)
+    if (!this.previewDot) { this.previewDot = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshBasicMaterial({ color: 0x2563eb, depthTest: false, transparent: true, opacity: 0.9 })); this.previewDot.renderOrder = 10; this.measureGroup.add(this.previewDot) }
+    this.previewDot.visible = !!p
+    if (p) { this.previewDot.position.copy(p); (this.previewDot.material as THREE.MeshBasicMaterial).color.set(this.lastSnap ? 0xff3333 : 0x2563eb); this.previewDot.scale.setScalar(this.lastSnap ? 1.6 : 1) }   // 스냅되면 빨갛게 커진다
+  }
+
+  private clearPreview() { if (this.previewDot) { this.measureGroup.remove(this.previewDot); this.previewDot.geometry.dispose(); (this.previewDot.material as THREE.Material).dispose(); this.previewDot = undefined } }
 
   stats(): Stats {
     this.renderer.render(this.scene, this.camera)  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로
