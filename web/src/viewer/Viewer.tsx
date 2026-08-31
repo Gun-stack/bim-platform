@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { MapPinned, Check, Copy, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Grid3x3, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
+import { MapPinned, Check, Copy, GripVertical, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
 import { api, type Asset, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { STATUS_COLOR, StatusBoard, systemColor } from './SystemPanel'
@@ -275,7 +275,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
           {/* 섹션 박스: 단면 모드일 때만 */}
           {clip && bounds && (
-            <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: '#fff', padding: '8px 12px', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '4px 8px', alignItems: 'center', minWidth: 380 }}>
+            <Floating id="clip" anchor={{ top: 8, left: '50%', transform: 'translateX(-50%)', padding: '8px 10px', fontSize: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '4px 8px', alignItems: 'center', minWidth: 380 }}>
               {(['X', 'Y', 'Z'] as const).map((ax, a) => <Axis key={ax} name={ax} min={bounds.min[a]} max={bounds.max[a]} lo={clip[a * 2]} hi={clip[a * 2 + 1]}
                 onChange={(lo, hi) => setClip(c => { const n = [...c!]; n[a * 2] = lo; n[a * 2 + 1] = hi; return n })} />)}
               <span style={{ color: '#666' }}>층</span>
@@ -284,11 +285,13 @@ export default function Viewer({ modelId }: { modelId: string }) {
                 <button onClick={() => setClip([...bounds.min.flatMap((m, i) => [m, bounds.max[i]])])} title="박스 초기화">초기화</button>
               </div>
             </div>
+            </Floating>
           )}
 
           {/* 측정 목록 */}
           {measuring && (
-            <div style={{ position: 'absolute', top: clip ? 128 : 8, left: 8, background: '#fff', padding: '8px 10px', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, minWidth: 200 }}>
+            <Floating id="measure" anchor={{ top: clip ? 128 : 8, left: 8, padding: '8px 10px', fontSize: 12 }}>
+            <div style={{ minWidth: 200 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}><Ruler size={13} /> <b style={{ flex: 1 }}>측정</b>
                 <Trash2 size={13} style={{ cursor: 'pointer', color: measures.length ? '#666' : '#ccc' }} onClick={() => { scene.current?.clearMeasures(); setMeasures([]) }} /></div>
               <div style={{ color: '#888' }}>표면의 두 점을 클릭하세요 · Esc 로 종료</div>
@@ -296,10 +299,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
                 <b style={{ width: 64 }}>{m.d.toFixed(2)} m</b>
                 <span style={{ color: '#888' }}>Δx {Math.abs(m.b[0] - m.a[0]).toFixed(2)} · Δy {Math.abs(m.b[1] - m.a[1]).toFixed(2)} · Δz {Math.abs(m.b[2] - m.a[2]).toFixed(2)}</span></div>)}
             </div>
+            </Floating>
           )}
 
-          {/* 하단 툴바 */}
-          <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 2, background: '#fff', padding: 4, borderRadius: 10, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d' }}>
+          {/* 하단 툴바 — 플로팅(드래그 이동·위치 기억) */}
+          <Floating id="toolbar" anchor={{ bottom: 8, left: '50%', transform: 'translateX(-50%)', gap: 2, padding: 4, borderRadius: 10 }}>
             <Tool icon={Home} label="홈" onClick={() => scene.current?.preset('home')} />
             <Tool icon={Maximize} label="선택 요소에 맞춤 (더블클릭)" onClick={() => scene.current?.fit()} />
             <Tool icon={Grid2x2} label="평면" onClick={() => scene.current?.preset('top')} />
@@ -314,15 +318,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Tool icon={Palette} label="속성별 색상 — 종류·층·속성값으로 칠하기" active={colorMode} onClick={() => setColorMode(!colorMode)} />
             <Gap />
             <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" onClick={share} />
-          </div>
+          </Floating>
 
           {/* 그리드 설정: 평면(건축 z-up 기준 이름)·간격 — 그리드가 켜져 있을 때만 */}
-          {opts.grid && <div style={{ position: 'absolute', left: 8, bottom: 60, display: 'flex', alignItems: 'center', gap: 4, background: '#fff', padding: '4px 8px', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12 }}>{/* bottom 60: 하단 툴바와 안 겹치게 */}
-            <Grid3x3 size={13} style={{ color: '#666' }} />
+          {opts.grid && <Floating id="grid" anchor={{ left: 8, bottom: 60, gap: 4, padding: '4px 8px', fontSize: 12 }}>
             {([['floor', '바닥 XY'], ['front', '정면 XZ'], ['side', '측면 YZ']] as const).map(([p, l]) =>
               <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: 5, cursor: 'pointer', background: gridCfg.plane === p ? '#2563eb' : 'transparent', color: gridCfg.plane === p ? '#fff' : '#444', fontSize: 12 }}>{l}</button>)}
             <input type="number" min={0.1} max={50} step={0.5} value={gridCfg.step} onChange={e => { const v = +e.target.value; if (Number.isFinite(v) && v >= 0.1 && v <= 50) setGridCfg({ ...gridCfg, step: v }) }} title="간격 (m)" style={{ width: 48, padding: '2px 4px', border: '1px solid #ddd', borderRadius: 5, fontSize: 12 }} /><span style={{ color: '#888' }}>m</span>
-          </div>}
+          </Floating>}
 
           <AlertToast modelId={modelId} fresh={freshAlerts} dismiss={dismissAlert} onFocus={g => focusOn(g)} />
         </div>
@@ -371,6 +374,31 @@ function readViewpoint(): { v?: View; sel?: string; clip?: number[]; focus?: boo
 }
 
 const sep = { width: 4, background: '#e5e5e5', cursor: 'col-resize' }
+
+/** 캔버스 위 플로팅 패널: 그립(또는 빈 표면)을 끌어 이동, 위치는 localStorage(viewer.float.{id}) 기억, 그립 더블클릭 → 원위치.
+ *  ponytail: 창이 줄어 저장 위치가 화면 밖이면 더블클릭 원위치로 복구 — 렌더 시 재클램프는 생략 */
+function Floating({ id, anchor, children }: { id: string; anchor: React.CSSProperties; children: React.ReactNode }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => { try { return JSON.parse(localStorage.getItem('viewer.float.' + id) ?? 'null') } catch { return null } })
+  const ref = useRef<HTMLDivElement>(null)
+  const onDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button, input, a, select, textarea')) return   // 컨트롤 조작은 드래그 아님
+    const el = ref.current!, parent = el.offsetParent as HTMLElement | null; if (!parent) return
+    const r = el.getBoundingClientRect(), pr = parent.getBoundingClientRect()
+    const sx = e.clientX, sy = e.clientY, ox = r.left - pr.left, oy = r.top - pr.top
+    let cur: { x: number; y: number } | null = null
+    const cl = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi))
+    const move = (ev: PointerEvent) => { cur = { x: cl(ox + ev.clientX - sx, 0, pr.width - r.width), y: cl(oy + ev.clientY - sy, 0, pr.height - r.height) }; setPos(cur) }
+    const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); if (cur) { try { localStorage.setItem('viewer.float.' + id, JSON.stringify(cur)) } catch { /* 저장 불가 환경 */ } } }
+    addEventListener('pointermove', move); addEventListener('pointerup', up)
+  }
+  const reset = () => { setPos(null); try { localStorage.removeItem('viewer.float.' + id) } catch { /* 저장 불가 환경 */ } }
+  return (
+    <div ref={ref} onPointerDown={onDown} style={{ position: 'absolute', display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', ...anchor, ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto', transform: 'none' } : {}), touchAction: 'none' }}>
+      <span title="드래그로 이동 · 더블클릭 원위치" onDoubleClick={reset} style={{ display: 'grid', cursor: 'grab', color: '#c8c8c8', flexShrink: 0 }}><GripVertical size={13} /></span>
+      {children}
+    </div>
+  )
+}
 
 function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { icon: LucideIcon; label: string; hint?: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
   const [hov, setHov] = useState(false)
