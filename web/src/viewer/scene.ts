@@ -266,18 +266,22 @@ export class Scene3D {
     return m
   }
 
+  /** 화면 좌표 → GlobalId. 반투명 공간(구역) 박스가 안의 장비를 가리므로 요소(element) 히트를 우선, 요소가 없을 때만 공간/개구부 */
   private pick(x: number, y: number): string | undefined {
     const r = this.renderer.domElement.getBoundingClientRect()
     const ray = new THREE.Raycaster()
     ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), this.camera)
+    let gids: (string | undefined)[]
     if (this.merged) {
-      const hit = ray.intersectObjects(this.merged.children, false)[0]
-      if (!hit || hit.faceIndex == null) return
-      const entry = this.mergedRanges.find(e => e.mesh === hit.object)
-      const idx = hit.faceIndex * 3
-      return entry?.ranges.find(rg => idx >= rg.start && idx < rg.end)?.gid
-    }
-    return (ray.intersectObjects(this.meshes.filter(m => m.visible), false)[0]?.object as THREE.Mesh | undefined)?.name
+      gids = ray.intersectObjects(this.merged.children, false).map(hit => {
+        if (hit.faceIndex == null) return undefined
+        const entry = this.mergedRanges.find(e => e.mesh === hit.object)
+        const idx = hit.faceIndex * 3
+        return entry?.ranges.find(rg => idx >= rg.start && idx < rg.end)?.gid
+      })
+    } else gids = ray.intersectObjects(this.meshes.filter(m => m.visible), false).map(h => (h.object as THREE.Mesh).name)
+    const found = gids.filter((g): g is string => !!g)
+    return found.find(g => this.kind.get(g) === 'element') ?? found[0]
   }
 
   private onResize = () => { this.camera.aspect = this.el.clientWidth / this.el.clientHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(this.el.clientWidth, this.el.clientHeight) }

@@ -27,7 +27,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [detail, setDetail] = useState<ElementDetail | { globalId: string; kind?: Kind }>()   // 1개 선택 시 상세
   const [details, setDetails] = useState<ElementDetail[]>([])          // 여러 개 선택 시 공통 Pset 계산용 (최대 20)
   const selSet = useMemo(() => new Set(selection), [selection])
-  const [opts, setOpts] = useState<Opts>({ openings: false, spaces: true, merged: false })
+  const [opts, setOpts] = useState<Opts>(() => { const d: Opts = { openings: false, spaces: true, merged: false }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.opts') ?? '{}') } } catch { return d } })
+  useEffect(() => { try { localStorage.setItem('viewer.opts', JSON.stringify(opts)) } catch { /* 저장 불가 환경 */ } }, [opts])   // 표시 옵션(개구부·공간·병합) 브라우저 기억
   const [hidden, setHidden] = useState<Hidden>({ nodes: new Set(), classes: new Set(), gids: new Set() })
   const [stats, setStats] = useState<Stats>({ calls: 0, triangles: 0, fps: 0 })
   const [err, setErr] = useState<string>()
@@ -64,7 +65,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.setMarker(gid, st === 'FAULT' ? 0xf59e0b : 0xdc2626)
   }
   const focusRef = useRef(focusOn); focusRef.current = focusOn
-  useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])
+  useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); setFocus('none'); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])   // 다른 요소를 고르면 포커스 모드(격리·비콘)도 해제 — 배너 X 와 동일
   const { rows: statusRows, fresh: freshAlerts, dismiss: dismissAlert, reload: reloadStatus } = useAlerts(modelId)   // 5초 폴링 — 상태판·트리 배지도 함께 최신 유지
   useEffect(() => { api(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
   // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
