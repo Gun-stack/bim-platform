@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Box, ClipboardList, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
+import { ArrowLeft, Box, ClipboardList, Download, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
@@ -59,7 +59,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
       <Section title="자산 대장" icon={Tag} count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: '#888', fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
-          <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={{ ...btn, marginLeft: 'auto' }}><Plus size={12} /> 자산 추가</button>
+          <a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={{ ...btn, marginLeft: 'auto' }}><Download size={12} /> COBie 내보내기</a>
+          <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={btn}><Plus size={12} /> 자산 추가</button>
         </div>
         {add && <form onSubmit={e => { e.preventDefault(); setErr(undefined); post(`/models/${modelId}/assets`, add).then(() => { setAdd(null); reload() }).catch(e => setErr(e.message)) }}
                       style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, background: '#f5f5f5', borderRadius: 8, marginBottom: 8 }}>
