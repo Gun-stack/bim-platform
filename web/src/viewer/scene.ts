@@ -171,6 +171,19 @@ export class Scene3D {
   /** 격리(나머지 반투명) / 숨김. undefined 면 복원. space 를 주면 그 구역을 진한 파랑으로 강조 */
   setFocus(f: Focus, space?: string) { this.focusSet = f; this.focusSpace = space; this.apply() }
 
+  private grid?: THREE.GridHelper
+  /** 바닥 기준 그리드 (1m 간격, 건물보다 넉넉하게). 픽킹 대상 아님 */
+  setGrid(on: boolean) {
+    if (this.grid) { this.scene.remove(this.grid); this.grid.geometry.dispose(); (this.grid.material as THREE.Material).dispose(); this.grid = undefined }
+    if (!on || this.box.isEmpty()) return
+    const size = Math.ceil(this.box.getSize(new THREE.Vector3()).length() * 1.5)
+    const g = new THREE.GridHelper(size, size, 0x9ca3af, 0xd9dde3)
+    const c = this.box.getCenter(new THREE.Vector3())
+    g.position.set(c.x, this.box.min.y - 0.02, c.z)   // 바닥 슬래브와 z-fighting 방지
+    const m = g.material as THREE.Material; m.transparent = true; m.opacity = 0.5
+    this.grid = g; this.scene.add(g)
+  }
+
   /** 섹션 박스 [xmin,xmax,ymin,ymax,zmin,zmax]. null 이면 해제 */
   setClipBox(b: number[] | null) {
     if (!b) { this.renderer.clippingPlanes = []; return }

@@ -28,7 +28,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [details, setDetails] = useState<ElementDetail[]>([])          // 여러 개 선택 시 공통 Pset 계산용 (최대 20)
   const selSet = useMemo(() => new Set(selection), [selection])
   // 표시 옵션 저장은 LeftPanel 버튼 클릭 시(flipOpt) — focusOn 등 프로그램적 변경이 사용자 저장값을 덮지 않게
-  const [opts, setOpts] = useState<Opts>(() => { const d: Opts = { openings: false, spaces: true, merged: false }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.opts') ?? '{}') } } catch { return d } })
+  const [opts, setOpts] = useState<Opts>(() => { const d: Opts = { openings: false, spaces: true, merged: false, grid: true }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.opts') ?? '{}') } } catch { return d } })
   const [hidden, setHidden] = useState<Hidden>(() => { let s = false; try { s = localStorage.getItem('viewer.structHidden') === '1' } catch { /* 저장 불가 환경 */ } return { nodes: new Set(), classes: new Set(s ? STRUCT : []), gids: new Set() } })   // 구조체 숨김 기억
   const [stats, setStats] = useState<Stats>({ calls: 0, triangles: 0, fps: 0 })
   const [err, setErr] = useState<string>()
@@ -164,6 +164,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     else setDetails([])
   }, [selection, byGid, spaceGids, modelId, statusRows])
   useEffect(() => { scene.current?.setMerged(opts.merged) }, [opts.merged])
+  useEffect(() => { scene.current?.setGrid(opts.grid) }, [opts.grid, bounds])   // bounds: 로드 뒤에야 크기·바닥을 안다
   useEffect(() => { scene.current?.setClipBox(clip) }, [clip, bounds])
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && setMeasuring(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
