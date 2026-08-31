@@ -47,6 +47,8 @@ export class Scene3D {
   onContext?: (x: number, y: number) => void
   /** 측정 모드. 클릭마다 점을 찍고 두 점이 모이면 onMeasure */
   measuring = false
+  /** 스냅: 빈 곳 클릭/호버 시 근처 요소 마그네틱 픽 + 측정 시 꼭짓점·모서리 스냅 */
+  snap = true
   onMeasure?: (m: { a: number[]; b: number[]; d: number }) => void
   private measurePt?: THREE.Vector3
   private measureGroup = new THREE.Group()
@@ -240,13 +242,26 @@ export class Scene3D {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, sizeAttenuation: false }))
     sp.scale.set(0.16, 0.04, 1); sp.position.copy(p); sp.renderOrder = 11; return sp
   }
-  /** 보이는 면 위의 3D 점 (단면 평면도 존중) */
+  /** 보이는 면 위의 3D 점 (단면 평면도 존중). snap 이면 히트 삼각형의 꼭짓점(12px 내) → 모서리 순으로 스냅 */
   private hitPoint(x: number, y: number) {
     const r = this.renderer.domElement.getBoundingClientRect(), ray = new THREE.Raycaster()
     ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), this.camera)
     const targets = this.merged ? this.merged.children : this.meshes.filter(m => m.visible)
     const planes = this.renderer.clippingPlanes
-    return ray.intersectObjects(targets, false).find(h => planes.every(p => p.distanceToPoint(h.point) >= 0))?.point
+    const hit = ray.intersectObjects(targets, false).find(h => planes.every(p => p.distanceToPoint(h.point) >= 0))
+    if (!hit) return
+    if (!this.snap || !hit.face) return hit.point
+    const pos = (hit.object as THREE.Mesh).geometry.attributes.position
+    const vs = [hit.face.a, hit.face.b, hit.face.c].map(i => new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(hit.object.matrixWorld))
+    const toScreen = (v: THREE.Vector3) => { const s = v.clone().project(this.camera); return new THREE.Vector2((s.x + 1) / 2 * r.width + r.left, (-s.y + 1) / 2 * r.height + r.top) }
+    const mouse = new THREE.Vector2(x, y)
+    let best: { d: number; pt: THREE.Vector3 } | undefined
+    for (const v of vs) { const d = toScreen(v).distanceTo(mouse); if (d < 12 && (!best || d < best.d)) best = { d, pt: v } }   // 꼭짓점 우선
+    if (!best) for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) {
+      const cp = new THREE.Line3(vs[a], vs[b]).closestPointToPoint(hit.point, true, new THREE.Vector3())
+      const d = toScreen(cp).distanceTo(mouse); if (d < 12 && (!best || d < best.d)) best = { d, pt: cp }
+    }
+    return best?.pt ?? hit.point
   }
 
   /** 호버용: 픽킹만, 선택 안 함 */
@@ -281,8 +296,19 @@ export class Scene3D {
     return m
   }
 
-  /** 화면 좌표 → GlobalId. 반투명 공간(구역) 박스가 안의 장비를 가리므로 요소(element) 히트를 우선, 요소가 없을 때만 공간/개구부 */
+  /** 픽 + 마그네틱: 정확히 맞은 게 없으면 주변 8방향 × 반경 8/16px 을 훑어 가까운 요소를 잡는다 */
   private pick(x: number, y: number): string | undefined {
+    const g = this.pickOnce(x, y)
+    if (g || !this.snap) return g
+    for (const rad of [8, 16]) for (let a = 0; a < 8; a++) {
+      const g2 = this.pickOnce(x + rad * Math.cos(a * Math.PI / 4), y + rad * Math.sin(a * Math.PI / 4))
+      if (g2) return g2
+    }
+    return undefined
+  }
+
+  /** 화면 좌표 → GlobalId. 반투명 공간(구역) 박스가 안의 장비를 가리므로 요소(element) 히트를 우선, 요소가 없을 때만 공간/개구부 */
+  private pickOnce(x: number, y: number): string | undefined {
     const r = this.renderer.domElement.getBoundingClientRect()
     const ray = new THREE.Raycaster()
     ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), this.camera)

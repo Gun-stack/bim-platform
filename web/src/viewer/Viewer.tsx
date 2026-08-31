@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { MapPinned, Check, Copy, GripVertical, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
+import { MapPinned, Check, Copy, GripVertical, Magnet, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
 import { api, type Asset, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { STATUS_COLOR, StatusBoard, systemColor } from './SystemPanel'
@@ -169,6 +169,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => { scene.current?.setGrid(opts.grid, gridCfg.plane, gridCfg.step) }, [opts.grid, gridCfg, bounds])   // bounds: 로드 뒤에야 크기·바닥을 안다
   useEffect(() => { scene.current?.setClipBox(clip) }, [clip, bounds])
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
+  const [snap, setSnap] = useState(() => { try { return localStorage.getItem('viewer.snap') !== '0' } catch { return true } })
+  useEffect(() => { if (scene.current) scene.current.snap = snap; try { localStorage.setItem('viewer.snap', snap ? '1' : '0') } catch { /* 저장 불가 환경 */ } }, [snap, loaded])
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && setMeasuring(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
   useEffect(() => {   // 격리(반투명) — 선택 집합 기준 (+ 포커스 모드면 구역도 함께, 구역은 진한 파랑)
     const spaceGid = focusInfo?.spaceGid
@@ -315,6 +317,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Gap />
             <Tool icon={Scissors} label="단면 — X/Y/Z 범위, 층별 자르기" active={!!clip} disabled={!bounds} onClick={() => setClip(clip ? null : bounds!.min.flatMap((m, i) => [m, bounds!.max[i]]))} />
             <Tool icon={Ruler} label="측정 — 면 위 두 점 거리" active={measuring} onClick={() => setMeasuring(!measuring)} />
+            <Tool icon={Magnet} label="스냅 — 빈 곳 클릭 시 가까운 요소, 측정 시 꼭짓점·모서리" active={snap} onClick={() => setSnap(!snap)} />
             <Tool icon={Palette} label="속성별 색상 — 종류·층·속성값으로 칠하기" active={colorMode} onClick={() => setColorMode(!colorMode)} />
             <Gap />
             <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" onClick={share} />
@@ -387,7 +390,13 @@ function Floating({ id, anchor, children }: { id: string; anchor: React.CSSPrope
     const sx = e.clientX, sy = e.clientY, ox = r.left - pr.left, oy = r.top - pr.top
     let cur: { x: number; y: number } | null = null
     const cl = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi))
-    const move = (ev: PointerEvent) => { cur = { x: cl(ox + ev.clientX - sx, 0, pr.width - r.width), y: cl(oy + ev.clientY - sy, 0, pr.height - r.height) }; setPos(cur) }
+    const move = (ev: PointerEvent) => {
+      let x = cl(ox + ev.clientX - sx, 0, pr.width - r.width), y = cl(oy + ev.clientY - sy, 0, pr.height - r.height)
+      // 가장자리 스냅: 16px 이내로 다가가면 여백 8px 에 자석처럼 붙는다
+      if (x < 16) x = 8; else if (x > pr.width - r.width - 16) x = pr.width - r.width - 8
+      if (y < 16) y = 8; else if (y > pr.height - r.height - 16) y = pr.height - r.height - 8
+      cur = { x, y }; setPos(cur)
+    }
     const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); if (cur) { try { localStorage.setItem('viewer.float.' + id, JSON.stringify(cur)) } catch { /* 저장 불가 환경 */ } } }
     addEventListener('pointermove', move); addEventListener('pointerup', up)
   }
