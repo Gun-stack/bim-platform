@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowDown, ArrowUp, Calendar, ChevronLeft, ChevronRight, ChevronsUp, ExternalLink, Plus, Search, User, X } from 'lucide-react'
 import { post, type Asset, type Priority, type WorkOrder } from './api'
 import { StatusBadge, day } from './viewer/FmPanel'
@@ -15,7 +15,7 @@ const NEXT: Record<WorkOrder['status'], { s: WorkOrder['status']; label: string 
 const useEsc = (fn: () => void) => useEffect(() => { const h = (e: KeyboardEvent) => e.key === 'Escape' && fn(); window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h) }, [fn])
 const overdue = (w: WorkOrder) => !!w.dueOn && w.status !== 'DONE' && new Date(w.dueOn) < new Date(new Date().toDateString())
 
-export default function FmBoard({ modelId, wos: server, assets, reload }: { modelId: string; wos: WorkOrder[]; assets: Asset[]; reload: () => Promise<unknown> }) {
+export default function FmBoard({ modelId, wos: server, assets, reload, openWoId }: { modelId: string; wos: WorkOrder[]; assets: Asset[]; reload: () => Promise<unknown>; openWoId?: string }) {
   const [q, setQ] = useState(''); const [team, setTeam] = useState<string>(); const [assignee, setAssignee] = useState<string>(); const [onlyOverdue, setOnlyOverdue] = useState(false)
   const [open, setOpen] = useState<WorkOrder>(); const [creating, setCreating] = useState(false); const [dragOver, setDragOver] = useState<string>(); const [dragging, setDragging] = useState<string>()
   const [pending, setPending] = useState<Record<string, WorkOrder['status']>>({})   // 낙관적 상태: 서버 응답 전 카드를 먼저 옮김
@@ -23,6 +23,14 @@ export default function FmBoard({ modelId, wos: server, assets, reload }: { mode
   const [folded, setFolded] = useState<Set<WorkOrder['status']>>(() => { try { return new Set(JSON.parse(localStorage.getItem('fm.foldedCols') ?? '["DONE"]')) } catch { return new Set<WorkOrder['status']>(['DONE']) } })   // 접힌 열 — 완료는 쌓이기만 하니 기본 접힘
   const fold = (s: WorkOrder['status']) => setFolded(f => { const n = new Set(f); if (n.has(s)) n.delete(s); else n.add(s); try { localStorage.setItem('fm.foldedCols', JSON.stringify([...n])) } catch { /* 저장 불가 환경 */ } return n })
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(undefined), toast.error ? 6000 : 4000); return () => clearTimeout(t) }, [toast])
+  const applied = useRef<string>(undefined)   // 딥링크 1회 적용 — 사용자가 Drawer 를 닫으면 다시 열지 않는다
+  useEffect(() => {
+    if (!openWoId || applied.current === openWoId) return
+    const w = server.find(x => x.id === openWoId); if (!w) return
+    // oxlint-disable-next-line react/set-state-in-effect -- URL 딥링크(외부 시스템)와의 동기화
+    applied.current = openWoId; setOpen(w)
+    setFolded(f => { if (!f.has(w.status)) return f; const n = new Set(f); n.delete(w.status); return n })   // 접힌 열이면 펼침 (localStorage 저장 안 함 — 일시적)
+  }, [openWoId, server])
   const wos = useMemo(() => server.map(w => pending[w.id] ? { ...w, status: pending[w.id] } : w), [server, pending])
   const assignees = useMemo(() => [...new Set(wos.map(w => w.assignee).filter(Boolean) as string[])].sort(), [wos])
   const visible = wos.filter(w => (!team || teamOf(w)?.key === team) && (!assignee || w.assignee === assignee) && (!onlyOverdue || overdue(w))
@@ -66,7 +74,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload }: { mode
               {dragOver === s ? <span style={{ color: '#2563eb', fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>→ {COL_NAME[s]}(으)로 이동</span>
                 : s !== 'DONE' && items.some(overdue) && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 'auto' }}><AlertTriangle size={11} style={{ verticalAlign: -1 }} /> 초과 {items.filter(overdue).length}</span>}
               <span onClick={() => fold(s)} title="열 접기" style={{ marginLeft: dragOver === s || (s !== 'DONE' && items.some(overdue)) ? 6 : 'auto', cursor: 'pointer', color: '#aaa', display: 'inline-flex' }}><ChevronLeft size={14} /></span></div>
-            {items.map(w => <Card key={w.id} w={w} dragging={dragging === w.id} busy={w.id in pending} onOpen={() => setOpen(w)} viewerUrl={viewerUrl(w)}
+            {items.map(w => <Card key={w.id} w={w} dragging={dragging === w.id} busy={w.id in pending} hilite={w.id === openWoId} onOpen={() => setOpen(w)} viewerUrl={viewerUrl(w)}
                                   onDragStart={() => setDragging(w.id)} onDragEnd={() => { setDragging(undefined); setDragOver(undefined) }} onNext={() => move(w, NEXT[w.status].s)} />)}
             {!items.length && <div style={{ color: '#bbb', textAlign: 'center', padding: 24, fontSize: 12 }}>카드를 여기로 끌어다 놓으세요</div>}
           </div>) })}
@@ -80,12 +88,12 @@ export default function FmBoard({ modelId, wos: server, assets, reload }: { mode
   )
 }
 
-function Card({ w, dragging, busy, onOpen, viewerUrl, onDragStart, onDragEnd, onNext }: { w: WorkOrder; dragging: boolean; busy: boolean; onOpen: () => void; viewerUrl: string; onDragStart: () => void; onDragEnd: () => void; onNext: () => void }) {
+function Card({ w, dragging, busy, hilite, onOpen, viewerUrl, onDragStart, onDragEnd, onNext }: { w: WorkOrder; dragging: boolean; busy: boolean; hilite?: boolean; onOpen: () => void; viewerUrl: string; onDragStart: () => void; onDragEnd: () => void; onNext: () => void }) {
   const t = teamOf(w), pr = PRIO[w.priority ?? 'NORMAL'], Pi = pr.icon, od = overdue(w), nx = NEXT[w.status]
   return (
     <div draggable={!busy} onDragStart={e => { e.dataTransfer.setData('text/wo', w.id); e.dataTransfer.effectAllowed = 'move'; onDragStart() }} onDragEnd={onDragEnd} onClick={onOpen}
          style={{ background: '#fff', borderRadius: 8, padding: '8px 10px', marginBottom: 8, boxShadow: '0 1px 2px #0001', borderLeft: '4px solid ' + (t?.color ?? '#ddd'), cursor: busy ? 'progress' : 'grab',
-                  opacity: dragging ? 0.35 : busy ? 0.6 : w.status === 'DONE' ? 0.75 : 1, outline: dragging ? '2px dashed #2563eb' : 'none', transition: 'opacity .15s' }}>
+                  opacity: dragging ? 0.35 : busy ? 0.6 : w.status === 'DONE' ? 0.75 : 1, outline: dragging ? '2px dashed #2563eb' : hilite ? '2px solid #2563eb' : 'none', transition: 'opacity .15s' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {Pi && <Pi size={13} style={{ color: pr.color, flexShrink: 0 }} aria-label={pr.label} />}
         <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</span>

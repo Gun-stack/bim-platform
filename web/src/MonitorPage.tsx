@@ -6,6 +6,7 @@ import { day } from './viewer/FmPanel'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
+import { useHashQuery } from './useHashQuery'
 
 type Row = { globalId: string; ifcClass: string; name: string; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
   status: (Record<string, unknown> & { Status?: string }) | null; assetId: string | null; assetTag: string | null; assetStatus: string | null; lastResult: string | null; openWorkOrders: number
@@ -41,6 +42,19 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       prevAbn.current = abn
       setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setEvents(ev); setTick(new Date()) }), [modelId])
   useEffect(() => { api(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId, load])
+
+  // ?sel={gid} 딥링크: 해당 행으로 스크롤 + 4초 플래시 (기존 .fresh 재사용). 현재 필터에 안 잡히는 행이면 '전체' 모드로
+  const sel = useHashQuery().get('sel')
+  const gotRows = rows.length > 0
+  useEffect(() => {
+    if (!sel || !gotRows) return
+    const r = rows.find(x => x.globalId === sel)
+    if (r && rank(r, unpowered.has(r.globalId)) >= 9 && !(mode === 'equipment' && r.status)) setMode('all')
+    setFlash(new Set([sel])); const t = setTimeout(() => setFlash(new Set()), 4000)
+    requestAnimationFrame(() => document.querySelector(`[data-gid="${CSS.escape(sel)}"]`)?.scrollIntoView({ block: 'center' }))
+    return () => clearTimeout(t)
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel, gotRows])
 
   // 팀 우선순위: 소방 > 수송 > 설비 > 통신·제어 > 전기 (TEAMS 순서). 예외: 조명제어반은 통신 계통에도 걸리지만 전기팀
   const teamOf = (r: Row) => r.name?.includes('조명제어반') ? TEAMS.find(t => t.key === 'elec') : TEAMS.find(t => r.systems.some(s => t.systems.includes(s)))
@@ -169,7 +183,7 @@ function RowView({ r, modelId, dead, fresh, fs }: { r: Row; modelId: string; dea
   const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : s ? STATUS[s] : undefined
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
   return (
-    <a href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
+    <a data-gid={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
        style={{ display: 'block', padding: '3px 6px', borderRadius: 5, textDecoration: 'none', color: '#222', fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? '#fef2f2' : '#fffbeb') : dead ? '#f3f4f6' : worst(r) === 'crit' ? '#fff1f2' : worst(r) === 'warn' ? '#fffbeb' : 'transparent', opacity: dead ? 0.7 : 1 }}>
       <span style={{ display: 'grid', gridTemplateColumns: '10px minmax(60px, 1fr) minmax(0, auto) auto', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? '#d1d5db' }} />

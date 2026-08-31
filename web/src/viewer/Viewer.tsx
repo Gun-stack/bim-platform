@@ -13,6 +13,7 @@ import { Scene3D, type Kind, type Stats, type View } from './scene'
 import LeftPanel, { type Hidden, type Opts, type SelectMode } from './LeftPanel'
 import ColorPanel from './ColorPanel'
 import ContextMenu, { type MenuItem } from './ContextMenu'
+import { useHashQuery } from '../useHashQuery'
 import './viewer.css'
 
 export default function Viewer({ modelId }: { modelId: string }) {
@@ -46,6 +47,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [statusView, setStatusView] = useState(false); const [boardCollapsed, setBoardCollapsed] = useState(false)
   const [assetDetail, setAssetDetail] = useState<{ id: string; workOrders: WorkOrder[] }>()
   const [focusInfo, setFocusInfo] = useState<{ gid: string; name: string; zone?: string; storey?: string; status?: string; spaceGid?: string }>()
+  const [loaded, setLoaded] = useState(false)   // glb 로드 완료 — 딥링크 재적용 effect 가드
   /** 경보/장애 요소로 포커스: 구역 반투명 강조 + 요소 하이라이트 + 위층 단면 + 구역에 카메라 */
   const focusOn = (gid: string) => {
     const s = scene.current, el = byGid.get(gid); if (!s || !el) return
@@ -78,9 +80,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.setColors(m, true)   // 구조체는 반투명 — 계통이 건물 안에서 보이게
   }, [sysColor, sysMembers, systemsMeta, route, colorMode, bounds, power, statusView, statusRows])
   const [menu, setMenu] = useState<{ x: number; y: number }>()
-  const [tab, setTab] = useState<'props' | 'fm'>(() => new URLSearchParams(location.hash.split('?')[1] ?? '').has('fm') || new URLSearchParams(location.hash.split('?')[1] ?? '').has('wo') ? 'fm' : 'props')
+  const hq = useHashQuery(), qs = hq.toString(), woId = hq.get('wo'), wantFm = hq.has('fm') || hq.has('wo')
+  const [tab, setTab] = useState<'props' | 'fm'>(wantFm ? 'fm' : 'props')
+  useEffect(() => { if (wantFm) setTab('fm') }, [wantFm])   // 같은 페이지에서 ?fm/?wo 딥링크가 와도 탭 전환
   const [wo, setWo] = useState<WorkOrder>()   // ?wo= 로 열었을 때 상단 배너
-  useEffect(() => { const id = new URLSearchParams(location.hash.split('?')[1] ?? '').get('wo'); if (id) api(`/work-orders/${id}`).then(setWo).catch(() => {}); else setWo(undefined) }, [modelId])
+  useEffect(() => { if (woId) api(`/work-orders/${woId}`).then(setWo).catch(() => {}); else setWo(undefined) }, [woId])
   const [assets, setAssets] = useState<Asset[]>([])
   const reloadAssets = useCallback(() => api(`/models/${modelId}/assets`).then(setAssets), [modelId])
   useEffect(() => { reloadAssets() }, [reloadAssets])
@@ -108,12 +112,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const s = new Scene3D(el); scene.current = s
     s.onPick = setSelection
     s.load(model.glbUrl, gid => byGid.has(gid) ? 'element' : spaceGids.has(gid) ? 'space' : 'opening').then(() => {
-      setBounds(s.bounds())
-      const vp = readViewpoint()   // URL 뷰포인트 복원
-      if (vp?.v) s.setView(vp.v)
-      if (vp?.clip) setClip(vp.clip)
-      if (vp?.sel) s.select(vp.sel.split(','))
-      if (vp?.focus && vp.sel) setTimeout(() => focusRef.current(vp.sel!.split(',')[0]), 300)   // byGid·spatial 준비 후
+      setBounds(s.bounds()); setLoaded(true)   // 뷰포인트 복원은 아래 딥링크 effect 가 (최초 + hashchange 재적용)
     }).catch(e => setErr(String(e)))
     let pending = false   // 호버 툴팁: 프레임당 1회
     const onMove = (e: PointerEvent) => {
@@ -128,9 +127,20 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.onContext = (x, y) => setMenu({ x, y })
     s.onMeasure = m => setMeasures(ms => [...ms, m])
     const t = setInterval(() => setStats(s.stats()), 500)
-    return () => { clearInterval(t); el.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null }
+    return () => { clearInterval(t); el.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null; setLoaded(false) }
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.glbUrl, elements.length])
+
+  // 같은 페이지 딥링크 재적용: hashchange 마다 URL 의 v/sel/clip/focus 를 다시 적용 — 씬 재로드 없음.
+  // share() 는 history.replaceState 라 hashchange 가 안 떠 루프 없음. 동일 해시 재클릭은 이벤트 미발생 — 허용.
+  useEffect(() => {
+    const s = scene.current; if (!loaded || !s) return
+    const vp = readViewpoint()
+    if (vp?.v) s.setView(vp.v)
+    if (vp?.clip) setClip(vp.clip)
+    if (vp?.sel) { const sel = vp.sel.split(','); s.select(sel); if (vp.focus) setTimeout(() => focusRef.current(sel[0]), 300) }   // byGid·spatial 준비 후
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, qs])
 
   useEffect(() => {   // 트리 눈 토글 + 표시 옵션 → 표시 조건
     scene.current?.setVisible((gid, kind) => {

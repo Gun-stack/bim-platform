@@ -6,6 +6,7 @@ import { api, post, type Asset, type Model, type WorkOrder } from './api'
 import { day } from './viewer/FmPanel'
 import { ifcKo } from './ifcNames'
 import FmBoard from './FmBoard'
+import { useHashQuery } from './useHashQuery'
 
 /** #/models/{id}/fm — 자산 대장 + 작업지시 보드. 작업지시 → 뷰어 뷰포인트로 이동 */
 export default function FmPage({ modelId }: { modelId: string }) {
@@ -19,6 +20,13 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [aq, setAq] = useState(''); const [acat, setAcat] = useState(''); const [ast, setAst] = useState('')   // 자산 대장 필터
   const reload = useCallback(() => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`), api(`/models/${modelId}/status`).catch(() => [])]).then(([a, w, s]) => { setAssets(a); setWos(w); setAbnormal((s as { name: string; status: { Status?: string } }[]).filter(r => r.status.Status === 'ALARM' || r.status.Status === 'FAULT')) }), [modelId])
   useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
+
+  // 딥링크: ?wo={id} → 보드 펼침 + 카드 하이라이트/Drawer, ?sel={gid} → 열린 WO 있으면 그 카드, 없으면 자산 대장 필터
+  const hq = useHashQuery(), selGid = hq.get('sel')
+  const woId = hq.get('wo') ?? (selGid ? wos.find(w => w.globalId === selGid && w.status !== 'DONE')?.id : undefined)
+  const selAsset = !woId && selGid ? assets.find(a => a.globalId === selGid) : undefined
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (selAsset) setAq(selAsset.tag) }, [selAsset?.id])
   const filteredAssets = assets.filter(a => (!acat || a.category === acat) && (!ast || a.storey === ast) && (!aq || [a.tag, a.elementName].some(x => x?.toLowerCase().includes(aq.toLowerCase()))))
 
 
@@ -34,15 +42,15 @@ export default function FmPage({ modelId }: { modelId: string }) {
         <Stat icon={ClipboardList} label="점검 완료" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} />
         <Stat icon={Wrench} label="열린 작업지시" value={wos.filter(w => w.status !== 'DONE').length} sub={`완료 ${wos.filter(w => w.status === 'DONE').length}`} />
       </div>
-      <Section title="작업지시 보드" icon={Wrench} count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board} onToggle={() => toggle('board')}>
+      <Section title="작업지시 보드" icon={Wrench} count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}>
       {abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8 }}>
         <span style={{ color: '#9a3412' }}>상태판 이상 <b>{abnormal.length}</b>건 ({abnormal.slice(0, 3).map(r => r.name).join(', ')}{abnormal.length > 3 ? ' …' : ''}) — 열린 작업지시 {wos.filter(w => w.status !== 'DONE').length}건</span>
         <button onClick={() => { setSyncMsg(undefined); post(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: '#ea580c', color: '#fff', border: 0 }}>작업지시 동기화</button>
         {syncMsg && <span style={{ fontSize: 12, color: '#666' }}>{syncMsg}</span>}</div>}
-      <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} />
+      <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} openWoId={woId} />
       </Section>
 
-      <Section title="자산 대장" icon={Tag} count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} open={open.assets} onToggle={() => toggle('assets')}>
+      <Section title="자산 대장" icon={Tag} count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: '#888', fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
           <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={{ ...btn, marginLeft: 'auto' }}><Plus size={12} /> 자산 추가</button>
