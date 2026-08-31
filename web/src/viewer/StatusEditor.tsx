@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, Siren, WifiOff } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Siren, TrendingUp, WifiOff } from 'lucide-react'
+import TrendModal from '../TrendModal'
 import type { ElementDetail } from '../api'
 import { patchStatus, statusPatchFor } from '../statusApi'
 import { STATUS_COLOR } from './SystemPanel'
@@ -14,6 +15,7 @@ const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4p
 export default function StatusEditor({ modelId, e, reload }: { modelId: string; e: ElementDetail; reload: () => Promise<unknown> }) {
   const st = e.properties.Pset_BimStatus as Record<string, unknown> | undefined
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState<string>()   // 요소가 바뀌면 부모가 key 로 리마운트
+  const [trend, setTrend] = useState(false)
   if (!st) return null
   const cur = String(st.Status ?? '')
   const send = (patch: Record<string, unknown>) => { setBusy(true); setMsg(undefined); patchStatus(modelId, e.globalId, patch).then(m => { if (m) setMsg(m) }).then(reload).catch(x => setMsg(x.message)).finally(() => setBusy(false)) }
@@ -24,6 +26,7 @@ export default function StatusEditor({ modelId, e, reload }: { modelId: string; 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <b>운영 상태</b>
         <span style={{ padding: '1px 8px', borderRadius: 999, color: '#fff', background: hex(STATUS_COLOR[cur] ?? 0x6b7280), fontWeight: 600 }}>{STATUS_LABEL[cur] ?? cur}</span>
+        {Object.entries(st).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt') && <button onClick={() => setTrend(true)} title="계측 트렌드 — 값이 언제부터 이랬는지" style={{ border: 0, background: 'none', cursor: 'pointer', color: '#2563eb', padding: 2, display: 'inline-flex' }}><TrendingUp size={13} /></button>}
         {typeof st.UpdatedAt === 'string' && <span style={{ color: '#999', fontSize: 11, marginLeft: 'auto' }}>{new Date(st.UpdatedAt).toLocaleString()}</span>}
       </div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -38,6 +41,7 @@ export default function StatusEditor({ modelId, e, reload }: { modelId: string; 
           <td style={{ padding: '2px 4px' }}><Field key={`${k}:${String(v)}`} k={k} v={v} busy={busy} onSave={val => send({ [k]: val })} /></td></tr>)}
       </tbody></table>}
       {msg && <div style={{ color: '#2563eb', marginTop: 6 }}>{msg}</div>}
+      {trend && <TrendModal modelId={modelId} globalId={e.globalId} name={e.name ?? e.globalId} onClose={() => setTrend(false)} />}
     </div>
   )
 }

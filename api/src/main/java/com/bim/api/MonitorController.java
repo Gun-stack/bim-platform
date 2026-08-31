@@ -29,7 +29,10 @@ class MonitorController {
 			       (SELECT count(*) FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE') "openWorkOrders",
 			       (SELECT w.assignee FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE' ORDER BY w.created_at DESC LIMIT 1) "woAssignee",
 			       (SELECT w.due_on FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE' ORDER BY w.created_at DESC LIMIT 1) "woDueOn",
-			       (SELECT w.status FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE' ORDER BY w.created_at DESC LIMIT 1) "woStatus"
+			       (SELECT w.status FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE' ORDER BY w.created_at DESC LIMIT 1) "woStatus",
+			       CASE WHEN a.id IS NOT NULL AND jsonb_exists(a.attributes, 'intervalMonths') THEN
+			         (coalesce((SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id), a.installed_on, CURRENT_DATE)
+			          + (a.attributes->>'intervalMonths')::int * interval '1 month')::date END "nextDueOn"
 			  FROM element e
 			  JOIN element_system es0 ON es0.element_id = e.id
 			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id
