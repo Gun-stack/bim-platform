@@ -56,7 +56,7 @@ FMS·MEP 분야의 실무 경험을 바탕으로 업무 흐름과 기술 구현�
 
 - **IFC 변환 파이프라인** — Python·IfcOpenShell 워커가 IFC를 glTF로 변환하고 요소, Pset, 공간 계층, 설비 계통, 연결, 지리참조를 PostgreSQL/PostGIS와 MinIO에 적재합니다.
 - **장애에 강한 DB 잡 큐** — PostgreSQL `FOR UPDATE SKIP LOCKED`와 lease owner, heartbeat, 재시도로 중복 실행과 중단 작업을 관리해 별도 메시지 브로커 없이 변환 신뢰성을 확보했습니다.
-- **방향성 MEP 그래프** — IFC 계통과 요소 연결을 저장하고 재귀 CTE로 상류 원천과 하류 영향 범위를 추적합니다. 같은 구조로 일반·비상전원의 정전 영향도 계산합니다.
+- **방향성 MEP 그래프** — IFC 계통과 요소 연결(`IfcRelConnectsElements`, 실무 IFC의 `IfcRelConnectsPorts` 포트 연결 포함)을 저장하고 재귀 CTE로 상류 원천과 하류 영향 범위를 추적합니다. 같은 구조로 일반·비상전원의 정전 영향도 계산합니다.
 - **운영 상태에서 업무로 연결** — JSONB 상태 병합 API와 함께 상위 원인 설비 경보 억제, 열린 작업지시 재사용, 완료 직후 재발 처리 규칙을 구현했습니다. 상태·작업지시 변경은 op_event 이력으로 남아 이벤트 목록과 계측 트렌드 차트가 여기서 나옵니다.
 - **BIM 3D 탐색 경험** — Three.js 기반 요소 선택·검색, 속성·계통 트리, 단면, 측정, 격리, 색상화, 다중 선택과 뷰포인트 공유를 구현했습니다.
 - **BIM과 FMS 수명주기 분리** — IFC 연결이 없는 자산도 관리하며, 모델을 재변환해도 자산·점검·작업 이력이 보존되도록 운영 데이터를 분리했습니다.
@@ -174,6 +174,6 @@ compose.yaml  로컬 실행 환경
 
 ## 현재 범위와 다음 단계
 
-- 실무 IFC의 `IfcDistributionPort` / `IfcRelConnectsPorts` 변환으로 지원 범위 확대
+- ~~실무 IFC의 `IfcDistributionPort` / `IfcRelConnectsPorts` 변환~~ — 완료. 포트 연결을 방향 그래프로 변환(FlowDirection 기준)하고, 계통(IfcSystem)이 없는 실무 파일도 뷰어에서 상류·하류 추적이 됩니다. Revit 출력 Duplex Plumbing(IFC2x3, 포트 970·연결 485)으로 검증
 - 인증·권한 관리와 외부 공개 배포 구성
 - 대규모 모델을 위한 3D Tiles와 확장성 검증

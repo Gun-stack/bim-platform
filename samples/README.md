@@ -24,3 +24,14 @@ curl -sL -o example-project-location.ifc "https://media.githubusercontent.com/me
 `gen/gen_mep.py` 가 IfcOpenShell API 로 만든 가상 건물. 지리참조 없음, 상대좌표. 재생성: `docker compose cp samples/gen/gen_mep.py ifc-worker:/tmp/ && docker compose exec ifc-worker sh -c 'cd /tmp && python gen_mep.py mep-building.ifc' && docker compose cp ifc-worker:/tmp/mep-building.ifc samples/` (호스트 python 에 IfcOpenShell 이 없어 워커 컨테이너에서 실행). 현재 14계통 404요소 470연결(B2 주차장·램프·에스컬레이터·슬래브 개구부 포함). 내용은 루트 README "가상 건물에 대해" 참고.
 
 `gen/bms_sim.py <modelId>` — 상태 API 시뮬레이터. `--interval 3 --ticks 0` 기본(무한), `--seed` 로 재현.
+
+
+## 실무 IFC 테스트 파일
+
+포트 기반 연결(`IfcRelConnectsPorts`) 검증에는 buildingSMART 커뮤니티의 Revit 출력 배관 모델을 썼습니다 (LFS라 raw 대신 media URL, 용량 때문에 저장소엔 미포함):
+
+```bash
+curl -L -o Duplex_Plumbing_20121113.ifc "https://media.githubusercontent.com/media/buildingsmart-community/Community-Sample-Test-Files/main/IFC%202.3.0.1%20(IFC%202x3)/Duplex%20Apartment/Duplex_Plumbing_20121113.ifc"
+```
+
+IFC2x3 · 포트 970 · IfcRelConnectsPorts 485 · IfcSystem 0 — 계통 없이 추적 폴백까지 확인 가능한 파일입니다.

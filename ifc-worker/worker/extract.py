@@ -3,19 +3,23 @@ import sys
 
 import ifcopenshell
 import ifcopenshell.util.element as ue
+import ifcopenshell.util.unit as uu
 
 SPATIAL = ("IfcSite", "IfcBuilding", "IfcBuildingStorey", "IfcSpace")
 
 
 def spatial_tree(f):
-    """[(global_id, parent_global_id|None, ifc_class, name, elevation)] 부모가 항상 먼저."""
+    """[(global_id, parent_global_id|None, ifc_class, name, elevation[m])] 부모가 항상 먼저.
+    실무 IFC(레빗 IFC2x3 등)는 길이 단위가 mm 인 경우가 많다 — elevation 을 m 로 정규화 (기하는 serializer 가 m 로 낸다)."""
+    scale = uu.calculate_unit_scale(f)   # 프로젝트 길이 단위 → m
     rows = []
 
     def walk(obj, parent):
         for rel in obj.IsDecomposedBy or ():
             for child in rel.RelatedObjects:
                 if child.is_a() in SPATIAL:
-                    rows.append((child.GlobalId, parent, child.is_a(), child.Name, getattr(child, "Elevation", None)))
+                    elev = getattr(child, "Elevation", None)
+                    rows.append((child.GlobalId, parent, child.is_a(), child.Name, None if elev is None else elev * scale))
                     walk(child, child.GlobalId)
 
     for proj in f.by_type("IfcProject"):
@@ -44,10 +48,37 @@ def systems(f):
     return out
 
 
+def _port_host(port):
+    """포트가 붙은 장비. IFC4: IfcRelNests(Nests), IFC2x3(+IFC4 호환): IfcRelConnectsPortToElement(ContainedIn)"""
+    for rel in getattr(port, "Nests", None) or ():
+        if rel.RelatingObject.is_a("IfcElement"):
+            return rel.RelatingObject
+    ci = getattr(port, "ContainedIn", None)
+    for rel in ci if isinstance(ci, tuple) else (ci,) if ci else ():
+        if rel.RelatedElement.is_a("IfcElement"):
+            return rel.RelatedElement
+    return None
+
+
 def connections(f):
-    """[(from_global_id, to_global_id)] — IfcRelConnectsElements. Relating=상류, Related=하류 (gen_mep.py 규약)"""
-    return [(r.RelatingElement.GlobalId, r.RelatedElement.GlobalId) for r in f.by_type("IfcRelConnectsElements")
-            if r.is_a() == "IfcRelConnectsElements" and r.RelatingElement.is_a("IfcElement") and r.RelatedElement.is_a("IfcElement")]
+    """[(from_global_id, to_global_id)] 방향 그래프.
+    1) IfcRelConnectsElements — Relating=상류, Related=하류 (gen_mep.py 규약)
+    2) IfcRelConnectsPorts — 실무 IFC(레빗 등)의 MEP 연결. 포트 호스트 장비 쌍으로 변환하고,
+       방향은 FlowDirection(SOURCE→SINK)으로 정한다. 애매하면 Relating→Related."""
+    out = [(r.RelatingElement.GlobalId, r.RelatedElement.GlobalId) for r in f.by_type("IfcRelConnectsElements")
+           if r.is_a() == "IfcRelConnectsElements" and r.RelatingElement.is_a("IfcElement") and r.RelatedElement.is_a("IfcElement")]
+    seen = set(out)
+    for r in f.by_type("IfcRelConnectsPorts"):
+        pa, pb = r.RelatingPort, r.RelatedPort
+        ha, hb = _port_host(pa), _port_host(pb)
+        if ha is None or hb is None or ha == hb:
+            continue
+        fa, fb = getattr(pa, "FlowDirection", None), getattr(pb, "FlowDirection", None)
+        pair = (hb.GlobalId, ha.GlobalId) if fa == "SINK" or fb == "SOURCE" else (ha.GlobalId, hb.GlobalId)
+        if pair not in seen and (pair[1], pair[0]) not in seen:   # 같은 쌍 중복(포트 여러 개)·역방향 중복 제거
+            seen.add(pair)
+            out.append(pair)
+    return out
 
 
 if __name__ == "__main__":

@@ -1,0 +1,67 @@
+"""IfcRelConnectsPorts → 방향 연결 변환 (실무 IFC 호환). ifcopenshell 필요 — 컨테이너에서 실행."""
+import unittest
+
+try:
+    import ifcopenshell
+    import ifcopenshell.guid
+except ImportError:  # 로컬(맥)엔 ifcopenshell 없음 — 컨테이너에서만 돈다
+    ifcopenshell = None
+
+from worker import extract
+
+
+def g():
+    return ifcopenshell.guid.new()
+
+
+@unittest.skipIf(ifcopenshell is None, "ifcopenshell not installed")
+class PortConnectionsTest(unittest.TestCase):
+    def _elem(self, f, cls, name):
+        return f.create_entity(cls, GlobalId=g(), Name=name)
+
+    def _port(self, f, host, flow, ifc4=True):
+        p = f.create_entity("IfcDistributionPort", GlobalId=g(), FlowDirection=flow)
+        if ifc4:
+            f.create_entity("IfcRelNests", GlobalId=g(), RelatingObject=host, RelatedObjects=[p])
+        else:
+            f.create_entity("IfcRelConnectsPortToElement", GlobalId=g(), RelatingPort=p, RelatedElement=host)
+        return p
+
+    def test_ifc4_ports_flow_direction_decides_upstream(self):
+        f = ifcopenshell.file(schema="IFC4")
+        pump, pipe = self._elem(f, "IfcPump", "P-1"), self._elem(f, "IfcPipeSegment", "PS-1")
+        src, snk = self._port(f, pump, "SOURCE"), self._port(f, pipe, "SINK")
+        # 일부러 Relating=SINK 쪽으로 뒤집어 연결 — FlowDirection 이 이겨야 한다
+        f.create_entity("IfcRelConnectsPorts", GlobalId=g(), RelatingPort=snk, RelatedPort=src)
+        self.assertEqual(extract.connections(f), [(pump.GlobalId, pipe.GlobalId)])
+
+    def test_ifc2x3_port_to_element_and_default_direction(self):
+        f = ifcopenshell.file(schema="IFC2X3")
+        fan, duct = self._elem(f, "IfcFlowMovingDevice", "F-1"), self._elem(f, "IfcFlowSegment", "D-1")
+        pa = self._port(f, fan, "NOTDEFINED", ifc4=False)
+        pb = self._port(f, duct, "NOTDEFINED", ifc4=False)
+        f.create_entity("IfcRelConnectsPorts", GlobalId=g(), RelatingPort=pa, RelatedPort=pb)
+        self.assertEqual(extract.connections(f), [(fan.GlobalId, duct.GlobalId)])   # 애매하면 Relating→Related
+
+    def test_duplicate_pairs_and_orphan_ports_skipped(self):
+        f = ifcopenshell.file(schema="IFC4")
+        a, b = self._elem(f, "IfcPump", "A"), self._elem(f, "IfcPipeSegment", "B")
+        for _ in range(2):   # 같은 장비 쌍에 포트 연결 2개 (급수·환수 등) → 1건
+            f.create_entity("IfcRelConnectsPorts", GlobalId=g(),
+                            RelatingPort=self._port(f, a, "SOURCE"), RelatedPort=self._port(f, b, "SINK"))
+        orphan = f.create_entity("IfcDistributionPort", GlobalId=g(), FlowDirection="SOURCE")   # 호스트 없음
+        f.create_entity("IfcRelConnectsPorts", GlobalId=g(), RelatingPort=orphan, RelatedPort=self._port(f, b, "SINK"))
+        self.assertEqual(extract.connections(f), [(a.GlobalId, b.GlobalId)])
+
+    def test_rel_connects_elements_still_first(self):
+        f = ifcopenshell.file(schema="IFC4")
+        a, b = self._elem(f, "IfcPump", "A"), self._elem(f, "IfcTank", "B")
+        f.create_entity("IfcRelConnectsElements", GlobalId=g(), RelatingElement=a, RelatedElement=b)
+        # 포트로도 같은 쌍 — 중복되면 안 된다
+        f.create_entity("IfcRelConnectsPorts", GlobalId=g(),
+                        RelatingPort=self._port(f, a, "SOURCE"), RelatedPort=self._port(f, b, "SINK"))
+        self.assertEqual(extract.connections(f), [(a.GlobalId, b.GlobalId)])
+
+
+if __name__ == "__main__":
+    unittest.main()

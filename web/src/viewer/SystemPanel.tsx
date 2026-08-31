@@ -32,9 +32,38 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
   const gid = selection.length === 1 ? selection[0] : undefined
   const inSystems = useMemo(() => systems.filter(s => (members.get(s.id) ?? []).some(m => m.globalId === gid)), [systems, members, gid])
   const signal = inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
-  const trace = (dir: 'up' | 'down') => { if (!gid) return; setBusy(true); api(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}`).then(setRoute).finally(() => setBusy(false)) }
+  // 실무 IFC 는 계통(IfcSystem) 없이 포트 연결만 있는 경우가 많다 — 소속 계통이 없으면 scope=all 로 전체 연결 그래프를 탄다
+  const trace = (dir: 'up' | 'down') => { if (!gid) return; setBusy(true); api(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}${inSystems.length ? '' : '&scope=all'}`).then(setRoute).catch(() => setRoute(undefined)).finally(() => setBusy(false)) }
 
-  if (!systems.length) return <p style={{ color: '#888', padding: 8 }}>이 모델에는 설비 계통 정보가 없습니다.<br /><span style={{ fontSize: 12 }}>계통이 정의된 IFC 에서만 표시됩니다.</span></p>
+  const traceSection = <>
+      {!gid && <div style={{ color: '#888', fontSize: 12, padding: 6 }}>장비를 하나 선택하면 상류·하류를 추적할 수 있습니다.</div>}
+      {gid && <>
+        {systems.length > 0 && <div style={{ fontSize: 12, color: '#666', padding: '0 6px 6px' }}>선택 요소 계통: {inSystems.length ? inSystems.map(s => s.name).join(', ') : '없음 — 전체 연결에서 추적'}</div>}
+        <div style={{ display: 'flex', gap: 6, padding: '0 6px' }}>
+          {/* 신호 계통(화재감지)은 흐름이 감지기 → 수신기 라 라벨을 바꾼다 */}
+          <button disabled={busy} onClick={() => trace('up')} style={btn}><ArrowUpToLine size={13} /> {signal ? '감지기 쪽' : '상류 (원천까지)'}</button>
+          <button disabled={busy} onClick={() => trace('down')} style={btn}><ArrowDownToLine size={13} /> {signal ? '수신기까지' : '하류 (말단까지)'}</button>
+        </div>
+      </>}
+      {route && <div style={{ marginTop: 8, padding: 8, background: '#f5f5f5', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <b style={{ flex: 1 }}>{route.direction === 'up' ? (signal ? '감지기 쪽' : '상류 경로') : (signal ? '수신기까지 경로' : '하류 범위')} · {route.nodes.length}개</b>
+          <span title="경로만 보기" onClick={() => onSolo(`${route.direction === 'up' ? '상류' : '하류'} 경로`, route.nodes.map(n => n.globalId), 'route')} style={{ cursor: 'pointer', color: '#2563eb', display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
+          <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => setRoute(undefined)} />
+        </div>
+        {route.direction === 'up' || route.nodes.length <= 12
+          ? route.nodes.map(n => <RouteRow key={n.globalId} n={n} onClick={() => onSelect([n.globalId])} />)
+          : Object.entries(groupBy(route.nodes, n => n.ifcClass)).map(([cls, ns]) => <div key={cls} style={{ display: 'flex', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }} onClick={() => onSelect(ns.map(n => n.globalId))}>
+              <span style={{ flex: 1 }}>{cls.replace('Ifc', '')}</span><span style={{ color: '#888' }}>{ns.length}</span></div>)}
+      </div>}
+  </>
+
+  // 실무 IFC: 계통은 없어도 포트 연결이 있으면 추적은 가능
+  if (!systems.length) return (
+    <div style={{ padding: '4px 6px' }}>
+      <p style={{ color: '#888', padding: 8, margin: 0 }}>이 모델에는 계통(IfcSystem) 정보가 없습니다.<br /><span style={{ fontSize: 12 }}>연결(포트) 정보가 있으면 상류·하류 추적은 됩니다.</span></p>
+      {traceSection}
+    </div>)
   return (
     <div style={{ padding: '4px 6px' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', fontSize: 12, color: '#444' }}>
@@ -54,26 +83,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
         </div>) })}</div>)}
 
       <div style={{ borderTop: '1px solid #e5e5e5', margin: '8px 0' }} />
-      {!gid && <div style={{ color: '#888', fontSize: 12, padding: 6 }}>장비를 하나 선택하면 상류·하류를 추적할 수 있습니다.</div>}
-      {gid && <>
-        <div style={{ fontSize: 12, color: '#666', padding: '0 6px 6px' }}>선택 요소 계통: {inSystems.length ? inSystems.map(s => s.name).join(', ') : '없음'}</div>
-        <div style={{ display: 'flex', gap: 6, padding: '0 6px' }}>
-          {/* 신호 계통(화재감지)은 흐름이 감지기 → 수신기 라 라벨을 바꾼다 */}
-          <button disabled={!inSystems.length || busy} onClick={() => trace('up')} style={btn}><ArrowUpToLine size={13} /> {signal ? '감지기 쪽' : '상류 (원천까지)'}</button>
-          <button disabled={!inSystems.length || busy} onClick={() => trace('down')} style={btn}><ArrowDownToLine size={13} /> {signal ? '수신기까지' : '하류 (말단까지)'}</button>
-        </div>
-      </>}
-      {route && <div style={{ marginTop: 8, padding: 8, background: '#f5f5f5', borderRadius: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-          <b style={{ flex: 1 }}>{route.direction === 'up' ? (signal ? '감지기 쪽' : '상류 경로') : (signal ? '수신기까지 경로' : '하류 범위')} · {route.nodes.length}개</b>
-          <span title="경로만 보기" onClick={() => onSolo(`${route.direction === 'up' ? '상류' : '하류'} 경로`, route.nodes.map(n => n.globalId), 'route')} style={{ cursor: 'pointer', color: '#2563eb', display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
-          <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => setRoute(undefined)} />
-        </div>
-        {route.direction === 'up' || route.nodes.length <= 12
-          ? route.nodes.map(n => <RouteRow key={n.globalId} n={n} onClick={() => onSelect([n.globalId])} />)
-          : Object.entries(groupBy(route.nodes, n => n.ifcClass)).map(([cls, ns]) => <div key={cls} style={{ display: 'flex', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }} onClick={() => onSelect(ns.map(n => n.globalId))}>
-              <span style={{ flex: 1 }}>{cls.replace('Ifc', '')}</span><span style={{ color: '#888' }}>{ns.length}</span></div>)}
-      </div>}
+      {traceSection}
     </div>
   )
 }
