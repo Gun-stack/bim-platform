@@ -329,8 +329,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px', fontSize: 12, marginTop: 4 }}>
                 {selAsset ? <span style={{ whiteSpace: 'nowrap' }}><Tag size={11} style={{ verticalAlign: -1, color: '#2563eb' }} /> {selAsset.tag}</span> : <span style={{ color: '#999', whiteSpace: 'nowrap' }}><Tag size={11} style={{ verticalAlign: -1 }} /> 자산 미등록</span>}
                 {selAsset && (open.length ? <a href={`#/models/${modelId}/fm?wo=${open[0].id}`} title="칸반 보드에서 이 카드 열기" style={{ color: '#1d4ed8', textDecoration: 'none', whiteSpace: 'nowrap' }}><Wrench size={11} style={{ verticalAlign: -1 }} /> 작업지시 {open.length} · {open[0].assignee ?? <span style={{ color: '#b45309' }}>미배정</span>}{open[0].dueOn ? ` ~${day(open[0].dueOn)}` : ''}</a> : <span style={{ color: '#999', whiteSpace: 'nowrap' }}><Wrench size={11} style={{ verticalAlign: -1 }} /> 열린 작업지시 없음</span>)}
-                <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(detail.globalId)}`} title="모니터링에서 이 장비" style={{ marginLeft: 'auto', color: '#2563eb', fontSize: 11, textDecoration: 'none', whiteSpace: 'nowrap' }}>모니터링 →</a>
-                <a onClick={() => setTab('fm')} style={{ color: '#2563eb', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap' }}>자산·점검 →</a></div>
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, whiteSpace: 'nowrap' }}>{/* 두 링크는 한 묶음 — 좁으면 같이 다음 줄 오른쪽으로 */}
+                  <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(detail.globalId)}`} title="모니터링에서 이 장비" style={{ color: '#2563eb', fontSize: 11, textDecoration: 'none' }}>모니터링 →</a>
+                  <a onClick={() => setTab('fm')} style={{ color: '#2563eb', cursor: 'pointer', fontSize: 11 }}>자산·점검 →</a></span></div>
             </div>) })()}
           <div style={{ display: 'flex', borderBottom: '1px solid #e5e5e5', marginBottom: 10 }}>
             {(['props', 'fm'] as const).map(t => <button key={t} onClick={() => setTab(t)}
