@@ -82,7 +82,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
 
       {toast && <div role="status" style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', background: toast.error ? '#b91c1c' : '#1f2937', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, display: 'flex', gap: 12, alignItems: 'center', boxShadow: '0 6px 20px #0004', zIndex: 50 }}>
         <span>{toast.msg}</span>{toast.undo && <button onClick={() => { toast.undo!(); setToast(undefined) }} style={{ ...btn, background: 'transparent', color: '#93c5fd', border: '1px solid #93c5fd', padding: '2px 8px' }}>되돌리기</button>}</div>}
-      {open && <Drawer w={wos.find(x => x.id === open.id) ?? open} modelId={modelId} viewerUrl={viewerUrl(open)} onClose={() => setOpen(undefined)} reload={reload} move={move} />}
+      {open && <Drawer key={open.id} w={wos.find(x => x.id === open.id) ?? open} modelId={modelId} viewerUrl={viewerUrl(open)} onClose={() => setOpen(undefined)} reload={reload} move={move} />}
       {creating && <CreateModal assets={assets} onClose={() => setCreating(false)} reload={reload} />}
     </div>
   )
