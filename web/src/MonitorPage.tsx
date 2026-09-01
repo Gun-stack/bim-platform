@@ -66,7 +66,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const storeys = storeyList.map(e => e[0]).filter(s => !storeyF || s === storeyF)
   const visibleTeams = TEAMS.filter(t => !team || t.key === team)
   const dead = (r: Row) => unpowered.has(r.globalId)
-  const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (mode === 'all' || (mode === 'equipment' ? !!r.status || rank(r, dead(r)) < 9 : rank(r, dead(r)) < 9))).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (a.zone ?? '').localeCompare(b.zone ?? '') || a.name.localeCompare(b.name))
+  const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (mode === 'all' || (mode === 'equipment' ? !!r.status || !!r.assetId || rank(r, dead(r)) < 9 : rank(r, dead(r)) < 9))).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (a.zone ?? '').localeCompare(b.zone ?? '') || a.name.localeCompare(b.name))
   const kpi = (t: typeof TEAMS[number]) => { const rs = rows.filter(r => teamOf(r)?.key === t.key); return { total: rs.length, alarm: rs.filter(r => r.status?.Status === 'ALARM').length, fault: rs.filter(r => r.status?.Status === 'FAULT').length, wo: rs.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), assets: rs.filter(r => r.assetId).length, dead: rs.filter(r => unpowered.has(r.globalId)).length, due: rs.filter(overdue).length } }
   const val = (prefix: string, key: string) => rows.find(r => r.name?.startsWith(prefix))?.status?.[key]
   /** 팀 카드의 대표 지표 — 정상일 때도 카드가 비지 않게 */
