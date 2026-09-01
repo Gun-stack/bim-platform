@@ -39,7 +39,7 @@ class MonitorController {
 			  LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
 			  LEFT JOIN asset a ON a.element_id = e.id
 			 WHERE e.model_id = :id
-			   AND (:seg OR e.ifc_class NOT IN ('IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment'))
+			   AND (:seg OR e.ifc_class NOT IN ('IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment', 'IfcFlowSegment', 'IfcFlowFitting'))
 			 GROUP BY e.id, sn.id, st.id, a.id
 			 ORDER BY coalesce(st.elevation, sn.elevation) DESC NULLS LAST, e.ifc_class, e.name""")
 			.param("id", id).param("seg", segments).query().listOfRows().stream().map(r -> {

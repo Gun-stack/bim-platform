@@ -34,4 +34,4 @@ curl -sL -o example-project-location.ifc "https://media.githubusercontent.com/me
 curl -L -o Duplex_Plumbing_20121113.ifc "https://media.githubusercontent.com/media/buildingsmart-community/Community-Sample-Test-Files/main/IFC%202.3.0.1%20(IFC%202x3)/Duplex%20Apartment/Duplex_Plumbing_20121113.ifc"
 ```
 
-IFC2x3 · 포트 970 · IfcRelConnectsPorts 485 · IfcSystem 0 — 계통 없이 추적 폴백까지 확인 가능한 파일입니다.
+IFC2x3 · 포트 970 · IfcRelConnectsPorts 485 · IfcSystem 0 — 포트 연결 변환과 Pset(System Classification) 계통 유도(7계통), 계통 없는 추적 폴백까지 확인 가능한 파일입니다.

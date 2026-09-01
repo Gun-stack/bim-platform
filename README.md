@@ -174,6 +174,6 @@ compose.yaml  로컬 실행 환경
 
 ## 현재 범위와 다음 단계
 
-- ~~실무 IFC의 `IfcDistributionPort` / `IfcRelConnectsPorts` 변환~~ — 완료. 포트 연결을 방향 그래프로 변환(FlowDirection 기준)하고, 계통(IfcSystem)이 없는 실무 파일도 뷰어에서 상류·하류 추적이 됩니다. Revit 출력 Duplex Plumbing(IFC2x3, 포트 970·연결 485)으로 검증
+- ~~실무 IFC의 `IfcDistributionPort` / `IfcRelConnectsPorts` 변환~~ — 완료. 포트 연결을 방향 그래프로 변환(FlowDirection 기준)하고, 계통(IfcSystem)이 없는 레빗 파일은 Pset(System Classification)로 계통을 유도해 추적·모니터링·팀 분류·자산 일괄 등록까지 동작합니다. Revit 출력 Duplex Plumbing(IFC2x3, 포트 970·연결 485 → 유도 계통 7·자산 40)으로 검증
 - 인증·권한 관리와 외부 공개 배포 구성
 - 대규모 모델을 위한 3D Tiles와 확장성 검증

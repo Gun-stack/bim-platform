@@ -39,13 +39,38 @@ def elements(f):
     return rows
 
 
+_NOT_A_SYSTEM = {"", "Undefined", "Other", "Global", "Fitting"}
+_DERIVED_TYPE = {"SANITARY": "WASTEWATER", "HYDRONICSUPPLY": "CHILLEDWATER", "HYDRONICRETURN": "CHILLEDWATER",
+                 "POWER": "ELECTRICAL", "VENT": "VENTILATION"}
+
+
+def _derived_type(name):
+    key = "".join(c for c in name.upper() if c.isalpha())
+    return _DERIVED_TYPE.get(key, key)
+
+
 def systems(f):
-    """[(global_id, name, predefined_type, [member global_ids])] — IfcSystem/IfcDistributionSystem 과 IfcRelAssignsToGroup"""
+    """[(global_id, name, predefined_type, [member global_ids])] — IfcSystem/IfcDistributionSystem 과 IfcRelAssignsToGroup.
+    실무 IFC(레빗)는 IfcSystem 없이 Pset 'System Classification' 만 남기는 경우가 많다 — 그때는 그 값별로 계통을 유도한다
+    (쉼표 다중값 분리, Undefined 류 제외). 유도 계통의 global_id 는 이름 기반이라 재변환에도 안정적."""
     out = []
     for s in f.by_type("IfcSystem"):
         members = [o.GlobalId for rel in (s.IsGroupedBy or ()) for o in rel.RelatedObjects if o.is_a("IfcElement")]
         out.append((s.GlobalId, s.Name, getattr(s, "PredefinedType", None), members))
-    return out
+    if out:
+        return out
+    groups = {}
+    for el in f.by_type("IfcElement"):
+        for props in ue.get_psets(el).values():
+            sc = props.get("System Classification")
+            if not sc:
+                continue
+            for name in str(sc).split(","):
+                name = name.strip()
+                if name and name not in _NOT_A_SYSTEM:
+                    groups.setdefault(name, {})[el.GlobalId] = None   # dict = 순서 보존 중복 제거
+            break
+    return [("derived-" + n.lower().replace(" ", "-"), n, _derived_type(n), list(m)) for n, m in sorted(groups.items())]
 
 
 def _port_host(port):

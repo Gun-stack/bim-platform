@@ -62,7 +62,7 @@ class FmService {
 			  LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
 			  LEFT JOIN asset a ON a.element_id = e.id
 			 WHERE e.model_id = :id AND a.id IS NULL
-			   AND e.ifc_class NOT IN ('IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment')
+			   AND e.ifc_class NOT IN ('IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment', 'IfcFlowSegment', 'IfcFlowFitting')
 			 ORDER BY e.ifc_class, e.name""").param("id", id).query().listOfRows();
 		var seq = new java.util.HashMap<String, Integer>();
 		int n = 0;

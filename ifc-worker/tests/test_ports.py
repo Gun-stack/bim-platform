@@ -65,3 +65,36 @@ class PortConnectionsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(ifcopenshell is None, "ifcopenshell not installed")
+class DerivedSystemsTest(unittest.TestCase):
+    """IfcSystem 이 없을 때 Pset 'System Classification' 값별 계통 유도."""
+
+    def _elem(self, f, name, sc=None):
+        el = f.create_entity("IfcPipeSegment", GlobalId=g(), Name=name)
+        if sc is not None:
+            ps = f.create_entity("IfcPropertySet", GlobalId=g(), Name="Mechanical", HasProperties=[
+                f.create_entity("IfcPropertySingleValue", Name="System Classification", NominalValue=f.create_entity("IfcLabel", sc))])
+            f.create_entity("IfcRelDefinesByProperties", GlobalId=g(), RelatedObjects=[el], RelatingPropertyDefinition=ps)
+        return el
+
+    def test_derives_groups_with_multivalue_and_type_mapping(self):
+        f = ifcopenshell.file(schema="IFC4")
+        a = self._elem(f, "A", "Sanitary")
+        b = self._elem(f, "B", "Domestic Cold Water,Sanitary")
+        self._elem(f, "C", "Undefined,Other")   # 제외 값만 → 계통 없음
+        sys = extract.systems(f)
+        self.assertEqual([(gid, n, t, sorted(m)) for gid, n, t, m in sys], [
+            ("derived-domestic-cold-water", "Domestic Cold Water", "DOMESTICCOLDWATER", [b.GlobalId]),
+            ("derived-sanitary", "Sanitary", "WASTEWATER", sorted([a.GlobalId, b.GlobalId])),
+        ])
+
+    def test_real_ifcsystem_suppresses_derivation(self):
+        f = ifcopenshell.file(schema="IFC4")
+        el = self._elem(f, "A", "Sanitary")
+        s = f.create_entity("IfcDistributionSystem", GlobalId=g(), Name="급수", PredefinedType="DOMESTICCOLDWATER")
+        f.create_entity("IfcRelAssignsToGroup", GlobalId=g(), RelatedObjects=[el], RelatingGroup=s)
+        sys = extract.systems(f)
+        self.assertEqual(len(sys), 1)
+        self.assertEqual(sys[0][1], "급수")   # 진짜 계통이 있으면 유도 안 함
