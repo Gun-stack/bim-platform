@@ -137,7 +137,7 @@ docker compose up -d --build --wait
 
 웹 화면: [http://localhost:5173](http://localhost:5173)
 
-> `.env.example`은 로컬 데모용입니다. 현재 사용자 인증·권한 관리가 구현되어 있지 않으므로 외부 공개가 아닌 **단일 사용자 데모**를 전제로 합니다.
+> `.env.example`은 로컬 데모용입니다. 외부에 열 때는 `.env`의 `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD`를 채우면 nginx가 화면·API·glb 전부에 Basic 인증을 겁니다(단일 계정 — 계정별 권한은 다음 단계). TLS는 앞단 리버스 프록시 몫이며, api·DB·MinIO 는 127.0.0.1 에만 바인딩됩니다.
 
 <details>
 <summary>샘플 IFC 생성과 BMS 이벤트 시뮬레이션</summary>
@@ -187,5 +187,5 @@ compose.yaml  로컬 실행 환경
 ## 현재 범위와 다음 단계
 
 - ~~실무 IFC의 `IfcDistributionPort` / `IfcRelConnectsPorts` 변환~~ — 완료. 포트 연결을 방향 그래프로 변환(FlowDirection 기준)하고, 계통(IfcSystem)이 없는 레빗 파일은 Pset(System Classification)로 계통을 유도해 추적·모니터링·팀 분류·자산 일괄 등록까지 동작합니다. Revit 출력 Duplex Plumbing(IFC2x3, 포트 970·연결 485 → 유도 계통 7·자산 40)과 Clinic HVAC(포트 7,390·연결 3,695 → 계통 7·장비 566, IFC2x3 일반 클래스를 타입으로 복원)으로 검증. 남은 관찰: 2x3 전기 모델은 회로 연결을 내보내지 않아 추적 불가(Clinic Electrical, 포트 0)
-- 인증·권한 관리와 외부 공개 배포 구성
+- 계정별 권한 관리(지금은 nginx Basic 단일 계정)와 외부 공개 배포 구성(TLS·도메인)
 - 대규모 모델을 위한 3D Tiles와 확장성 검증

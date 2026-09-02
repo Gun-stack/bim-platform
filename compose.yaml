@@ -72,6 +72,9 @@ services:
   web:
     build: ./web
     ports: ["5173:80"]
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}         # 둘 다 채우면 화면·API 에 Basic 인증 (외부 데모 배포용). 비우면 열림
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
     depends_on:
       api: { condition: service_healthy }
 
