@@ -11,13 +11,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 class FmController {
 	private final FmService service;
-	private final StatusService status;
-	FmController(FmService service, StatusService status) { this.service = service; this.status = status; }
+	FmController(FmService service) { this.service = service; }
 
 	@GetMapping("/models/{id}/assets") List<Map<String, Object>> assets(@PathVariable UUID id) { return service.assets(id); }
 	@PostMapping("/models/{id}/assets") @ResponseStatus(HttpStatus.CREATED) Map<String, Object> createAsset(@PathVariable UUID id, @RequestBody FmService.AssetIn in) { return service.createAsset(id, in); }
-	/** 일괄 등록 뒤 이미 이상 상태인 장비의 작업지시도 만든다(StatusService.sync) */
-	@PostMapping("/models/{id}/assets/bulk") Map<String, Object> bulk(@PathVariable UUID id) { var r = new java.util.HashMap<>(service.bulk(id)); r.put("sync", status.sync(id)); return r; }
+	@PostMapping("/models/{id}/assets/bulk") Map<String, Object> bulk(@PathVariable UUID id) { return service.bulk(id); }
 	@GetMapping("/assets/{id}") Map<String, Object> asset(@PathVariable UUID id) { return service.asset(id); }
 	@PatchMapping("/assets/{id}") Map<String, Object> patchAsset(@PathVariable UUID id, @RequestBody FmService.AssetPatch p) { return service.patchAsset(id, p); }
 	@DeleteMapping("/assets/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) void deleteAsset(@PathVariable UUID id) { service.deleteAsset(id); }

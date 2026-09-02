@@ -1,5 +1,6 @@
 package com.bim.api;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -16,8 +17,8 @@ class MapController {
 	/** 지도용 FeatureCollection: 풋프린트 있는 모델 (bbox 는 "minLon,minLat,maxLon,maxLat", 없으면 전체) */
 	@GetMapping("/map/footprints")
 	Map<String, Object> footprints(@RequestParam(required = false) String bbox) {
-		double[] b = bbox == null ? null : java.util.Arrays.stream(bbox.split(",")).mapToDouble(Double::parseDouble).toArray();
-		if (b != null && b.length != 4) throw new ProjectController.BadRequest("bbox=minLon,minLat,maxLon,maxLat");
+		double[] b = bbox == null ? null : Arrays.stream(bbox.split(",")).mapToDouble(Double::parseDouble).toArray();
+		if (b != null && b.length != 4) throw new ApiErrors.BadRequest("bbox=minLon,minLat,maxLon,maxLat");
 		var rows = db.sql("""
 			SELECT m.id, m.name, m.ifc_schema "ifcSchema", m.element_count "elementCount", m.status, p.name "projectName",
 			       m.map_conversion->>'source' "georefSource", m.map_conversion->>'crs' crs, (m.map_conversion->>'manual')::boolean manual,
@@ -41,7 +42,7 @@ class MapController {
 	record Pin(double lon, double lat, Double rotation) {}
 	@PutMapping("/models/{id}/footprint")
 	Map<String, Object> pin(@PathVariable UUID id, @RequestBody Pin p) {
-		if (Math.abs(p.lat()) > 90 || Math.abs(p.lon()) > 180) throw new ProjectController.BadRequest("lon/lat out of range");
+		if (Math.abs(p.lat()) > 90 || Math.abs(p.lon()) > 180) throw new ApiErrors.BadRequest("lon/lat out of range");
 		double rot = p.rotation() == null ? 0 : p.rotation();
 		int n = db.sql("""
 			WITH b AS (SELECT coalesce((map_conversion->'bbox'->>0)::float8, -10) x0, coalesce((map_conversion->'bbox'->>1)::float8, -10) y0,
@@ -54,7 +55,7 @@ class MapController {
 			  map_conversion = coalesce(map_conversion, '{}'::jsonb) || jsonb_build_object('source', 'manual', 'manual', true, 'lon', :lon, 'lat', :lat, 'rotation', :rot)
 			FROM b WHERE model.id = :id""")
 			.param("id", id).param("lon", p.lon()).param("lat", p.lat()).param("rot", rot).update();
-		if (n == 0) throw new ProjectController.NotFound("model " + id);
+		if (n == 0) throw new ApiErrors.NotFound("model " + id);
 		return db.sql("SELECT id, ST_AsGeoJSON(footprint)::text geom, map_conversion::text mc FROM model WHERE id = :id").param("id", id).query().listOfRows().stream()
 			.map(r -> Map.<String, Object>of("id", r.get("id"), "footprint", Json.parse((String) r.get("geom")), "mapConversion", Json.parse((String) r.get("mc")))).findFirst().orElseThrow();
 	}

@@ -6,14 +6,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /** COBie 축소 내보내기: Facility/Floor/Space/Type/Component/Job 시트를 CSV 로 담은 zip.
  *  COBie 2.4 의 시트·열 이름을 따르되 이 플랫폼이 가진 것만 채운다 (README "인수인계" 절).
@@ -27,7 +32,7 @@ class ExportController {
 	@GetMapping("/cobie")
 	ResponseEntity<byte[]> cobie(@PathVariable UUID id) throws IOException {
 		var m = db.sql("SELECT m.name, m.created_at::date co, p.name pj FROM model m JOIN project p ON p.id = m.project_id WHERE m.id = :id")
-			.param("id", id).query().listOfRows().stream().findFirst().orElseThrow(() -> new ProjectController.NotFound("model " + id));
+			.param("id", id).query().listOfRows().stream().findFirst().orElseThrow(() -> new ApiErrors.NotFound("model " + id));
 		Object co = m.get("co");
 		var out = new ByteArrayOutputStream();
 		try (var zip = new ZipOutputStream(out)) {
@@ -52,12 +57,8 @@ class ExportController {
 			sheet(zip, "Type", types);
 
 			var comps = start("Name", "CreatedOn", "TypeName", "Space", "Description", "TagNumber", "ExtIdentifier", "InstallationDate");
-			db.sql("""
-				SELECT a.tag, a.installed_on io, a.category, e.name en, e.global_id gid,
-				       coalesce(st.name, sn.name) storey, CASE WHEN sn.ifc_class = 'IfcSpace' THEN sn.name END zone
-				  FROM asset a LEFT JOIN element e ON e.id = a.element_id
-				  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
-				 WHERE a.model_id = :id ORDER BY a.tag""").param("id", id)
+			db.sql("SELECT a.tag, a.installed_on io, a.category, e.name en, e.global_id gid, " + Sql.STOREY_ZONE_COLS
+				+ " FROM asset a LEFT JOIN element e ON e.id = a.element_id " + Sql.STOREY_ZONE_JOIN + " WHERE a.model_id = :id ORDER BY a.tag").param("id", id)
 				.query().listOfRows().forEach(r -> comps.add(row(r.get("tag"), co, r.get("category"),
 					r.get("zone") != null ? r.get("zone") : r.get("storey"), r.get("en"), r.get("tag"), r.get("gid"), r.get("io"))));
 			sheet(zip, "Component", comps);
@@ -69,10 +70,7 @@ class ExportController {
 				.query().listOfRows().forEach(r -> jobs.add(row(r.get("title"), r.get("d"), "WorkOrder", r.get("status"), r.get("tag"), r.get("assignee"), r.get("due"))));
 			sheet(zip, "Job", jobs);
 		}
-		var h = new HttpHeaders();
-		h.setContentDisposition(ContentDisposition.attachment().filename("cobie-" + id + ".zip").build());
-		h.set(HttpHeaders.CONTENT_TYPE, "application/zip");
-		return new ResponseEntity<>(out.toByteArray(), h, org.springframework.http.HttpStatus.OK);
+		return download(out, "cobie-" + id + ".zip", "application/zip");
 	}
 
 	/** BCF 2.1 내보내기: 작업지시 → topic, 저장된 뷰포인트 → viewpoint.bcfv 카메라·선택 요소.
@@ -90,7 +88,7 @@ class ExportController {
 			for (var w : wos) {
 				String guid = String.valueOf(w.get("id"));
 				String vpGuid = UUID.nameUUIDFromBytes((guid + ":vp").getBytes(StandardCharsets.UTF_8)).toString();
-				@SuppressWarnings("unchecked") var vp = (java.util.Map<String, Object>) Json.parse((String) w.get("vp"));
+				@SuppressWarnings("unchecked") var vp = (Map<String, Object>) Json.parse((String) w.get("vp"));
 				String status = switch (String.valueOf(w.get("status"))) { case "IN_PROGRESS" -> "In Progress"; case "DONE" -> "Closed"; default -> "Active"; };
 				var m = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Markup><Topic Guid=\"%s\" TopicType=\"Issue\" TopicStatus=\"%s\">".formatted(guid, status));
 				m.append("<Title>").append(xml(w.get("title"))).append("</Title>");
@@ -106,13 +104,17 @@ class ExportController {
 				if (vp != null) entry(zip, guid + "/viewpoint.bcfv", bcfv(vpGuid, vp));
 			}
 		}
-		var h = new HttpHeaders();
-		h.setContentDisposition(ContentDisposition.attachment().filename("workorders-" + id + ".bcfzip").build());
-		h.set(HttpHeaders.CONTENT_TYPE, "application/octet-stream");
-		return new ResponseEntity<>(out.toByteArray(), h, org.springframework.http.HttpStatus.OK);
+		return download(out, "workorders-" + id + ".bcfzip", "application/octet-stream");
 	}
 
-	private static String bcfv(String guid, java.util.Map<String, Object> vp) {
+	private static ResponseEntity<byte[]> download(ByteArrayOutputStream body, String filename, String contentType) {
+		var h = new HttpHeaders();
+		h.setContentDisposition(ContentDisposition.attachment().filename(filename).build());
+		h.set(HttpHeaders.CONTENT_TYPE, contentType);
+		return new ResponseEntity<>(body.toByteArray(), h, HttpStatus.OK);
+	}
+
+	private static String bcfv(String guid, Map<String, Object> vp) {
 		var sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<VisualizationInfo Guid=\"" + guid + "\">");
 		if (vp.get("sel") instanceof List<?> sel && !sel.isEmpty()) {
 			sb.append("<Components><Selection>");

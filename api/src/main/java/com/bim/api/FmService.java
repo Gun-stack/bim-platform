@@ -1,88 +1,86 @@
 package com.bim.api;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.*;
-import tools.jackson.databind.ObjectMapper;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** FMS: 자산 → 점검 → 작업지시. 상태 enum 검증은 DB CHECK 가 한다. */
 @Service
 class FmService {
 	private final JdbcClient db;
-	private static final ObjectMapper JSON = new ObjectMapper();
-	FmService(JdbcClient db) { this.db = db; }
+	private final TransactionTemplate tx;
+	private final StatusService status;
+	FmService(JdbcClient db, TransactionTemplate tx, StatusService status) { this.db = db; this.tx = tx; this.status = status; }
 
 	// ---------- asset ----------
 	record AssetIn(String globalId, String tag, String category, LocalDate installedOn, Map<String, Object> attributes) {}
 
-	/** 모델의 자산 목록 (+ 연결 요소·최근 점검·열린 작업지시 수) */
+	/** 모델의 자산 목록 (+ 연결 요소·최근 점검·열린 작업지시 수·다음 점검일) */
 	List<Map<String, Object>> assets(UUID id) {
 		return db.sql("""
 			SELECT a.id, a.tag, a.category, a.status, a.installed_on "installedOn", a.attributes::text attributes,
 			       e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName",
-			       (SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id) "lastInspectedOn",
-			       (SELECT result FROM inspection i WHERE i.asset_id = a.id ORDER BY inspected_on DESC, id DESC LIMIT 1) "lastResult",
-			       (SELECT count(*) FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE') "openWorkOrders",
-			       CASE WHEN jsonb_exists(a.attributes, 'intervalMonths') THEN
-			         (coalesce((SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id), a.installed_on, CURRENT_DATE)
-			          + (a.attributes->>'intervalMonths')::int * interval '1 month')::date END "nextDueOn",
-			       coalesce(st.name, sn.name) storey, CASE WHEN sn.ifc_class = 'IfcSpace' THEN sn.name END zone
+			""" + Sql.ASSET_ROLLUP + "," + Sql.NEXT_DUE + "," + Sql.STOREY_ZONE_COLS + """
+
 			  FROM asset a LEFT JOIN element e ON e.id = a.element_id
-			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
+			""" + Sql.STOREY_ZONE_JOIN + """
+
 			 WHERE a.model_id = :id ORDER BY a.tag""").param("id", id).query().listOfRows().stream().map(FmService::json).toList();
 	}
 
 	/** 자산 등록. globalId 가 있으면 요소에 연결(없는 요소면 404). tag 중복은 409 */
 	Map<String, Object> createAsset(UUID id, AssetIn in) {
-		if (in.tag() == null || in.tag().isBlank()) throw new ProjectController.BadRequest("tag required");
+		if (in.tag() == null || in.tag().isBlank()) throw new ApiErrors.BadRequest("tag required");
 		Long elementId = null;
 		if (in.globalId() != null) elementId = db.sql("SELECT id FROM element WHERE model_id = :m AND global_id = :g").param("m", id).param("g", in.globalId())
-			.query(Long.class).optional().orElseThrow(() -> new ProjectController.NotFound("element " + in.globalId()));
+			.query(Long.class).optional().orElseThrow(() -> new ApiErrors.NotFound("element " + in.globalId()));
 		if (db.sql("SELECT count(*) FROM asset WHERE model_id = :m AND tag = :t").param("m", id).param("t", in.tag()).query(Long.class).single() > 0)
-			throw new Conflict("tag exists: " + in.tag());
+			throw new ApiErrors.Conflict("tag exists: " + in.tag());
 		UUID aid = db.sql("""
 			INSERT INTO asset (model_id, element_id, tag, category, installed_on, attributes)
 			VALUES (:m, :e, :t, :c, :d, :a::jsonb) RETURNING id""")
 			.param("m", id).param("e", elementId).param("t", in.tag()).param("c", in.category()).param("d", in.installedOn())
-			.param("a", JSON.writeValueAsString(in.attributes() == null ? Map.of() : in.attributes())).query(UUID.class).single();
+			.param("a", Json.write(in.attributes() == null ? Map.of() : in.attributes())).query(UUID.class).single();
 		return asset(aid);
 	}
 
-	/** 장비 일괄 자산 등록: 계통 멤버 중 배관·트레이·케이블을 뺀 요소 가운데 자산이 없는 것 전부. 태그 = 클래스 약어-층-순번 */
+	/** 장비 일괄 자산 등록: 계통 멤버 중 '선'(Sql.SEGMENT_CLASSES)을 뺀 요소 가운데 자산이 없는 것 전부. 태그 = 클래스 약어-층-순번.
+	 *  등록 뒤 이미 이상 상태인 장비의 작업지시도 만든다(StatusService.sync) */
 	Map<String, Object> bulk(UUID id) {
-		var rows = db.sql("""
-			SELECT DISTINCT e.id, e.global_id, e.ifc_class, e.name, coalesce(st.name, sn.name) storey
-			  FROM element e JOIN element_system es ON es.element_id = e.id
-			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id
-			  LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
-			  LEFT JOIN asset a ON a.element_id = e.id
-			 WHERE e.model_id = :id AND a.id IS NULL
-			   AND e.ifc_class NOT IN ('IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment', 'IfcFlowSegment', 'IfcFlowFitting')
-			 ORDER BY e.ifc_class, e.name""").param("id", id).query().listOfRows();
-		var seq = new java.util.HashMap<String, Integer>();
-		int n = 0;
-		for (var r : rows) {
-			String cls = ((String) r.get("ifc_class")).replace("Ifc", "");
-			String abbr = cls.replaceAll("[a-z]", ""); if (abbr.length() < 2) abbr = cls.substring(0, Math.min(3, cls.length())).toUpperCase();
-			String key = abbr + "-" + r.get("storey");
-			String tag = key + "-" + String.format("%02d", seq.merge(key, 1, Integer::sum));
-			db.sql("INSERT INTO asset (model_id, element_id, tag, category, attributes) VALUES (:m, :e, :t, :c, '{}'::jsonb) ON CONFLICT DO NOTHING")
-				.param("m", id).param("e", r.get("id")).param("t", tag).param("c", cls).update();
-			n++;
-		}
-		return Map.of("registered", n);
+		int n = tx.execute(st -> {
+			var rows = db.sql("""
+				SELECT DISTINCT e.id, e.global_id, e.ifc_class, e.name, coalesce(st.name, sn.name) storey
+				  FROM element e JOIN element_system es ON es.element_id = e.id
+				""" + Sql.STOREY_ZONE_JOIN + """
+
+				  LEFT JOIN asset a ON a.element_id = e.id
+				 WHERE e.model_id = :id AND a.id IS NULL AND e.ifc_class NOT IN """ + Sql.SEGMENT_CLASSES + """
+
+				 ORDER BY e.ifc_class, e.name""").param("id", id).query().listOfRows();
+			var seq = new HashMap<String, Integer>();
+			for (var r : rows) {
+				String cls = ((String) r.get("ifc_class")).replace("Ifc", "");
+				String abbr = cls.replaceAll("[a-z]", ""); if (abbr.length() < 2) abbr = cls.substring(0, Math.min(3, cls.length())).toUpperCase();
+				String key = abbr + "-" + r.get("storey");
+				String tag = key + "-" + String.format("%02d", seq.merge(key, 1, Integer::sum));
+				db.sql("INSERT INTO asset (model_id, element_id, tag, category, attributes) VALUES (:m, :e, :t, :c, '{}'::jsonb) ON CONFLICT DO NOTHING")
+					.param("m", id).param("e", r.get("id")).param("t", tag).param("c", cls).update();
+			}
+			return rows.size();
+		});
+		return Map.of("registered", n, "sync", status.sync(id));
 	}
 	Map<String, Object> asset(UUID id) {
 		var a = json(db.sql("""
 			SELECT a.id, a.model_id "modelId", a.tag, a.category, a.status, a.installed_on "installedOn", a.attributes::text attributes,
 			       e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName"
 			  FROM asset a LEFT JOIN element e ON e.id = a.element_id WHERE a.id = :id""").param("id", id).query().listOfRows()
-			.stream().findFirst().orElseThrow(() -> new ProjectController.NotFound("asset " + id)));
+			.stream().findFirst().orElseThrow(() -> new ApiErrors.NotFound("asset " + id)));
 		a.put("inspections", db.sql("SELECT id, inspected_on \"inspectedOn\", result, note FROM inspection WHERE asset_id = :id ORDER BY inspected_on DESC, id DESC").param("id", id).query().listOfRows());
 		a.put("workOrders", db.sql("SELECT id, title, status, assignee, due_on \"dueOn\", inspection_id \"inspectionId\", viewpoint::text viewpoint, created_at \"createdAt\" FROM work_order WHERE asset_id = :id ORDER BY created_at DESC")
 			.param("id", id).query().listOfRows().stream().map(w -> json(w, "viewpoint")).toList());
@@ -90,7 +88,7 @@ class FmService {
 	}
 
 	record AssetPatch(String status, String category, Integer intervalMonths) {}
-	/** intervalMonths: 점검 주기(개월). 0 이하는 해제. 다음 점검일 = 마지막 점검(없으면 설치일, 그것도 없으면 오늘) + 주기 */
+	/** intervalMonths: 점검 주기(개월). 0 이하는 해제. 다음 점검일 계산은 Sql.NEXT_DUE */
 	Map<String, Object> patchAsset(UUID id, AssetPatch p) {
 		db.sql("""
 			UPDATE asset SET status = coalesce(:s, status), category = coalesce(:c, category),
@@ -104,7 +102,7 @@ class FmService {
 	// ---------- inspection ----------
 	record InspectionIn(LocalDate inspectedOn, String result, String note) {}
 	Map<String, Object> inspect(UUID id, InspectionIn in) {
-		if (in.result() == null) throw new ProjectController.BadRequest("result OK|DEFECT required");
+		if (in.result() == null) throw new ApiErrors.BadRequest("result OK|DEFECT required");
 		return db.sql("""
 			INSERT INTO inspection (asset_id, inspected_on, result, note) VALUES (:a, coalesce(:d, CURRENT_DATE), :r, :n)
 			RETURNING id, asset_id "assetId", inspected_on "inspectedOn", result, note""")
@@ -119,23 +117,27 @@ class FmService {
 		return db.sql("""
 			SELECT w.id, w.title, w.status, w.priority, w.description, w.assignee, w.due_on "dueOn", w.inspection_id "inspectionId", w.viewpoint::text viewpoint, w.created_at "createdAt", w.updated_at "updatedAt",
 			       a.id "assetId", a.tag "assetTag", a.category "assetCategory", e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName",
-			       coalesce(st.name, sn.name) storey, CASE WHEN sn.ifc_class = 'IfcSpace' THEN sn.name END zone,
-			       (SELECT string_agg(s.name, ',' ORDER BY s.id) FROM element_system es JOIN system s ON s.id = es.system_id WHERE es.element_id = e.id) systems,
+			""" + Sql.STOREY_ZONE_COLS + "," + Sql.SYSTEMS_AGG + """
+			,
 			       (SELECT note FROM inspection i WHERE i.id = w.inspection_id) "inspectionNote"
 			  FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element e ON e.id = a.element_id
-			  LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id LEFT JOIN spatial_node st ON st.id = sn.parent_id AND st.ifc_class = 'IfcBuildingStorey'
+			""" + Sql.STOREY_ZONE_JOIN + """
+
 			 WHERE a.model_id = :id AND (:s::text IS NULL OR w.status = :s)
 			 ORDER BY CASE w.status WHEN 'OPEN' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END, CASE w.priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, w.due_on NULLS LAST, w.created_at DESC""")
-			.param("id", id).param("s", status).query().listOfRows().stream().map(w -> { json(w, "viewpoint"); w.put("systems", w.get("systems") == null ? List.of() : List.of(((String) w.get("systems")).split(","))); return w; }).toList();
+			.param("id", id).param("s", status).query().listOfRows().stream().map(w -> { json(w, "viewpoint"); w.put("systems", Sql.csv(w.get("systems"))); return w; }).toList();
 	}
 	Map<String, Object> createWorkOrder(UUID id, WorkOrderIn in) {
-		if (in.title() == null || in.title().isBlank()) throw new ProjectController.BadRequest("title required");
-		UUID wid = db.sql("""
-			INSERT INTO work_order (asset_id, inspection_id, title, assignee, due_on, viewpoint, priority, description)
-			VALUES (:a, :i, :t, :as, :d, :v::jsonb, coalesce(:p, 'NORMAL'), :desc) RETURNING id""")
-			.param("a", id).param("i", in.inspectionId()).param("t", in.title()).param("as", in.assignee()).param("d", in.dueOn()).param("p", in.priority()).param("desc", in.description())
-			.param("v", in.viewpoint() == null ? null : JSON.writeValueAsString(in.viewpoint())).query(UUID.class).single();
-		OpEvents.workOrder(db, wid);
+		if (in.title() == null || in.title().isBlank()) throw new ApiErrors.BadRequest("title required");
+		UUID wid = tx.execute(st -> {
+			UUID w = db.sql("""
+				INSERT INTO work_order (asset_id, inspection_id, title, assignee, due_on, viewpoint, priority, description)
+				VALUES (:a, :i, :t, :as, :d, :v::jsonb, coalesce(:p, 'NORMAL'), :desc) RETURNING id""")
+				.param("a", id).param("i", in.inspectionId()).param("t", in.title()).param("as", in.assignee()).param("d", in.dueOn()).param("p", in.priority()).param("desc", in.description())
+				.param("v", in.viewpoint() == null ? null : Json.write(in.viewpoint())).query(UUID.class).single();
+			OpEvents.workOrder(db, w);
+			return w;
+		});
 		return workOrder(wid);
 	}
 	Map<String, Object> workOrder(UUID id) {
@@ -143,14 +145,16 @@ class FmService {
 			SELECT w.id, w.title, w.status, w.priority, w.description, w.assignee, w.due_on "dueOn", w.inspection_id "inspectionId", w.viewpoint::text viewpoint, w.created_at "createdAt", w.updated_at "updatedAt",
 			       a.id "assetId", a.tag "assetTag", a.model_id "modelId", e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName"
 			  FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element e ON e.id = a.element_id WHERE w.id = :id""")
-			.param("id", id).query().listOfRows().stream().findFirst().orElseThrow(() -> new ProjectController.NotFound("work order " + id)), "viewpoint");
+			.param("id", id).query().listOfRows().stream().findFirst().orElseThrow(() -> new ApiErrors.NotFound("work order " + id)), "viewpoint");
 	}
 
 	record WorkOrderPatch(String status, String assignee, LocalDate dueOn, String priority, String description, String title) {}
 	Map<String, Object> patchWorkOrder(UUID id, WorkOrderPatch p) {
-		db.sql("UPDATE work_order SET status = coalesce(:s, status), assignee = coalesce(:a, assignee), due_on = coalesce(:d, due_on), priority = coalesce(:p, priority), description = coalesce(:desc, description), title = coalesce(:t, title), updated_at = now() WHERE id = :id")
-			.param("s", p.status()).param("a", p.assignee()).param("d", p.dueOn()).param("p", p.priority()).param("desc", p.description()).param("t", p.title()).param("id", id).update();
-		if (p.status() != null) OpEvents.workOrder(db, id);   // 상태 변경만 이벤트 — 설명·담당자 수정은 이력 잡음
+		tx.executeWithoutResult(st -> {
+			db.sql("UPDATE work_order SET status = coalesce(:s, status), assignee = coalesce(:a, assignee), due_on = coalesce(:d, due_on), priority = coalesce(:p, priority), description = coalesce(:desc, description), title = coalesce(:t, title), updated_at = now() WHERE id = :id")
+				.param("s", p.status()).param("a", p.assignee()).param("d", p.dueOn()).param("p", p.priority()).param("desc", p.description()).param("t", p.title()).param("id", id).update();
+			if (p.status() != null) OpEvents.workOrder(db, id);   // 상태 변경만 이벤트 — 설명·담당자 수정은 이력 잡음
+		});
 		return workOrder(id);
 	}
 
@@ -161,6 +165,4 @@ class FmService {
 		if (v != null) row.put(col, Json.parse((String) v));
 		return row;
 	}
-	@ResponseStatus(HttpStatus.CONFLICT)
-	static class Conflict extends RuntimeException { Conflict(String m) { super(m); } }
 }

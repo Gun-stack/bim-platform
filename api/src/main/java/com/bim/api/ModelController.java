@@ -34,7 +34,7 @@ class ModelController {
 	@ResponseStatus(HttpStatus.ACCEPTED)
 	Map<String, Object> upload(@PathVariable UUID pid, @RequestPart("file") MultipartFile file) throws IOException {
 		String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
-		if (!name.toLowerCase().endsWith(".ifc")) throw new ProjectController.BadRequest("only .ifc");
+		if (!name.toLowerCase().endsWith(".ifc")) throw new ApiErrors.BadRequest("only .ifc");
 		UUID id = UUID.randomUUID();
 		String key = "models/" + id + "/source.ifc";
 		Path tmp = Files.createTempFile("ifc", ".ifc");
@@ -53,7 +53,7 @@ class ModelController {
 			});
 		} catch (RuntimeException e) {
 			s3.deleteObject(b -> b.bucket(bucket).key(key));
-			if (e instanceof DataIntegrityViolationException) throw new ProjectController.NotFound("project " + pid);
+			if (e instanceof DataIntegrityViolationException) throw new ApiErrors.NotFound("project " + pid);
 			throw e;
 		}
 		return Map.of("id", id, "name", name, "status", "UPLOADED", "size", file.getSize());
@@ -84,7 +84,7 @@ class ModelController {
 	@PostMapping("/models/{id}/retry")
 	Map<String, Object> retry(@PathVariable UUID id) {
 		var m = find(id);
-		if (!"FAILED".equals(m.get("status"))) throw new ProjectController.BadRequest("not FAILED: " + m.get("status"));
+		if (!"FAILED".equals(m.get("status"))) throw new ApiErrors.BadRequest("not FAILED: " + m.get("status"));
 		tx.executeWithoutResult(st -> {
 			db.sql("UPDATE model SET status='UPLOADED' WHERE id=:id").param("id", id).update();
 			db.sql("INSERT INTO conversion_job (model_id) VALUES (:id)").param("id", id).update();
@@ -128,6 +128,6 @@ class ModelController {
 
 	private Map<String, Object> find(UUID id) {
 		return db.sql(SELECT + " WHERE m.id = :id").param("id", id).query().listOfRows().stream().findFirst()
-			.map(this::withGlbUrl).orElseThrow(() -> new ProjectController.NotFound("model " + id));
+			.map(this::withGlbUrl).orElseThrow(() -> new ApiErrors.NotFound("model " + id));
 	}
 }

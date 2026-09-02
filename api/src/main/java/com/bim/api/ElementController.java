@@ -55,7 +55,7 @@ class ElementController {
 	@GetMapping("/property-values")
 	List<Map<String, Object>> propertyValues(@PathVariable UUID id, @RequestParam String key) {
 		int dot = key.indexOf('.');
-		if (dot < 1) throw new ProjectController.BadRequest("key must be Pset.Property");
+		if (dot < 1) throw new ApiErrors.BadRequest("key must be Pset.Property");
 		return db.sql("""
 			SELECT global_id "globalId", properties #>> ARRAY[:pset, :prop] AS value
 			  FROM element WHERE model_id = :id AND properties #> ARRAY[:pset, :prop] IS NOT NULL""")
@@ -71,6 +71,6 @@ class ElementController {
 			 WHERE e.model_id = :id AND e.global_id = :gid""")
 			.param("id", id).param("gid", globalId).query().listOfRows().stream().findFirst()
 			.map(m -> { m.put("properties", Json.parse((String) m.get("properties"))); return m; })
-			.orElseThrow(() -> new ProjectController.NotFound("element " + globalId));
+			.orElseThrow(() -> new ApiErrors.NotFound("element " + globalId));
 	}
 }

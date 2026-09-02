@@ -40,7 +40,7 @@ class SystemController {
 	Map<String, Object> route(@PathVariable UUID id, @PathVariable String globalId, @RequestParam(defaultValue = "up") String dir, @RequestParam(name = "scope", defaultValue = "system") String dirScope) {
 		boolean up = !"down".equals(dir);
 		// 출발 요소가 속한 계통 안의 요소만 따라간다 — 소화펌프의 전원선(비상전원)까지 딸려오지 않게. scope=all 이면 전부
-		String scope = "all".equals(dirScope) ? "" : " JOIN element_system es ON es.element_id = e.id AND es.system_id IN (SELECT es0.system_id FROM element_system es0 JOIN element e0 ON e0.id = es0.element_id WHERE e0.model_id = :id AND e0.global_id = :gid)";
+		String scope = "all".equals(dirScope) ? "" : " JOIN element_system es ON es.element_id = e.id AND es.system_id IN " + Sql.SYSTEM_SCOPE;
 		String step = (up ? "JOIN connection c ON c.to_element_id = r.id JOIN element e ON e.id = c.from_element_id"
 		                  : "JOIN connection c ON c.from_element_id = r.id JOIN element e ON e.id = c.to_element_id") + scope;
 		var rows = db.sql("""
@@ -56,7 +56,7 @@ class SystemController {
 			  FROM r LEFT JOIN spatial_node sn ON sn.id = r.spatial_node_id
 			 ORDER BY r.id, r.depth""".formatted(step))
 			.param("id", id).param("gid", globalId).query().listOfRows();
-		if (rows.isEmpty()) throw new ProjectController.NotFound("element " + globalId);
+		if (rows.isEmpty()) throw new ApiErrors.NotFound("element " + globalId);
 		rows.sort((a, b) -> Integer.compare((int) a.get("depth"), (int) b.get("depth")));
 		var systems = db.sql("""
 			SELECT s.name FROM element_system es JOIN system s ON s.id = es.system_id JOIN element e ON e.id = es.element_id
