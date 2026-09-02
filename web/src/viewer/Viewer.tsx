@@ -8,6 +8,7 @@ import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
 import { STATUS, isAbnormal, statusHex, statusLabel } from '../status'
 import ObjectSummary from '../ObjectSummary'
 import { ifcKo } from '../ifcNames'
+import { notify, saveSnap } from '../context'
 import { day, useEsc } from '../ui'
 import FmPanel, { StatusBadge } from './FmPanel'
 import StatusEditor from './StatusEditor'
@@ -166,6 +167,17 @@ export default function Viewer({ modelId }: { modelId: string }) {
     else setDetails([])
   }, [selection, byGid, spaceGids, modelId, statusRows])
   useEffect(() => { scene.current?.setMerged(opts.merged) }, [opts.merged])
+  // 단일 선택 → URL ?sel= (replaceState: hashchange 가 안 나 딥링크 effect 재실행 없음) + 독 알림 + 0.7초 뒤 3D 스냅샷(핏/포커스 카메라가 자리잡은 뒤).
+  // loaded 가드: 딥링크 effect 가 ?sel= 을 먼저 소비한 뒤에만 URL 을 다시 쓴다. focus 만 지워 다음 "3D 위치" 클릭이 새 해시가 되게 (v/clip/wo/fm 은 유지)
+  useEffect(() => {
+    if (!loaded) return
+    const gid = selection.length === 1 && byGid.has(selection[0]) ? selection[0] : undefined
+    const p = new URLSearchParams(location.hash.split('?')[1] ?? ''); p.delete('focus'); if (gid) p.set('sel', gid); else p.delete('sel')
+    history.replaceState(null, '', `#/models/${modelId}${String(p) ? '?' + p : ''}`); notify()
+    if (!gid) return
+    const t = setTimeout(() => { const s = scene.current; if (s) { saveSnap(modelId, gid, s.snapshot(240, 150)); notify() } }, 700)
+    return () => clearTimeout(t)
+  }, [selection, byGid, modelId, loaded])
   const [gridCfg, setGridCfgState] = useState<{ plane: 'floor' | 'front' | 'side'; step: number }>(() => { const d = { plane: 'floor' as const, step: 1 }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.grid') ?? '{}') } } catch { return d } })
   const setGridCfg = (c: typeof gridCfg) => { setGridCfgState(c); try { localStorage.setItem('viewer.grid', JSON.stringify(c)) } catch { /* 저장 불가 환경 */ } }
   useEffect(() => { scene.current?.setGrid(opts.grid, gridCfg.plane, gridCfg.step) }, [opts.grid, gridCfg, bounds])   // bounds: 로드 뒤에야 크기·바닥을 안다
