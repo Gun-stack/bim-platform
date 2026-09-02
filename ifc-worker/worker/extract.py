@@ -57,7 +57,28 @@ def elements(f):
 _NOT_A_SYSTEM = {"", "Undefined", "Other", "Global", "Fitting"}
 # 레빗 System Classification → IfcDistributionSystemEnum 에 가까운 값 (뷰어 계통 색·아이콘이 이 값을 본다)
 _DERIVED_TYPE = {"SANITARY": "WASTEWATER", "HYDRONICSUPPLY": "CHILLEDWATER", "HYDRONICRETURN": "CHILLEDWATER",
-                 "POWER": "ELECTRICAL", "VENT": "VENTILATION", "SUPPLYAIR": "AIRCONDITIONING", "RETURNAIR": "AIRCONDITIONING", "EXHAUSTAIR": "VENTILATION"}
+                 "POWER": "ELECTRICAL", "VENT": "VENTILATION", "SUPPLYAIR": "AIRCONDITIONING", "RETURNAIR": "AIRCONDITIONING", "EXHAUSTAIR": "VENTILATION",
+                 "RECEPTACLE": "ELECTRICAL", "EMERGENCYPOWER": "ELECTRICAL", "APPLIANCE": "ELECTRICAL", "COOLING": "CHILLEDWATER"}
+
+
+def _pset_systems(psets):
+    """요소 하나가 속한 계통 이름들. 설비(Mechanical)는 'System Classification'(쉼표 다중값), 그게 없는 전기 요소는
+    'Load Classification'(예: 'Lighting - Dwelling Unit' → 'Lighting'). 'BackupSupplySystem'=YES 면 비상전원(Emergency Power)에도 넣는다."""
+    names = []
+    for props in psets.values():
+        sc = props.get("System Classification")
+        if sc:
+            names += [n.strip() for n in str(sc).split(",")]
+            break
+    else:
+        for props in psets.values():
+            lc = props.get("Load Classification")
+            if lc:
+                names.append(str(lc).split(" - ")[0].strip())
+                break
+    if any(str(p.get("BackupSupplySystem", "")).upper() == "YES" for p in psets.values()):
+        names.append("Emergency Power")
+    return [n for n in names if n and n not in _NOT_A_SYSTEM]
 
 
 def _derived_type(name):
@@ -67,8 +88,8 @@ def _derived_type(name):
 
 def systems(f):
     """[(global_id, name, predefined_type, [member global_ids])] — IfcSystem/IfcDistributionSystem 과 IfcRelAssignsToGroup.
-    실무 IFC(레빗)는 IfcSystem 없이 Pset 'System Classification' 만 남기는 경우가 많다 — 그때는 그 값별로 계통을 유도한다
-    (쉼표 다중값 분리, Undefined 류 제외). 유도 계통의 global_id 는 이름 기반이라 재변환에도 안정적."""
+    실무 IFC(레빗)는 IfcSystem 없이 Pset 만 남기는 경우가 많다 — 그때는 Pset 값별로 계통을 유도한다(_pset_systems).
+    유도 계통의 global_id 는 이름 기반이라 재변환에도 안정적."""
     out = []
     for s in f.by_type("IfcSystem"):
         members = [o.GlobalId for rel in (s.IsGroupedBy or ()) for o in rel.RelatedObjects if o.is_a("IfcElement")]
@@ -77,15 +98,8 @@ def systems(f):
         return out
     groups = {}
     for el in f.by_type("IfcElement"):
-        for props in ue.get_psets(el).values():
-            sc = props.get("System Classification")
-            if not sc:
-                continue
-            for name in str(sc).split(","):
-                name = name.strip()
-                if name and name not in _NOT_A_SYSTEM:
-                    groups.setdefault(name, {})[el.GlobalId] = None   # dict = 순서 보존 중복 제거
-            break
+        for name in _pset_systems(ue.get_psets(el)):
+            groups.setdefault(name, {})[el.GlobalId] = None   # dict = 순서 보존 중복 제거
     return [("derived-" + n.lower().replace(" ", "-"), n, _derived_type(n), list(m)) for n, m in sorted(groups.items())]
 
 

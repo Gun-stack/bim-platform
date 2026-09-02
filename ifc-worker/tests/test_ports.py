@@ -95,6 +95,22 @@ class DerivedSystemsTest(unittest.TestCase):
         self.assertEqual(len(sys), 1)
         self.assertEqual(sys[0][1], "급수")   # 진짜 계통이 있으면 유도 안 함
 
+    def test_electrical_load_classification_and_backup_supply(self):
+        f = ifcopenshell.file(schema="IFC2X3")
+        def elem(name, **props):
+            el = f.create_entity("IfcFlowTerminal", GlobalId=g(), Name=name)
+            for ps_name, kv in props.items():
+                ps = f.create_entity("IfcPropertySet", GlobalId=g(), Name=ps_name, HasProperties=[
+                    f.create_entity("IfcPropertySingleValue", Name=k, NominalValue=f.create_entity("IfcLabel", v)) for k, v in kv.items()])
+                f.create_entity("IfcRelDefinesByProperties", GlobalId=g(), RelatedObjects=[el], RelatingPropertyDefinition=ps)
+            return el
+        light = elem("조명", Electrical={"Load Classification": "Lighting - Dwelling Unit"}, Other={"BackupSupplySystem": "YES"})
+        outlet = elem("콘센트", Electrical={"Load Classification": "Receptacle"}, Other={"BackupSupplySystem": "NO"})
+        fan = elem("팬", Mechanical={"System Classification": "Supply Air"}, Electrical={"Load Classification": "Cooling"})   # 설비 값이 있으면 전기 부하 분류는 안 씀
+        sys = {n: (t, sorted(m)) for _, n, t, m in extract.systems(f)}
+        self.assertEqual(sys, {"Lighting": ("LIGHTING", [light.GlobalId]), "Emergency Power": ("ELECTRICAL", [light.GlobalId]),
+                               "Receptacle": ("ELECTRICAL", [outlet.GlobalId]), "Supply Air": ("AIRCONDITIONING", [fan.GlobalId])})
+
     def test_hvac_classifications_map_to_standard_types(self):
         self.assertEqual([extract._derived_type(n) for n in ("Supply Air", "Return Air", "Exhaust Air", "Domestic Cold Water")],
                          ["AIRCONDITIONING", "AIRCONDITIONING", "VENTILATION", "DOMESTICCOLDWATER"])
