@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { NavCube } from './NavCube'
+import { coverRect } from '../context'
 
 export type Kind = 'element' | 'space' | 'opening'
 const GID = /^[0-9A-Za-z_$]{22}$/
@@ -201,6 +202,15 @@ export class Scene3D {
   }
 
   bounds() { return { min: this.box.min.toArray(), max: this.box.max.toArray() } }
+
+  /** 현재 화면을 w×h JPEG dataURL 로 (가운데 크롭). render 직후 같은 태스크에서 읽으므로 preserveDrawingBuffer 가 필요 없다. 독·객체 패널의 썸네일용 */
+  snapshot(w: number, h: number) {
+    this.renderer.render(this.scene, this.camera)
+    const src = this.renderer.domElement, c = document.createElement('canvas'); c.width = w; c.height = h
+    const r = coverRect(src.width, src.height, w, h)
+    c.getContext('2d')!.drawImage(src, r.sx, r.sy, r.sw, r.sh, 0, 0, w, h)
+    return c.toDataURL('image/jpeg', 0.7)
+  }
 
   getView(): View { return { p: this.camera.position.toArray().map(n => +n.toFixed(2)), t: this.controls.target.toArray().map(n => +n.toFixed(2)) } }
   setView(v: View) { this.camera.position.fromArray(v.p); this.controls.target.fromArray(v.t); this.controls.update() }

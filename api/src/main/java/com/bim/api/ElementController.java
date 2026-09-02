@@ -66,11 +66,13 @@ class ElementController {
 	Map<String, Object> element(@PathVariable UUID id, @PathVariable String globalId) {
 		return db.sql("""
 			SELECT e.global_id "globalId", e.ifc_class "ifcClass", e.name, e.properties::text properties,
-			       s.id "spatialNodeId", s.ifc_class "spatialClass", s.name "spatialName"
+			       s.id "spatialNodeId", s.ifc_class "spatialClass", s.name "spatialName",
+			""" + Sql.SYSTEMS_AGG + """
+
 			  FROM element e LEFT JOIN spatial_node s ON s.id = e.spatial_node_id
 			 WHERE e.model_id = :id AND e.global_id = :gid""")
 			.param("id", id).param("gid", globalId).query().listOfRows().stream().findFirst()
-			.map(m -> { m.put("properties", Json.parse((String) m.get("properties"))); return m; })
+			.map(m -> { m.put("properties", Json.parse((String) m.get("properties"))); m.put("systems", Sql.csv(m.get("systems"))); return m; })
 			.orElseThrow(() -> new ApiErrors.NotFound("element " + globalId));
 	}
 }

@@ -4,7 +4,7 @@ export type Model = {
 }
 export type SpatialNode = { id: number; parentId: number | null; globalId: string; ifcClass: string; name: string | null; elevation: number | null }
 export type ElementRow = { globalId: string; ifcClass: string; name: string | null; spatialNodeId: number | null }
-export type ElementDetail = ElementRow & { properties: Record<string, Record<string, unknown>>; spatialClass?: string; spatialName?: string }
+export type ElementDetail = ElementRow & { properties: Record<string, Record<string, unknown>>; spatialClass?: string; spatialName?: string; systems?: string[] }
 
 /** REST 호출. 응답 타입은 호출부가 T 로 선언한다 — 서버 응답이 Map 이라 여기가 유일한 계약 */
 export const api = <T = unknown>(path: string, init?: RequestInit): Promise<T> => fetch('/api' + path, init).then(async r => {
