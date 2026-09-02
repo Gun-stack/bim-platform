@@ -24,8 +24,10 @@ except ImportError:
     minio.Minio = MagicMock
     sys.modules["minio"] = minio
 
-for dependency in ("worker.convert", "worker.extract", "worker.georef"):
-    if dependency not in sys.modules:
+for dependency in ("worker.convert", "worker.extract", "worker.georef"):   # ifcopenshell 없는 환경에서만 스텁 — 있으면 진짜를 쓴다 (test_ports)
+    try:
+        __import__(dependency)
+    except ImportError:
         sys.modules[dependency] = types.ModuleType(dependency)
 
 from worker import main
@@ -50,11 +52,7 @@ class JobLeaseTest(unittest.TestCase):
 
         conn.execute.assert_called_once_with(main.HEARTBEAT, (42, "owner-a"))
 
-    def test_recovery_uses_latest_heartbeat_and_fails_model(self):
-        self.assertIn("COALESCE(heartbeat_at, started_at)", main.RECOVER)
-        self.assertIn("UPDATE model m SET status='FAILED'", main.RECOVER)
-        self.assertIn("lease_owner = NULL", main.RECOVER)
-
+    # RECOVER 의 실제 동작은 api 의 ConversionJobIntegrationTests 가 이 파일의 SQL 을 읽어 Postgres 에서 검증한다
     def test_every_terminal_write_is_lease_fenced(self):
         self.assertIn("lease_owner=%s", main.FAIL_JOB)
         self.assertIn("lease_owner=%s", main.HEARTBEAT)

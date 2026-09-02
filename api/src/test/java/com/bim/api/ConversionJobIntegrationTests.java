@@ -4,7 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,20 +23,16 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 @SpringBootTest
 class ConversionJobIntegrationTests {
 
-	private static final String RECOVER_STALE_JOBS = """
-		WITH recovered AS (
-		  UPDATE conversion_job
-		     SET status = CASE WHEN attempts >= 3 THEN 'FAILED' ELSE 'PENDING' END,
-		         error = CASE WHEN attempts >= 3 THEN 'stale after ' || attempts || ' attempts' END,
-		         finished_at = CASE WHEN attempts >= 3 THEN now() END,
-		         lease_owner = NULL
-		   WHERE status='RUNNING'
-		     AND COALESCE(heartbeat_at, started_at) < now() - interval '10 minutes'
-		  RETURNING model_id, status
-		)
-		UPDATE model m SET status='FAILED'
-		 WHERE m.id IN (SELECT model_id FROM recovered WHERE status='FAILED')
-		""";
+	/** 워커의 RECOVER SQL 을 소스에서 그대로 읽는다 — 사본을 두면 워커가 바뀌어도 테스트가 계속 녹색이라 */
+	private static final String RECOVER_STALE_JOBS = workerSql();
+	private static String workerSql() {
+		try {
+			String py = Files.readString(Path.of("..", "ifc-worker", "worker", "main.py"));
+			var m = Pattern.compile("RECOVER = f\"\"\"(.*?)\"\"\"", Pattern.DOTALL).matcher(py);
+			if (!m.find()) throw new IllegalStateException("RECOVER not found in worker/main.py");
+			return m.group(1).replace("{MAX_ATTEMPTS}", "3").replace("{STALE}", "10 minutes");
+		} catch (IOException e) { throw new UncheckedIOException(e); }
+	}
 
 	@Autowired JdbcClient db;
 	@Autowired ModelController models;

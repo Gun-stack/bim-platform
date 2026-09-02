@@ -1,6 +1,11 @@
-"""conversion_job 폴링 루프."""
+"""conversion_job 폴링 루프: 잡 선점(FOR UPDATE SKIP LOCKED) → lease heartbeat → IFC 변환·추출 → 한 트랜잭션으로 공개.
+
+설정은 환경 변수 (기본값은 .env.example 참조). ifcopenshell 은 무거워서 실제로 변환할 때만 임포트한다 (테스트는 없이도 돈다)."""
+from __future__ import annotations   # 타입 힌트를 평가하지 않아 테스트 스텁(psycopg 없는 환경)에서도 임포트된다
+
 import logging
 import os
+import tempfile
 import threading
 import time
 import traceback
@@ -67,8 +72,8 @@ class LeaseLost(RuntimeError):
 
 
 class Heartbeat:
-    """Long native IFC operations cannot share their connection, so renew on a small side connection."""
-    def __init__(self, job_id, lease_owner):
+    """긴 네이티브 IFC 작업은 자기 커넥션을 못 쓰므로 작은 보조 커넥션으로 lease 를 갱신한다. 잡을 뺏기면 스레드가 스스로 멈춘다."""
+    def __init__(self, job_id: int, lease_owner: str):
         self.job_id = job_id
         self.lease_owner = lease_owner
         self.stop = threading.Event()
@@ -95,8 +100,9 @@ class Heartbeat:
                 log.warning("job %s heartbeat failed: %s", self.job_id, exc)
 
 
-def convert(conn, job_id, model_id, lease_owner):
-    import tempfile
+def convert(conn: psycopg.Connection, job_id: int, model_id: str, lease_owner: str) -> None:
+    """잡 하나 처리. glb 는 lease 별 키로 올리고, DB 포인터 변경은 lease 가 아직 내 것일 때만 한 트랜잭션으로.
+    lease 를 잃었으면 LeaseLost — 이 버전의 glb 는 아무도 참조하지 않으므로 지운다."""
     s3 = Minio(S3, access_key=os.environ.get("S3_ACCESS_KEY", "minio"), secret_key=os.environ.get("S3_SECRET_KEY", "minio123"), secure=S3_SECURE)
     ifc_key = conn.execute("SELECT ifc_key FROM model WHERE id=%s", (model_id,)).fetchone()[0]
     # A fenced-out worker may still finish native conversion. Never let it overwrite
@@ -106,11 +112,11 @@ def convert(conn, job_id, model_id, lease_owner):
     with tempfile.TemporaryDirectory() as d, Heartbeat(job_id, lease_owner):
         ifc, glb = os.path.join(d, "in.ifc"), os.path.join(d, "out.glb")
         s3.fget_object(BUCKET, ifc_key, ifc)
-        import ifcopenshell
+        import ifcopenshell   # 무거운 네이티브 모듈 — 변환할 때만
         f = ifcopenshell.open(ifc)
         total = max(1, sum(1 for p in f.by_type("IfcProduct") if p.Representation))
 
-        def progress(n):  # 기하 변환을 0~90% 로 본다
+        def progress(n: int) -> None:  # 기하 변환을 0~90% 로 본다
             if n % PROGRESS_EVERY == 0:
                 conn.execute("UPDATE conversion_job SET progress=%s, heartbeat_at=now() WHERE id=%s AND lease_owner=%s",
                              (min(90, n * 90 // total), job_id, lease_owner))
@@ -174,7 +180,8 @@ def convert(conn, job_id, model_id, lease_owner):
     log.info("job %s done: %s, %d spatial, %d elements, %d systems, %d connections, georef=%s", job_id, f.schema, len(spatial), len(elems), len(systems), len(conns), geo["source"] if geo else None)
 
 
-def run_once(conn):
+def run_once(conn: psycopg.Connection) -> bool:
+    """stale 잡 복구 → 잡 하나 선점·처리. 처리한 잡이 없으면 False (호출자가 잠깐 쉰다)"""
     with conn.transaction():
         conn.execute(RECOVER)
     with conn.transaction():
@@ -197,9 +204,10 @@ def run_once(conn):
     return True
 
 
-def main():
+def main() -> None:
+    """무한 폴링. DB 단절 등은 로그만 남기고 재접속한다"""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    import ifcopenshell
+    import ifcopenshell   # 무거운 네이티브 모듈 — 변환할 때만
     log.info("ifcopenshell %s, polling %s", ifcopenshell.version, DSN.split("@")[1])
     while True:
         try:

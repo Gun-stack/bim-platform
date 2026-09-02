@@ -63,10 +63,6 @@ class PortConnectionsTest(unittest.TestCase):
         self.assertEqual(extract.connections(f), [(a.GlobalId, b.GlobalId)])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 @unittest.skipIf(ifcopenshell is None, "ifcopenshell not installed")
 class DerivedSystemsTest(unittest.TestCase):
     """IfcSystem 이 없을 때 Pset 'System Classification' 값별 계통 유도."""
@@ -98,3 +94,7 @@ class DerivedSystemsTest(unittest.TestCase):
         sys = extract.systems(f)
         self.assertEqual(len(sys), 1)
         self.assertEqual(sys[0][1], "급수")   # 진짜 계통이 있으면 유도 안 함
+
+
+if __name__ == "__main__":
+    unittest.main()
