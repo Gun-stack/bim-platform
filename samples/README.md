@@ -46,4 +46,5 @@ curl -L -o Clinic_Electrical.ifc "https://media.githubusercontent.com/media/buil
 | 파일 | 크기 | 관찰 | 반영 |
 |---|---|---|---|
 | `Clinic_HVAC.ifc` | 27MB, mm | 포트 7,390 · IfcRelConnectsPorts 3,695 · IfcSystem 0 · 요소 3,704 이 전부 IfcFlowTerminal/Segment/Fitting 같은 **일반 클래스** (종류는 IfcAirTerminalType 등 타입에만) · System Classification = Supply Air / Return Air / Exhaust Air / Hydronic | 타입 이름으로 구체 클래스 복원(IfcAirTerminal·IfcDuctSegment·IfcFan·IfcChiller…), Supply/Return/Exhaust Air → 공조·환기 계통 타입, 피팅을 자산 제외 목록에 |
+| `Schependomlaan/Design model IFC/IFC Schependomlaan.ifc` (규모 측정용, 건축 47MB·요소 3,635) | 47MB | 변환 12.6초 · GLB 16.6MB · draw calls 4,671 | README "규모 측정" 절 |
 | `Clinic_Electrical.ifc` | 7MB | 포트·연결 0 (2x3 CV 는 전기 회로를 안 냄) · IfcFlowTerminal 2,081 = 조명 1,120 + 콘센트 961 · Pset `Electrical.Load Classification`·`Other.BackupSupplySystem` | 클래스 복원만(IfcLightFixture·IfcOutlet). 회로 기반 계통 유도는 보류 — 연결 정보 없이는 추적이 안 되므로 |

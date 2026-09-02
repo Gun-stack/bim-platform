@@ -128,6 +128,25 @@ project ─ model ─ element ─ asset ─┬─ inspection
 - **Frontend:** React 19, TypeScript, Vite 8, Three.js, MapLibre GL
 - **Quality / Ops:** JUnit 5, Testcontainers, Python unittest, Docker Compose, nginx
 
+## 규모 측정
+
+공개 샘플 중 가장 큰 것들로 어디가 먼저 막히는지 쟀습니다 (2026-09-02, 로컬 Docker, M-시리즈 맥, 헤드리스 Chrome 소프트웨어 렌더링이라 fps 는 제외).
+
+| 모델 | IFC | 요소 | 변환 → READY | GLB | 뷰어 로드 | draw calls (병합 전 → 후) |
+|---|---|---|---|---|---|---|
+| Schependomlaan (건축, IFC2x3) | 47 MB | 3,635 | 12.6 s | 16.6 MB | 3.4 s | 4,671 |
+| Clinic HVAC (설비, IFC2x3) | 27 MB | 3,704 | ~20 s | 36.1 MB | 3.4 s | 3,968 → **3** (병합 9 s) |
+| Clinic Electrical (전기, IFC2x3) | 6 MB | 2,118 | 8.3 s | 26 MB | 3.4 s | 5,055 |
+| 가상 건물 (IFC4) | 2 MB | 474 | 3 s | 3.3 MB | 2.9 s | 564 → 30 |
+
+먼저 막히는 곳 셋과 조치:
+
+- **모니터링 API가 자산 수에 비례** — 자산 566개 모델에서 130 ms. `EXPLAIN` 결과 inspection·work_order 의 FK 열에 인덱스가 없어 자산마다 seq scan(서브플랜 loops=566×4). V7 인덱스 4개로 **23 ms** (쿼리 415 → 16 ms).
+- **GLB 전송량** — 36 MB 는 로컬에선 0.2 s 지만 인터넷에선 병목. glTF 바이너리가 gzip 에 잘 눌려(36 → 5 MB, 0.15) nginx 에 `model/gltf-binary` 압축을 켰습니다. 전송 **7.3 MB**. Draco/meshopt 는 다음 단계.
+- **draw calls** — 요소당 메시 하나라 4~5천. 뷰어의 "병합 렌더"가 재질별로 합쳐 **3 개**로 줄이지만 4천 메시 병합에 9 s 가 걸리고 픽킹은 병합 범위 역추적으로 유지합니다. 기본은 끔(선택·격리가 잦은 편집 화면), 관제 벽면처럼 보기만 할 때 켭니다.
+
+요소 목록 API(527 KB / 29 ms)·공간 트리·계통 조회는 이 규모에서 병목이 아닙니다. 10만 요소·수백 MB 급은 3D Tiles 나 스트리밍 로드가 필요한 다른 문제라 여기서 다루지 않습니다.
+
 ## 빠른 실행
 
 ```bash
