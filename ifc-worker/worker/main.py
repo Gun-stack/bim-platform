@@ -1,4 +1,4 @@
-"""conversion_job 폴링 루프. ADR 0003."""
+"""conversion_job 폴링 루프."""
 import logging
 import os
 import threading

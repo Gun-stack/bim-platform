@@ -1,4 +1,4 @@
-"""IFC → glb. ADR 0005. 실행: python -m worker.convert in.ifc out.glb"""
+"""IFC → glb. 실행: python -m worker.convert in.ifc out.glb"""
 import math
 import multiprocessing
 import os
@@ -22,7 +22,7 @@ def to_glb(ifc_path, glb_path, on_progress=None):
     ser.setFile(f)
     ser.setUnitNameAndMagnitude("METER", 1.0)
     ser.writeHeader()
-    # 스레드당 메모리 ~+250MB (ifcopenshell-geom.md). 컨테이너 메모리 제한 시 GEOM_THREADS 로 낮춘다.
+    # 스레드당 메모리 ~+250MB. 컨테이너 메모리 제한 시 GEOM_THREADS 로 낮춘다.
     it = geom.iterator(s, f, int(os.environ.get("GEOM_THREADS", multiprocessing.cpu_count())))
     n = 0
     bb = [math.inf, math.inf, -math.inf, -math.inf]

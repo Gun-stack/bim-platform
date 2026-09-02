@@ -64,7 +64,7 @@ services:
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
-      # GEOM_THREADS: 4   # 기하 변환 스레드. 스레드당 ~200MB (docs/study/ifcopenshell-geom.md)
+      # GEOM_THREADS: 4   # 기하 변환 스레드. 스레드당 ~200MB
     depends_on:
       api: { condition: service_healthy }
 

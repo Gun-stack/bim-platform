@@ -10,7 +10,7 @@ import { api, post, type Model } from './api'
 
 type Feature = { type: 'Feature'; id: string; geometry: { type: 'Polygon'; coordinates: number[][][] }; properties: { name: string; georefSource: string | null; crs: string | null; manual: boolean | null; areaM2: number; lon: number; lat: number; elementCount: number } }
 
-/** #/map — 모든 모델의 풋프린트. 지리참조 없는 모델은 지도 클릭으로 배치(수동 핀). ADR 0004 */
+/** #/map — 모든 모델의 풋프린트. 지리참조 없는 모델은 지도 클릭으로 배치(수동 핀). */
 export default function MapPage() {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map>(null)

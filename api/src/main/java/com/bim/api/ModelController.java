@@ -17,7 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import software.amazon.awssdk.services.s3.S3Client;
 
-/** IFC 업로드 → MinIO → model + conversion_job. worker 가 잡을 집어간다 (ADR 0003). */
+/** IFC 업로드 → MinIO → model + conversion_job. worker 가 잡을 집어간다. */
 @RestController
 @RequestMapping("/api")
 class ModelController {
@@ -44,7 +44,7 @@ class ModelController {
 		} finally {
 			Files.deleteIfExists(tmp);
 		}
-		// S3 put 후 DB insert. DB 실패 시 객체 삭제 (ADR 0006 영향 절)
+		// S3 put 후 DB insert. DB 실패 시 객체 삭제
 		try {
 			tx.executeWithoutResult(st -> {
 				db.sql("INSERT INTO model (id, project_id, name, ifc_key) VALUES (:id, :pid, :name, :key)")

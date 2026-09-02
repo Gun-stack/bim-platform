@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.*;
 import tools.jackson.databind.ObjectMapper;
 
-/** FMS: 자산 → 점검 → 작업지시. 상태 enum 검증은 DB CHECK 가 한다 (02-data-model). */
+/** FMS: 자산 → 점검 → 작업지시. 상태 enum 검증은 DB CHECK 가 한다. */
 @Service
 class FmService {
 	private final JdbcClient db;

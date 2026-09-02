@@ -22,7 +22,7 @@ class ElementController {
 	}
 
 	/** 속성 제외한 가벼운 목록. storey 는 spatial_node.id — 그 아래 Space 까지 포함.
-	 *  limit/offset 은 선택(기본 전체) — 뷰어 트리는 전체가 필요하고 2만 요소 2.5MB/124ms 라 아직 페이징 안 함 (05-scale-and-security). 외부 연동·목록 UI 용. */
+	 *  limit/offset 은 선택(기본 전체) — 뷰어 트리는 전체가 필요하고 2만 요소 2.5MB/124ms 라 아직 페이징 안 함. 외부 연동·목록 UI 용. */
 	@GetMapping("/elements")
 	List<Map<String, Object>> elements(@PathVariable UUID id, @RequestParam(required = false) String ifcClass,
 	                                   @RequestParam(required = false) Long storey, @RequestParam(required = false) String q,
