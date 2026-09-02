@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { api } from './api'
 import { READINGS } from './readings'
 import { useEsc } from './ui'
+import { T } from './theme'
 
 type Pt = { at: string; data: Record<string, unknown> }
 type S = { at: number; v: number }[]
@@ -19,14 +20,14 @@ export default function TrendModal({ modelId, globalId, name, onClose }: { model
     return [...keys.entries()].filter(([, s]) => s.length >= 2).sort((a, b) => (READINGS[a[0]]?.order ?? 5) - (READINGS[b[0]]?.order ?? 5))
   }, [pts])
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', width: 'min(500px, 92vw)', maxHeight: '86vh', overflow: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.25)' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bg.surface, borderRadius: 12, padding: '14px 16px', width: 'min(500px, 92vw)', maxHeight: '86vh', overflow: 'auto', boxShadow: T.shadow }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <b style={{ fontSize: 14 }}>{name}</b><span style={{ color: '#888', fontSize: 12 }}>계측 트렌드</span>
-          <button onClick={onClose} aria-label="닫기" style={{ marginLeft: 'auto', border: 0, background: 'none', cursor: 'pointer', color: '#666', padding: 4 }}><X size={16} /></button>
+          <b style={{ fontSize: 14 }}>{name}</b><span style={{ color: T.ink[2], fontSize: 12 }}>계측 트렌드</span>
+          <button onClick={onClose} aria-label="닫기" style={{ marginLeft: 'auto', border: 0, background: 'none', cursor: 'pointer', color: T.ink[2], padding: 4 }}><X size={16} /></button>
         </div>
-        {pts === null ? <div style={{ color: '#999', padding: 20, fontSize: 13 }}>불러오는 중…</div>
-          : !series.length ? <div style={{ color: '#999', padding: 20, fontSize: 13 }}>계측 이력이 아직 없습니다.<br />상태 API(PATCH)로 값이 들어올 때마다 여기 쌓입니다.</div>
+        {pts === null ? <div style={{ color: T.ink[2], padding: 20, fontSize: 13 }}>불러오는 중…</div>
+          : !series.length ? <div style={{ color: T.ink[2], padding: 20, fontSize: 13 }}>계측 이력이 아직 없습니다.<br />상태 API(PATCH)로 값이 들어올 때마다 여기 쌓입니다.</div>
           : series.map(([k, s]) => <Chart key={k} k={k} s={s} />)}
       </div>
     </div>)
@@ -42,18 +43,18 @@ function Chart({ k, s }: { k: string; s: S }) {
   const y = (v: number) => max === min ? H / 2 : PY + (1 - (v - min) / (max - min)) * (H - PY * 2)
   const d = s.map((p, i) => `${i ? 'L' : 'M'}${x(p.at).toFixed(1)},${y(p.v).toFixed(1)}`).join('')
   const hi = hover === null ? null : s[hover], cur = hi ?? s[s.length - 1]
-  const lvl = (v: number) => r?.crit?.(v) ? '#b91c1c' : r?.warn?.(v) ? '#b45309' : '#1f2937'
+  const lvl = (v: number) => r?.crit?.(v) ? T.crit : r?.warn?.(v) ? T.warn : T.ink[1]
   const fmt = (v: number) => `${Number.isInteger(v) ? v : v.toFixed(1)}${r?.unit ?? ''}`
   const hhmm = (t: number) => new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
-        <b style={{ color: '#374151' }}>{r?.label ?? k}</b>
+        <b style={{ color: T.ink[1] }}>{r?.label ?? k}</b>
         <b style={{ color: lvl(cur.v), fontSize: 13 }}>{fmt(cur.v)}</b>
-        <span style={{ color: '#999' }}>{hi ? hhmm(hi.at) : '현재'}</span>
-        <span style={{ marginLeft: 'auto', color: '#999' }}>{fmt(min)}~{fmt(max)} · {s.length}건 · {hhmm(t0)}–{hhmm(t1)}</span>
+        <span style={{ color: T.ink[2] }}>{hi ? hhmm(hi.at) : '현재'}</span>
+        <span style={{ marginLeft: 'auto', color: T.ink[2] }}>{fmt(min)}~{fmt(max)} · {s.length}건 · {hhmm(t0)}–{hhmm(t1)}</span>
       </div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${r?.label ?? k} 트렌드`} style={{ display: 'block', background: '#f8fafc', borderRadius: 6, marginTop: 3, cursor: 'crosshair' }}
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${r?.label ?? k} 트렌드`} style={{ display: 'block', background: T.bg.raised, borderRadius: 6, marginTop: 3, cursor: 'crosshair' }}
            onMouseMove={e => { const b = e.currentTarget.getBoundingClientRect(); const t = t0 + Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)) * (t1 - t0)
              let best = 0; for (let i = 1; i < s.length; i++) if (Math.abs(s[i].at - t) < Math.abs(s[best].at - t)) best = i; setHover(best) }}
            onMouseLeave={() => setHover(null)}>

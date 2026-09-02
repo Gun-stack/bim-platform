@@ -1,3 +1,5 @@
+import { T } from './theme'
+
 /** Pset_BimStatus 계측값 사전 — 모니터 행·툴팁·속성 패널이 공유. order 가 작을수록 앞에(대표값). warn/crit 는 (값) => 이상 여부 */
 export type Reading = { label: string; unit?: string; order: number; warn?: (v: number) => boolean; crit?: (v: number) => boolean; fmt?: (v: unknown) => string }
 export const READINGS: Record<string, Reading> = {
@@ -59,4 +61,4 @@ export const readings = (st: Record<string, unknown> | null | undefined, name?: 
 }
 /** 행 인라인용: 이력성(order ≥ 4: 점검일·발생시각) 제외 */
 export const inlineReadings = (st: Record<string, unknown> | null | undefined, name?: string | null) => readings(st, name).filter(x => x.order < 4)
-export const LEVEL_COLOR = { ok: '#555', warn: '#b45309', crit: '#b91c1c' } as const
+export const LEVEL_COLOR = { ok: T.ink[2], warn: T.warn, crit: T.crit } as const

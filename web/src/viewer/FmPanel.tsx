@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, ClipboardList, Plus, Tag, Wrench } from 'luc
 import { api, post, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Viewpoint } from '../api'
 import { WO_STATUS, type WoStatus } from '../status'
 import { btn, day, inp as inpBase } from '../ui'
+import { T } from '../theme'
 
 /** 우측 "자산" 탭. 선택 요소 ↔ asset 연결, 점검·작업지시. 자산 목록은 모델 단위로 한 번 받아 globalId 로 찾는다. */
 export default function FmPanel({ modelId, selection, byGid, detail, assets, reload, viewpoint }: {
@@ -15,7 +16,7 @@ export default function FmPanel({ modelId, selection, byGid, detail, assets, rel
 
   if (selection.length > 1) return <Bulk selection={selection} byGid={byGid} byElement={byElement} modelId={modelId} run={run} err={err} />
   const gid = selection[0]
-  if (!gid || !byGid.has(gid)) return <p style={{ color: '#888' }}>요소를 선택하면 자산 등록·점검·작업지시를 기록할 수 있습니다.</p>
+  if (!gid || !byGid.has(gid)) return <p style={{ color: T.ink[2] }}>요소를 선택하면 자산 등록·점검·작업지시를 기록할 수 있습니다.</p>
   const asset = byElement.get(gid)
   return asset
     ? <AssetCard asset={asset} run={run} err={err} viewpoint={viewpoint} />
@@ -38,11 +39,11 @@ function Register({ gid, el, detail, modelId, run, err }: { gid: string; el: Ele
   const attrs = snapshot(detail)
   return (
     <form onSubmit={e => { e.preventDefault(); run(post(`/models/${modelId}/assets`, { globalId: gid, tag, category, attributes: attrs })) }}>
-      <div style={{ color: '#666', marginBottom: 8 }}>아직 자산으로 등록되지 않은 요소입니다.</div>
+      <div style={{ color: T.ink[2], marginBottom: 8 }}>아직 자산으로 등록되지 않은 요소입니다.</div>
       <Field label="자산 태그"><input value={tag} onChange={e => setTag(e.target.value)} required style={inp} /></Field>
       <Field label="분류"><input value={category} onChange={e => setCategory(e.target.value)} style={inp} /></Field>
       {Object.keys(attrs).length > 0 && <Field label="IFC 속성 가져오기">
-        <div style={{ fontSize: 12, color: '#555' }}>{Object.entries(attrs).map(([k, v]) => <div key={k}>{k}: <b>{String(v)}</b></div>)}</div></Field>}
+        <div style={{ fontSize: 12, color: T.ink[2] }}>{Object.entries(attrs).map(([k, v]) => <div key={k}>{k}: <b>{String(v)}</b></div>)}</div></Field>}
       <Err e={err} />
       <button type="submit" style={btnPrimary}><Tag size={13} /> 자산으로 등록</button>
     </form>
@@ -58,7 +59,7 @@ function Bulk({ selection, byGid, byElement, modelId, run, err }: { selection: s
   }
   return (
     <div>
-      <div style={{ color: '#666', marginBottom: 8 }}>{selection.length}개 선택 · 이미 자산 {done} · 미등록 {todo.length}</div>
+      <div style={{ color: T.ink[2], marginBottom: 8 }}>{selection.length}개 선택 · 이미 자산 {done} · 미등록 {todo.length}</div>
       <Field label="태그 접두사"><input value={prefix} onChange={e => setPrefix(e.target.value)} style={inp} /></Field>
       <Field label="분류 (비우면 종류명)"><input value={category} onChange={e => setCategory(e.target.value)} style={inp} /></Field>
       <Err e={err} />
@@ -78,47 +79,47 @@ function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Prom
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Tag size={16} style={{ color: '#2563eb' }} /><b style={{ fontSize: 15 }}>{asset.tag}</b><span style={{ color: '#666' }}>{asset.category}</span>
+        <Tag size={16} style={{ color: T.accent }} /><b style={{ fontSize: 15 }}>{asset.tag}</b><span style={{ color: T.ink[2] }}>{asset.category}</span>
         <select value={asset.status} onChange={e => run(post(`/assets/${asset.id}`, { status: e.target.value }, 'PATCH'))} style={{ marginLeft: 'auto', fontSize: 12 }}>
           <option value="ACTIVE">사용 중</option><option value="OUT_OF_SERVICE">고장/중지</option><option value="RETIRED">폐기</option></select>
       </div>
-      {Object.keys(asset.attributes).length > 0 && <div style={{ fontSize: 12, color: '#555', margin: '6px 0' }}>{Object.entries(asset.attributes).map(([k, v]) => <span key={k} style={{ marginRight: 8 }}>{k} <b>{String(v)}</b></span>)}</div>}
+      {Object.keys(asset.attributes).length > 0 && <div style={{ fontSize: 12, color: T.ink[2], margin: '6px 0' }}>{Object.entries(asset.attributes).map(([k, v]) => <span key={k} style={{ marginRight: 8 }}>{k} <b>{String(v)}</b></span>)}</div>}
       <Err e={err} />
 
-      <h4 style={h4}><ClipboardList size={13} /> 점검 {d && <span style={{ color: '#999', fontWeight: 400 }}>{d.inspections.length}</span>}</h4>
+      <h4 style={h4}><ClipboardList size={13} /> 점검 {d && <span style={{ color: T.ink[2], fontWeight: 400 }}>{d.inspections.length}</span>}</h4>
       <div style={{ display: 'flex', gap: 4 }}>
         <input value={note} onChange={e => setNote(e.target.value)} placeholder="메모 (선택)" style={{ ...inp, flex: 1 }} />
         <button onClick={() => inspect('OK')} style={btn} title="이상 없음"><CheckCircle2 size={13} color="#15803d" /> OK</button>
         <button onClick={() => inspect('DEFECT')} style={btn} title="결함"><AlertCircle size={13} color="#b91c1c" /> 결함</button>
       </div>
-      {d?.inspections.slice(0, 5).map(i => <div key={i.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '3px 0', borderTop: '1px solid #eee' }}>
-        <span style={{ color: '#888', width: 76 }}>{day(i.inspectedOn)}</span><b style={{ color: i.result === 'OK' ? '#15803d' : '#b91c1c', width: 48 }}>{i.result}</b><span style={{ color: '#555' }}>{i.note}</span></div>)}
+      {d?.inspections.slice(0, 5).map(i => <div key={i.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '3px 0', borderTop: `1px solid ${T.bg.line}` }}>
+        <span style={{ color: T.ink[2], width: 76 }}>{day(i.inspectedOn)}</span><b style={{ color: i.result === 'OK' ? T.ok : T.crit, width: 48 }}>{i.result}</b><span style={{ color: T.ink[2] }}>{i.note}</span></div>)}
 
-      <h4 style={h4}><Wrench size={13} /> 작업지시 {d && <span style={{ color: '#999', fontWeight: 400 }}>{d.workOrders.length}</span>}
+      <h4 style={h4}><Wrench size={13} /> 작업지시 {d && <span style={{ color: T.ink[2], fontWeight: 400 }}>{d.workOrders.length}</span>}
         <button onClick={() => setShowWo(!showWo)} style={{ ...btn, marginLeft: 'auto' }}><Plus size={12} /> 새 작업지시</button></h4>
-      {showWo && <div style={{ background: '#f7f7f7', padding: 8, borderRadius: 6, marginBottom: 6 }}>
+      {showWo && <div style={{ background: T.bg.raised, padding: 8, borderRadius: 6, marginBottom: 6 }}>
         <input value={wo.title} onChange={e => setWo({ ...wo, title: e.target.value })} placeholder="제목 *" style={{ ...inp, marginBottom: 4 }} />
         <div style={{ display: 'flex', gap: 4 }}>
           <input value={wo.assignee} onChange={e => setWo({ ...wo, assignee: e.target.value })} placeholder="담당" style={{ ...inp, flex: 1 }} />
           <input type="date" value={wo.dueOn} onChange={e => setWo({ ...wo, dueOn: e.target.value })} style={inp} />
         </div>
-        <div style={{ color: '#888', fontSize: 11, margin: '4px 0' }}>요소에 맞춘 카메라·선택·단면이 뷰포인트로 저장됩니다{d?.inspections[0]?.result === 'DEFECT' && ' · 최근 결함 점검에 연결'}</div>
+        <div style={{ color: T.ink[2], fontSize: 11, margin: '4px 0' }}>요소에 맞춘 카메라·선택·단면이 뷰포인트로 저장됩니다{d?.inspections[0]?.result === 'DEFECT' && ' · 최근 결함 점검에 연결'}</div>
         <button disabled={!wo.title} onClick={createWo} style={btnPrimary}>생성</button>
       </div>}
-      {d?.workOrders.map(w => <div key={w.id} style={{ fontSize: 12, padding: '5px 0', borderTop: '1px solid #eee' }}>
+      {d?.workOrders.map(w => <div key={w.id} style={{ fontSize: 12, padding: '5px 0', borderTop: `1px solid ${T.bg.line}` }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><StatusBadge s={w.status} /><span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={w.title}>{w.title}</span>
-          <span style={{ display: 'inline-flex', gap: 2 }}>{(['OPEN', 'IN_PROGRESS', 'DONE'] as const).map(st => <button key={st} disabled={w.status === st} onClick={() => run(post(`/work-orders/${w.id}`, { status: st }, 'PATCH')).then(load)} style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ddd', borderRadius: 999, background: w.status === st ? '#eef2ff' : '#fff', color: w.status === st ? '#1d4ed8' : '#555', cursor: w.status === st ? 'default' : 'pointer' }}>{WO_STATUS[st]}</button>)}</span></div>
-        <div style={{ color: '#888', fontSize: 11, marginTop: 2, paddingLeft: 2 }}>{w.assignee ? `담당 ${w.assignee}` : <span style={{ color: '#b45309' }}>미배정</span>}{w.dueOn ? ` · 기한 ${day(w.dueOn)}` : ''}{w.priority && w.priority !== 'NORMAL' ? ` · ${({ URGENT: '긴급', HIGH: '높음', LOW: '낮음' } as Record<string, string>)[w.priority] ?? w.priority}` : ''}</div></div>)}
+          <span style={{ display: 'inline-flex', gap: 2 }}>{(['OPEN', 'IN_PROGRESS', 'DONE'] as const).map(st => <button key={st} disabled={w.status === st} onClick={() => run(post(`/work-orders/${w.id}`, { status: st }, 'PATCH')).then(load)} style={{ fontSize: 11, padding: '1px 6px', border: `1px solid ${T.bg.line}`, borderRadius: 999, background: w.status === st ? T.accentSoft : T.bg.surface, color: w.status === st ? T.accent : T.ink[2], cursor: w.status === st ? 'default' : 'pointer' }}>{WO_STATUS[st]}</button>)}</span></div>
+        <div style={{ color: T.ink[2], fontSize: 11, marginTop: 2, paddingLeft: 2 }}>{w.assignee ? `담당 ${w.assignee}` : <span style={{ color: T.warn }}>미배정</span>}{w.dueOn ? ` · 기한 ${day(w.dueOn)}` : ''}{w.priority && w.priority !== 'NORMAL' ? ` · ${({ URGENT: '긴급', HIGH: '높음', LOW: '낮음' } as Record<string, string>)[w.priority] ?? w.priority}` : ''}</div></div>)}
     </div>
   )
 }
 
 export function StatusBadge({ s }: { s: WoStatus }) {
-  const c = { OPEN: ['#b91c1c', '#fee2e2'], IN_PROGRESS: ['#1d4ed8', '#dbe4ff'], DONE: ['#15803d', '#dcfce7'] }[s]
+  const c = { OPEN: [T.crit, T.critSoft], IN_PROGRESS: [T.accent, T.accentSoft], DONE: [T.ok, T.okSoft] }[s]
   return <span style={{ padding: '1px 7px', borderRadius: 999, background: c[1], color: c[0], fontSize: 11, whiteSpace: 'nowrap' }}>{WO_STATUS[s]}</span>
 }
-const Field = ({ label, children }: { label: string; children: React.ReactNode }) => <label style={{ display: 'block', marginBottom: 8 }}><div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>{label}</div>{children}</label>
-const Err = ({ e }: { e?: string }) => e ? <p style={{ color: '#b91c1c', fontSize: 12 }}>{e}</p> : null
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => <label style={{ display: 'block', marginBottom: 8 }}><div style={{ fontSize: 11, color: T.ink[2], marginBottom: 2 }}>{label}</div>{children}</label>
+const Err = ({ e }: { e?: string }) => e ? <p style={{ color: T.crit, fontSize: 12 }}>{e}</p> : null
 const inp = { ...inpBase, width: '100%', boxSizing: 'border-box' as const }
-const btnPrimary = { ...btn, background: '#2563eb', color: '#fff', border: 0 }
+const btnPrimary = { ...btn, background: T.accent, color: T.bg.base, border: 0 }
 const h4 = { display: 'flex', alignItems: 'center', gap: 6, margin: '14px 0 6px', fontSize: 13 }

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type React from 'react'
 import { GripVertical, type LucideIcon } from 'lucide-react'
+import { T } from '../theme'
 
 /** 캔버스 위에 얹는 순수 표시 부품: 플로팅 패널, 툴바 버튼, 구분선, 범위 슬라이더. 뷰어 상태를 모른다 */
 
@@ -28,8 +29,8 @@ export function Floating({ id, anchor, children }: { id: string; anchor: React.C
   }
   const reset = () => { setPos(null); try { localStorage.removeItem('viewer.float.' + id) } catch { /* 저장 불가 환경 */ } }
   return (
-    <div ref={ref} onPointerDown={onDown} style={{ position: 'absolute', display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', ...anchor, ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto', transform: 'none' } : {}), touchAction: 'none' }}>
-      <span title="드래그로 이동 · 더블클릭 원위치" onDoubleClick={reset} style={{ display: 'grid', cursor: 'grab', color: '#c8c8c8', flexShrink: 0 }}><GripVertical size={13} /></span>
+    <div ref={ref} onPointerDown={onDown} style={{ position: 'absolute', display: 'flex', alignItems: 'center', gap: 6, background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, ...anchor, ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto', transform: 'none' } : {}), touchAction: 'none' }}>
+      <span title="드래그로 이동 · 더블클릭 원위치" onDoubleClick={reset} style={{ display: 'grid', cursor: 'grab', color: T.bg.line, flexShrink: 0 }}><GripVertical size={13} /></span>
       {children}
     </div>
   )
@@ -40,14 +41,14 @@ export function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { i
   return <span style={{ position: 'relative', display: 'inline-block' }} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
     <button aria-label={label} onClick={onClick} disabled={disabled}
       style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', border: 0, borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
-               background: active ? '#2563eb' : hov && !disabled ? '#eef2ff' : 'transparent', color: active ? '#fff' : disabled ? '#c5c5c5' : '#333', transition: 'background .12s' }}>
+               background: active ? T.accent : hov && !disabled ? T.accentSoft : 'transparent', color: active ? T.bg.surface : disabled ? T.bg.line : T.ink[1], transition: 'background .12s' }}>
       <Icon size={18} strokeWidth={1.8} /></button>
-    {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: '#222', color: '#fff', padding: '4px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: '0 2px 6px #0003' }}>
-      {label}{disabled && hint && <span style={{ color: '#aaa' }}> · {hint}</span>}</span>}
+    {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: T.ink[1], color: T.ink[1], padding: '4px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: T.shadow }}>
+      {label}{disabled && hint && <span style={{ color: T.ink[3] }}> · {hint}</span>}</span>}
   </span>
 }
 
-export const Gap = () => <span style={{ width: 1, background: '#e3e3e3', margin: '6px 4px' }} />
+export const Gap = () => <span style={{ width: 1, background: T.bg.line, margin: '6px 4px' }} />
 
 /** 축 하나의 min/max 범위 슬라이더 (native range 두 개 겹침) */
 export function Axis({ name, min, max, lo, hi, onChange }: { name: string; min: number; max: number; lo: number; hi: number; onChange: (lo: number, hi: number) => void }) {
@@ -58,6 +59,6 @@ export function Axis({ name, min, max, lo, hi, onChange }: { name: string; min: 
       <input type="range" className="dual" min={min} max={max} step={0.05} value={lo} onChange={e => onChange(Math.min(+e.target.value, hi - 0.05), hi)} style={st} />
       <input type="range" className="dual hi" min={min} max={max} step={0.05} value={hi} onChange={e => onChange(lo, Math.max(+e.target.value, lo + 0.05))} style={st} />
     </div>
-    <span style={{ color: '#666', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{lo.toFixed(2)} ~ {hi.toFixed(2)} m</span>
+    <span style={{ color: T.ink[2], whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{lo.toFixed(2)} ~ {hi.toFixed(2)} m</span>
   </>
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { T } from '../theme'
 
 export type MenuItem = { icon?: LucideIcon; label: string; hint?: string; disabled?: boolean; onClick?: () => void } | 'sep'
 
@@ -16,9 +17,9 @@ export default function ContextMenu({ x, y, items, onClose }: { x: number; y: nu
   const left = Math.min(x, innerWidth - w - 8), top = Math.min(y, innerHeight - h - 8)
   return (
     <div ref={ref} onContextMenu={e => e.preventDefault()}
-         style={{ position: 'fixed', left, top, width: w, zIndex: 50, background: '#fff', borderRadius: 8, padding: 6, boxShadow: '0 4px 16px #0003, 0 0 0 1px #0000001a', fontSize: 13 }}>
+         style={{ position: 'fixed', left, top, width: w, zIndex: 50, background: T.bg.surface, borderRadius: 8, padding: 6, boxShadow: T.shadow, fontSize: 13 }}>
       {items.map((it, i) => it === 'sep'
-        ? <div key={i} style={{ height: 1, background: '#eee', margin: '5px 4px' }} />
+        ? <div key={i} style={{ height: 1, background: T.bg.line, margin: '5px 4px' }} />
         : <Item key={i} {...it} onClose={onClose} />)}
     </div>
   )
@@ -27,11 +28,11 @@ export default function ContextMenu({ x, y, items, onClose }: { x: number; y: nu
 function Item({ icon: Icon, label, hint, disabled, onClick, onClose }: Exclude<MenuItem, 'sep'> & { onClose: () => void }) {
   return (
     <div onClick={() => { if (disabled) return; onClick?.(); onClose() }}
-         style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 8px', borderRadius: 5, cursor: disabled ? 'default' : 'pointer', color: disabled ? '#bbb' : '#222' }}
-         onPointerEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.background = '#eef2ff' }} onPointerLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+         style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 8px', borderRadius: 5, cursor: disabled ? 'default' : 'pointer', color: disabled ? T.ink[3] : T.ink[1] }}
+         onPointerEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.background = T.accentSoft }} onPointerLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
       <span style={{ width: 16, display: 'grid', placeItems: 'center' }}>{Icon && <Icon size={15} />}</span>
       <span style={{ flex: 1 }}>{label}</span>
-      {hint && <span style={{ color: '#999', fontSize: 11 }}>{hint}</span>}
+      {hint && <span style={{ color: T.ink[2], fontSize: 11 }}>{hint}</span>}
     </div>
   )
 }

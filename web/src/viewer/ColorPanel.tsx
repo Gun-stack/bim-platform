@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Focus, X } from 'lucide-react'
 import { api, type ElementRow, type SpatialNode } from '../api'
 import { STATUS, hex } from '../status'
+import { T } from '../theme'
 
 /** 카테고리 팔레트 (Tableau 10 + 2). 값이 더 많으면 순환 */
 const PALETTE = [0x4e79a7, 0xf28e2b, 0xe15759, 0x76b7b2, 0x59a14f, 0xedc948, 0xb07aa1, 0xff9da7, 0x9c755f, 0xbab0ac, 0x1b9e77, 0x7570b3]
@@ -49,10 +50,10 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
   const uncolored = elements.length - legend.reduce((n, l) => n + l.gids.length, 0)
 
   return (
-    <div style={{ position: 'absolute', top: 8, left: 8, width: 260, background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxHeight: 'calc(100% - 70px)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: '1px solid #eee' }}>
+    <div style={{ position: 'absolute', top: 8, left: 8, width: 260, background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxHeight: 'calc(100% - 70px)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: `1px solid ${T.bg.line}` }}>
         <b style={{ flex: 1 }}>속성별 색상</b>
-        <X size={14} style={{ cursor: 'pointer', color: '#666' }} onClick={onClose} />
+        <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={onClose} />
       </div>
       <div style={{ padding: '8px 10px' }}>
         <select value={key} onChange={e => setKey(e.target.value)} style={{ width: '100%', fontSize: 12 }}>
@@ -65,10 +66,10 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
         </select>
       </div>
       <div style={{ overflow: 'auto', padding: '0 6px 8px' }}>
-        {!values && <div style={{ color: '#999', padding: 6 }}>불러오는 중…</div>}
+        {!values && <div style={{ color: T.ink[2], padding: 6 }}>불러오는 중…</div>}
         {legend.map(l => <LegendRow key={l.value} {...l} onSolo={() => onSolo(`${key} = ${l.value}`, l.gids)} />)}
-        {values && uncolored > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', color: '#888' }}>
-          <span style={{ width: 12, height: 12, borderRadius: 3, background: '#d8d8d8' }} /> <span style={{ flex: 1 }}>값 없음</span> {uncolored}</div>}
+        {values && uncolored > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', color: T.ink[2] }}>
+          <span style={{ width: 12, height: 12, borderRadius: 3, background: T.bg.line }} /> <span style={{ flex: 1 }}>값 없음</span> {uncolored}</div>}
       </div>
     </div>
   )
@@ -77,10 +78,10 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
 function LegendRow({ value, color, gids, onSolo }: { value: string; color: number; gids: string[]; onSolo: () => void }) {
   const [hov, setHov] = useState(false)
   return <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)} onClick={onSolo} title="클릭: 이 값만 보기"
-    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', borderRadius: 4, background: hov ? '#eef2ff' : 'transparent', cursor: 'pointer' }}>
+    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', borderRadius: 4, background: hov ? T.accentSoft : 'transparent', cursor: 'pointer' }}>
     <span style={{ width: 12, height: 12, borderRadius: 3, background: hex(color), flexShrink: 0 }} />
     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
-    <span style={{ color: '#888' }}>{gids.length}</span>
-    <Focus size={12} style={{ color: hov ? '#2563eb' : 'transparent' }} />
+    <span style={{ color: T.ink[2] }}>{gids.length}</span>
+    <Focus size={12} style={{ color: hov ? T.accent : 'transparent' }} />
   </div>
 }

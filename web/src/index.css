@@ -1,0 +1,16 @@
+/* theme.ts 의 사본 — body·스크롤바·서드파티(maplibre) CSS 용. TSX 인라인 style 은 theme.ts 의 T 를 쓴다 (theme.test.ts 가 두 사본의 일치를 검사) */
+:root { color-scheme: dark; --bg-base: #121417; --bg-surface: #1a1d22; --bg-raised: #23272e; --bg-line: #2f343c; --ink-1: #e6e8eb; --ink-2: #a3a9b3; --ink-3: #7c8390; --accent: #7aa2f7; --crit: #e5675f }
+body { margin: 0; background: var(--bg-base); color: var(--ink-1); font-family: system-ui, -apple-system, sans-serif }
+* { scrollbar-width: thin; scrollbar-color: var(--bg-line) transparent }
+::selection { background: rgba(122,162,247,.35) }
+a { color: var(--accent) }
+button, input, select, textarea { font-family: inherit }
+
+/* maplibre 기본 CSS 는 흰색 — 지도 팝업·내비 버튼 */
+.maplibregl-popup-content { background: var(--bg-raised); color: var(--ink-1); border: 1px solid var(--bg-line); box-shadow: 0 8px 24px rgba(0,0,0,.45) }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--bg-raised) }
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--bg-raised) }
+.maplibregl-ctrl-group { background: var(--bg-raised) }
+.maplibregl-ctrl-group button + button { border-top-color: var(--bg-line) }
+.maplibregl-ctrl button .maplibregl-ctrl-icon { filter: invert(.85) }
+.maplibregl-ctrl-attrib { background: rgba(18,20,23,.7); color: var(--ink-3) }

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { T } from './theme'
 
 /** 화면 공용 잔재주: 날짜, 점검 지연 규칙, Esc 훅, 버튼·입력 기본 스타일 */
 
@@ -11,5 +12,7 @@ export const inspectionOverdue = (nextDueOn?: string | null, assetStatus?: strin
 /** Esc 로 닫기 (모달·Drawer·측정 모드) */
 export const useEsc = (fn: () => void) => useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === 'Escape') fn() }; addEventListener('keydown', h); return () => removeEventListener('keydown', h) }, [fn])
 
-export const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, color: '#222', textDecoration: 'none' } as const
-export const inp = { padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 } as const
+export const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, background: T.bg.raised, cursor: 'pointer', fontSize: T.fs.sm, color: T.ink[1], textDecoration: 'none' } as const
+/** 주 동작 하나(등록·생성·저장). 채움 위 글자는 어두운 bg.base — 규칙 */
+export const btnPrimary = { ...btn, background: T.accent, color: T.bg.base, border: 0, fontWeight: T.fw.bold } as const
+export const inp = { padding: '5px 8px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, fontSize: T.fs.md, background: T.bg.base, color: T.ink[1] } as const

@@ -6,6 +6,7 @@ import { ifcKo } from '../ifcNames'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
 import { selQ } from '../context'
+import { T } from '../theme'
 
 /** 트리 한 행. children 은 지연 계산(펼칠 때만) */
 export type Row = { key: string; gid?: string; label: string; sub?: string; icon: LucideIcon; count: number; badge?: number; hidden: boolean; solo: boolean; gids: () => string[]; children?: () => Row[] }
@@ -104,19 +105,19 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   const found = useMemo(() => { const t = q.trim().toLowerCase(); return t ? elements.filter(e => e.globalId === q.trim() || e.name?.toLowerCase().includes(t) || e.ifcClass.toLowerCase().includes(t) || ifcKo(e.ifcClass).includes(t)).slice(0, 100) : [] }, [elements, q])
 
   return (
-    <aside style={{ height: '100%', display: 'flex', flexDirection: 'column', fontSize: 13, background: '#fafafa' }}>
-      <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #e5e5e5' }}>
+    <aside style={{ height: '100%', display: 'flex', flexDirection: 'column', fontSize: 13, background: T.bg.raised }}>
+      <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${T.bg.line}` }}>
         <div style={{ display: 'flex', fontSize: 12 }}>
-          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#2563eb' }}><ArrowLeft size={13} /> 모델 목록</a>
-          <a href={`#/models/${model?.id}/monitor${selQ(sel1)}`} style={{ marginLeft: 'auto', textDecoration: 'none', color: '#2563eb' }}>모니터링</a>
-          <a href={`#/models/${model?.id}/fm${selQ(sel1)}`} style={{ marginLeft: 10, textDecoration: 'none', color: '#2563eb' }}>시설관리 →</a>
+          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent }}><ArrowLeft size={13} /> 모델 목록</a>
+          <a href={`#/models/${model?.id}/monitor${selQ(sel1)}`} style={{ marginLeft: 'auto', textDecoration: 'none', color: T.accent }}>모니터링</a>
+          <a href={`#/models/${model?.id}/fm${selQ(sel1)}`} style={{ marginLeft: 10, textDecoration: 'none', color: T.accent }}>시설관리 →</a>
         </div>
         <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model?.name}>{model?.name ?? '…'}</div>
-        <div style={{ color: '#777', fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · ${stats.fps} fps`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}{abnormal.size > 0 && <b style={{ color: '#dc2626', marginLeft: 6 }}>· 이상 {abnormal.size}</b>}</div>
+        <div style={{ color: T.ink[3], fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · ${stats.fps} fps`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}{abnormal.size > 0 && <b style={{ color: T.crit, marginLeft: 6 }}>· 이상 {abnormal.size}</b>}</div>
       </div>
 
       {statusBoard}
-      <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: '1px solid #e5e5e5' }}>
+      <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: `1px solid ${T.bg.line}` }}>
         <Toggle icon={Square} label="개구부 표시" on={opts.openings} onClick={() => flipOpt('openings')} />
         <Toggle icon={Box} label="공간(구역) 표시" on={opts.spaces} onClick={() => flipOpt('spaces')} />
         <Toggle icon={Grid3x3} label="그리드 (평면·간격은 캔버스 좌하단)" on={opts.grid} onClick={() => flipOpt('grid')} />
@@ -127,20 +128,20 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       </div>
 
       <div style={{ position: 'relative', margin: '8px 12px 4px' }}>
-        <Search size={14} style={{ position: 'absolute', left: 8, top: 8, color: '#999' }} />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="이름 · 종류 · ID 검색" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px 6px 28px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
+        <Search size={14} style={{ position: 'absolute', left: 8, top: 8, color: T.ink[2] }} />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="이름 · 종류 · ID 검색" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px 6px 28px', border: `1px solid ${T.bg.line}`, borderRadius: 6, fontSize: 13 }} />
       </div>
 
-      {!q && <div style={{ display: 'flex', margin: '0 12px', borderBottom: '1px solid #e5e5e5' }}>
+      {!q && <div style={{ display: 'flex', margin: '0 12px', borderBottom: `1px solid ${T.bg.line}` }}>
         {(['spatial', 'class', 'system'] as const).map(t => <button key={t} onClick={() => setTab(t)}
-          style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
+          style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? T.accent : T.ink[2], borderBottom: tab === t ? `2px solid ${T.accent}` : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
           {{ spatial: '공간', class: '종류', system: '계통' }[t]}</button>)}
       </div>}
 
       {tab === 'system' && !q ? <div style={{ flex: 1, overflow: 'auto' }}>{systemPanel}</div> :
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px 80px' }} onClick={e => { if (e.target === e.currentTarget) { onSelect([], 'set') } }}>   {/* 하단 여백: 좌하단 맥락 독 위로 스크롤 */}
         {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => { clickRow(r, ev); if (!ev.metaKey && !ev.ctrlKey && !ev.shiftKey) setTimeout(onFit, 0) }} onContext={ev => onContext(ev, r.gids())} /> })
-                          : <div style={{ color: '#999', padding: 8 }}>결과 없음</div>)
+                          : <div style={{ color: T.ink[2], padding: 8 }}>결과 없음</div>)
            : flat.map(f => <TreeRow key={f.row.key} row={f.row} depth={f.depth} open={f.open} selected={rowSelected(f.row)} onToggle={toggle} onSolo={solo} onOpen={() => toggleOpen(f.row, f.depth)} onClick={ev => clickRow(f.row, ev)} onContext={ev => onContext(ev, f.row.gids())} />)}
       </div>}
     </aside>
@@ -155,17 +156,17 @@ function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick
   return (
     <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)} onClick={onClick} onContextMenu={onContext}
          style={{ display: 'flex', alignItems: 'center', gap: 4, height: 26, paddingLeft: 4 + depth * 14, paddingRight: 4, borderRadius: 5, userSelect: 'none',
-                  background: selected ? '#dbe4ff' : hov ? '#eef2ff' : 'transparent', opacity: row.hidden ? 0.45 : 1, fontWeight: row.solo ? 600 : 400, cursor: 'pointer' }}>
-      <span onClick={e => { e.stopPropagation(); onOpen() }} style={{ width: 14, display: 'grid', placeItems: 'center', color: '#888' }}>
+                  background: selected ? T.accentSoft : hov ? T.accentSoft : 'transparent', opacity: row.hidden ? 0.45 : 1, fontWeight: row.solo ? 600 : 400, cursor: 'pointer' }}>
+      <span onClick={e => { e.stopPropagation(); onOpen() }} style={{ width: 14, display: 'grid', placeItems: 'center', color: T.ink[2] }}>
         {row.children && (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}</span>
-      <Icon size={14} style={{ color: '#666', flexShrink: 0 }} />
+      <Icon size={14} style={{ color: T.ink[2], flexShrink: 0 }} />
       <span title={row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {row.label}{row.sub && <span style={{ color: '#999', marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
-      {!!row.badge && <span title={`이상 ${row.badge}`} style={{ color: '#fff', fontSize: 10, fontWeight: 700, background: '#dc2626', borderRadius: 8, padding: '0 5px' }}>{row.badge}</span>}
-      {row.count > 0 && <span style={{ color: '#999', fontSize: 11, background: '#eee', borderRadius: 8, padding: '0 6px' }}>{row.count}</span>}
-      <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? '#2563eb' : hov ? '#777' : 'transparent' }}>
+        {row.label}{row.sub && <span style={{ color: T.ink[2], marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
+      {!!row.badge && <span title={`이상 ${row.badge}`} style={{ color: T.bg.base, fontSize: 10, fontWeight: 700, background: T.crit, borderRadius: 8, padding: '0 5px' }}>{row.badge}</span>}
+      {row.count > 0 && <span style={{ color: T.ink[2], fontSize: 11, background: T.bg.line, borderRadius: 8, padding: '0 6px' }}>{row.count}</span>}
+      <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? T.accent : hov ? T.ink[3] : 'transparent' }}>
         <Focus size={14} /></span>
-      <span onClick={e => { e.stopPropagation(); if (e.altKey) onSolo(row); else onToggle(row) }} title={row.hidden ? '표시' : '숨김 · Alt+클릭: 이것만 보기'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? '#bbb' : hov ? '#555' : 'transparent' }}>
+      <span onClick={e => { e.stopPropagation(); if (e.altKey) onSolo(row); else onToggle(row) }} title={row.hidden ? '표시' : '숨김 · Alt+클릭: 이것만 보기'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? T.ink[3] : hov ? T.ink[2] : 'transparent' }}>
         {row.hidden ? <EyeOff size={14} /> : <Eye size={14} />}</span>
     </div>
   )
@@ -175,9 +176,9 @@ function Toggle({ icon: Icon, label, on, onClick, disabled }: { icon: LucideIcon
   const [hov, setHov] = useState(false)
   return <span style={{ position: 'relative' }} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
     <button onClick={onClick} disabled={disabled} aria-label={label}
-      style={{ width: 30, height: 30, display: 'grid', placeItems: 'center', border: '1px solid ' + (on ? '#2563eb' : '#ddd'), borderRadius: 6, cursor: disabled ? 'default' : 'pointer', background: on ? '#2563eb' : '#fff', color: on ? '#fff' : disabled ? '#ccc' : '#444' }}>
+      style={{ width: 30, height: 30, display: 'grid', placeItems: 'center', border: '1px solid ' + (on ? T.accent : T.bg.line), borderRadius: 6, cursor: disabled ? 'default' : 'pointer', background: on ? T.accent : T.bg.surface, color: on ? T.bg.surface : disabled ? T.bg.line : T.ink[2] }}>
       <Icon size={15} /></button>
     {hov && <Tip>{label}</Tip>}
   </span>
 }
-const Tip = ({ children }: { children: ReactNode }) => <span style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 5, background: '#222', color: '#fff', padding: '3px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none' }}>{children}</span>
+const Tip = ({ children }: { children: ReactNode }) => <span style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 5, background: T.ink[1], color: T.ink[1], padding: '3px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none' }}>{children}</span>

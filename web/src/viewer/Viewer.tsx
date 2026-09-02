@@ -20,6 +20,7 @@ import { Axis, Floating, Gap, Tool } from './chrome'
 import { MultiProps, Props } from './Props'
 import { useHashQuery } from '../useHashQuery'
 import './viewer.css'
+import { T, num } from '../theme'
 
 export default function Viewer({ modelId }: { modelId: string }) {
   const canvas = useRef<HTMLDivElement>(null)
@@ -66,7 +67,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.preset('home')   // 건물 전체가 보이는 홈 뷰 — 어느 층·어느 구역인지 한눈에 (길찾기용, 줌인하지 않음)
     const st = statusRows.find(r => r.globalId === gid)?.status.Status
     setFocusInfo({ gid, name: el.name ?? gid, zone: space?.name ?? undefined, storey: storey?.name ?? undefined, status: st, spaceGid: space?.globalId })
-    s.setMarker(gid, STATUS[st ?? '']?.color ?? 0xdc2626)
+    s.setMarker(gid, STATUS[st ?? '']?.color ?? num(T.crit))
   }
   const focusRef = useRef(focusOn); focusRef.current = focusOn
   useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); setFocus('none'); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])   // 다른 요소를 고르면 포커스 모드(격리·비콘)도 해제 — 배너 X 와 동일
@@ -75,9 +76,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
   // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
   useEffect(() => {
     const s = scene.current; if (!s) return
-    if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? 0xffaa00 : route.direction === 'up' ? 0x2563eb : 0x16a34a); s.setColors(m, true); return }
-    if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, 0x16a34a); for (const g of power.unpowered) m.set(g, 0x374151); s.setColors(m, true); return }
-    if (statusView) { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? 0x64748b : st.On === false ? 0x9ca3af : STATUS[st.Status ?? '']?.color ?? 0x888888) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
+    if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? num(T.warn) : route.direction === 'up' ? num(T.accent) : num(T.ok)); s.setColors(m, true); return }
+    if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, num(T.ok)); for (const g of power.unpowered) m.set(g, num(T.ink[3])); s.setColors(m, true); return }
+    if (statusView) { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? num(T.ink[3]) : st.On === false ? num(T.ink[3]) : STATUS[st.Status ?? '']?.color ?? num(T.ink[3])) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
     if (!sysColor || colorMode) { if (!colorMode) s.setColors(undefined); return }
     const m = new Map<string, number>()
     for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, systemColor(sm))
@@ -253,39 +254,39 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
       <Panel minSize={200}>
         <div ref={canvas} style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
-          {err && <p style={{ position: 'absolute', top: 8, left: 8, color: 'crimson', background: '#fff', padding: 6 }}>{err}</p>}
-          {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: '#222', color: '#fff', padding: '2px 6px', borderRadius: 3, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
+          {err && <p style={{ position: 'absolute', top: 8, left: 8, color: T.crit, background: T.bg.surface, padding: 6 }}>{err}</p>}
+          {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.ink[1], padding: '2px 6px', borderRadius: 3, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
 
           {colorMode && <ColorPanel modelId={modelId} elements={elements} spatial={spatial} onChange={m => scene.current?.setColors(m)}
             onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
 
           {/* 경보/장애 포커스 배너 (구역 강조 + 위치 비콘) */}
-          {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', background: focusInfo.status === 'ALARM' ? '#fef2f2' : focusInfo.status === 'FAULT' ? '#fffbeb' : '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 460 }}>
-            <MapPinned size={14} style={{ color: isAbnormal(focusInfo.status) ? statusHex(focusInfo.status) : '#2563eb' }} />
+          {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', background: focusInfo.status === 'ALARM' ? T.critSoft : focusInfo.status === 'FAULT' ? T.warnSoft : T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxWidth: 460 }}>
+            <MapPinned size={14} style={{ color: isAbnormal(focusInfo.status) ? statusHex(focusInfo.status) : T.accent }} />
             <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
-            {focusInfo.status && <b style={{ color: statusHex(focusInfo.status, '#16a34a') }}>{statusLabel(focusInfo.status)}</b>}
-            <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(focusInfo.gid)}`} title="모니터링에서 이 장비" style={{ color: '#2563eb', textDecoration: 'none', whiteSpace: 'nowrap' }}>모니터링</a>
-            {(assetByGid.get(focusInfo.gid)?.openWorkOrders ?? 0) > 0 && <a href={`#/models/${modelId}/fm?sel=${encodeURIComponent(focusInfo.gid)}`} title="칸반 보드에서 이 자산의 카드" style={{ color: '#2563eb', textDecoration: 'none', whiteSpace: 'nowrap' }}>칸반</a>}
-            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined) }} /></div>}
+            {focusInfo.status && <b style={{ color: statusHex(focusInfo.status, T.ok) }}>{statusLabel(focusInfo.status)}</b>}
+            <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(focusInfo.gid)}`} title="모니터링에서 이 장비" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>모니터링</a>
+            {(assetByGid.get(focusInfo.gid)?.openWorkOrders ?? 0) > 0 && <a href={`#/models/${modelId}/fm?sel=${encodeURIComponent(focusInfo.gid)}`} title="칸반 보드에서 이 자산의 카드" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>칸반</a>}
+            <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined) }} /></div>}
 
           {/* 작업지시로 진입: 배너 */}
-          {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 420 }}>
-            <StatusBadge s={wo.status} /><b>{wo.title}</b><span style={{ color: '#666' }}>{wo.assetTag} · {wo.assignee ?? '미배정'}{wo.dueOn && ` · ~${day(wo.dueOn)}`}</span>
-            <a href={`#/models/${modelId}/fm?wo=${wo.id}`} style={{ color: '#2563eb', marginLeft: 4 }}>보드</a>
-            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => setWo(undefined)} /></div>}
+          {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxWidth: 420 }}>
+            <StatusBadge s={wo.status} /><b>{wo.title}</b><span style={{ color: T.ink[2] }}>{wo.assetTag} · {wo.assignee ?? '미배정'}{wo.dueOn && ` · ~${day(wo.dueOn)}`}</span>
+            <a href={`#/models/${modelId}/fm?wo=${wo.id}`} style={{ color: T.accent, marginLeft: 4 }}>보드</a>
+            <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => setWo(undefined)} /></div>}
 
           {/* 솔로 칩: 패널이 아니라 캔버스 위에 — 트리 레이아웃이 밀리지 않게 */}
-          {hidden.solo && <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#2563eb', color: '#fff', borderRadius: 999, fontSize: 12, boxShadow: '0 2px 8px #0003', maxWidth: 320 }}>
+          {hidden.solo && <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: T.accent, color: T.bg.base, borderRadius: 999, fontSize: 12, boxShadow: T.shadow, maxWidth: 320 }}>
             <Focus size={13} /> 이것만 보기: <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hidden.solo.label}</b>
             <X size={14} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setHidden({ ...hidden, solo: undefined })} /></div>}
 
           {/* 추적 배너: 3D 에 색만 칠하면 '몇 개·어디까지' 를 모른다 */}
-          {route && routeSummary && <div style={{ position: 'absolute', top: clip ? 128 : (focusInfo || wo) ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 520 }}>
-            <RouteIcon size={14} style={{ color: route.direction === 'up' ? '#2563eb' : '#16a34a' }} />
-            <b>{routeSummary.origin}</b><span style={{ color: route.direction === 'up' ? '#2563eb' : '#16a34a', fontWeight: 600 }}>{route.direction === 'up' ? '상류' : '하류'} {route.nodes.length}요소</span>
-            {routeSummary.floors && <span style={{ color: '#666' }}>{routeSummary.floors}</span>}<span style={{ color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{routeSummary.top}</span>
-            <span title="경로만 보기" onClick={() => setHidden({ ...hidden, solo: hidden.solo?.key === 'route' ? undefined : { key: 'route', label: '추적 경로', gids: new Set(route.nodes.map(n => n.globalId)) } })} style={{ cursor: 'pointer', color: '#2563eb', display: 'grid' }}><Focus size={13} /></span>
-            <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => setRoute(undefined)} /></div>}
+          {route && routeSummary && <div style={{ position: 'absolute', top: clip ? 128 : (focusInfo || wo) ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxWidth: 520 }}>
+            <RouteIcon size={14} style={{ color: route.direction === 'up' ? T.accent : T.ok }} />
+            <b>{routeSummary.origin}</b><span style={{ color: route.direction === 'up' ? T.accent : T.ok, fontWeight: 600 }}>{route.direction === 'up' ? '상류' : '하류'} {route.nodes.length}요소</span>
+            {routeSummary.floors && <span style={{ color: T.ink[2] }}>{routeSummary.floors}</span>}<span style={{ color: T.ink[2], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{routeSummary.top}</span>
+            <span title="경로만 보기" onClick={() => setHidden({ ...hidden, solo: hidden.solo?.key === 'route' ? undefined : { key: 'route', label: '추적 경로', gids: new Set(route.nodes.map(n => n.globalId)) } })} style={{ cursor: 'pointer', color: T.accent, display: 'grid' }}><Focus size={13} /></span>
+            <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => setRoute(undefined)} /></div>}
 
           {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems()} onClose={() => setMenu(undefined)} />}
 
@@ -295,7 +296,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '4px 8px', alignItems: 'center', minWidth: 380 }}>
               {(['X', 'Y', 'Z'] as const).map((ax, a) => <Axis key={ax} name={ax} min={bounds.min[a]} max={bounds.max[a]} lo={clip[a * 2]} hi={clip[a * 2 + 1]}
                 onChange={(lo, hi) => setClip(c => { const n = [...c!]; n[a * 2] = lo; n[a * 2 + 1] = hi; return n })} />)}
-              <span style={{ color: '#666' }}>층</span>
+              <span style={{ color: T.ink[2] }}>층</span>
               <div style={{ gridColumn: '2 / 4', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {storeys.filter(st => st.elevation != null).map(st => <button key={st.id} onClick={() => setClip(c => { const n = [...c!]; n[3] = st.elevation! + 1.5; return n })} title="바닥 +1.5m 에서 수평 절단" style={{ whiteSpace: 'nowrap' }}>{st.name}</button>)}
                 <button onClick={() => setClip([...bounds.min.flatMap((m, i) => [m, bounds.max[i]])])} title="박스 초기화">초기화</button>
@@ -309,11 +310,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Floating id="measure" anchor={{ top: clip ? 128 : 8, left: 8, padding: '8px 10px', fontSize: 12 }}>
             <div style={{ minWidth: 200 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}><Ruler size={13} /> <b style={{ flex: 1 }}>측정</b>
-                <Trash2 size={13} style={{ cursor: 'pointer', color: measures.length ? '#666' : '#ccc' }} onClick={() => { scene.current?.clearMeasures(); setMeasures([]) }} /></div>
-              <div style={{ color: '#888' }}>표면의 두 점을 클릭하세요 · Esc 로 종료</div>
+                <Trash2 size={13} style={{ cursor: 'pointer', color: measures.length ? T.ink[2] : T.bg.line }} onClick={() => { scene.current?.clearMeasures(); setMeasures([]) }} /></div>
+              <div style={{ color: T.ink[2] }}>표면의 두 점을 클릭하세요 · Esc 로 종료</div>
               {measures.map((m, i) => <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <b style={{ width: 64 }}>{m.d.toFixed(2)} m</b>
-                <span style={{ color: '#888' }}>Δx {Math.abs(m.b[0] - m.a[0]).toFixed(2)} · Δy {Math.abs(m.b[1] - m.a[1]).toFixed(2)} · Δz {Math.abs(m.b[2] - m.a[2]).toFixed(2)}</span></div>)}
+                <span style={{ color: T.ink[2] }}>Δx {Math.abs(m.b[0] - m.a[0]).toFixed(2)} · Δy {Math.abs(m.b[1] - m.a[1]).toFixed(2)} · Δz {Math.abs(m.b[2] - m.a[2]).toFixed(2)}</span></div>)}
             </div>
             </Floating>
           )}
@@ -340,8 +341,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {/* 그리드 설정: 평면(건축 z-up 기준 이름)·간격 — 그리드가 켜져 있을 때만 */}
           {opts.grid && <Floating id="grid" anchor={{ left: 8, bottom: 60, gap: 4, padding: '4px 8px', fontSize: 12 }}>
             {([['floor', '바닥 XY'], ['front', '정면 XZ'], ['side', '측면 YZ']] as const).map(([p, l]) =>
-              <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: 5, cursor: 'pointer', background: gridCfg.plane === p ? '#2563eb' : 'transparent', color: gridCfg.plane === p ? '#fff' : '#444', fontSize: 12 }}>{l}</button>)}
-            <input type="number" min={0.1} max={50} step={0.5} value={gridCfg.step} onChange={e => { const v = +e.target.value; if (Number.isFinite(v) && v >= 0.1 && v <= 50) setGridCfg({ ...gridCfg, step: v }) }} title="간격 (m)" style={{ width: 48, padding: '2px 4px', border: '1px solid #ddd', borderRadius: 5, fontSize: 12 }} /><span style={{ color: '#888' }}>m</span>
+              <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: 5, cursor: 'pointer', background: gridCfg.plane === p ? T.accent : 'transparent', color: gridCfg.plane === p ? T.bg.surface : T.ink[2], fontSize: 12 }}>{l}</button>)}
+            <input type="number" min={0.1} max={50} step={0.5} value={gridCfg.step} onChange={e => { const v = +e.target.value; if (Number.isFinite(v) && v >= 0.1 && v <= 50) setGridCfg({ ...gridCfg, step: v }) }} title="간격 (m)" style={{ width: 48, padding: '2px 4px', border: `1px solid ${T.bg.line}`, borderRadius: 5, fontSize: 12 }} /><span style={{ color: T.ink[2] }}>m</span>
           </Floating>}
 
           <AlertToast modelId={modelId} fresh={freshAlerts} dismiss={dismissAlert} onFocus={g => focusOn(g)} />
@@ -352,16 +353,16 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Panel defaultSize={340} minSize={200} collapsible collapsedSize={0}>
         <aside style={{ overflow: 'auto', height: '100%', padding: 12, boxSizing: 'border-box' }}>
           {selection.length === 1 && detail && 'properties' in detail && <ObjectSummary modelId={modelId} detail={detail} asset={selAsset} openWos={assetDetail?.workOrders.filter(w => w.status !== 'DONE')} onFm={() => setTab('fm')} />}
-          <div style={{ display: 'flex', borderBottom: '1px solid #e5e5e5', marginBottom: 10 }}>
+          <div style={{ display: 'flex', borderBottom: `1px solid ${T.bg.line}`, marginBottom: 10 }}>
             {(['props', 'fm'] as const).map(t => <button key={t} onClick={() => setTab(t)}
-              style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
+              style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? T.accent : T.ink[2], borderBottom: tab === t ? `2px solid ${T.accent}` : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
               {t === 'props' ? '속성' : `자산·점검${selection.length === 1 && assetByGid.has(selection[0]) ? ' ●' : ''}`}</button>)}
           </div>
           {tab === 'fm' && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpointForWorkOrder} />}
           {tab === 'props' && <>
-          {!selection.length && <p style={{ color: '#888' }} title="Cmd/Ctrl+클릭: 추가 선택 · Shift+클릭(트리): 범위 · Esc: 해제 · 더블클릭: 맞춤">요소를 클릭하면 속성이 표시됩니다. <span style={{ color: '#bbb', cursor: 'help' }}>단축키 ?</span></p>}
-          {selection.length === 1 && detail && !('properties' in detail) && <p style={{ color: '#666' }}>{detail.kind === 'space' ? '공간(구역) 형상입니다. 구역 정보는 왼쪽 공간 트리에서 확인하세요.' : '개구부 형상입니다 (요소 아님).'}</p>}
-          {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: '#a60', fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
+          {!selection.length && <p style={{ color: T.ink[2] }} title="Cmd/Ctrl+클릭: 추가 선택 · Shift+클릭(트리): 범위 · Esc: 해제 · 더블클릭: 맞춤">요소를 클릭하면 속성이 표시됩니다. <span style={{ color: T.ink[3], cursor: 'help' }}>단축키 ?</span></p>}
+          {selection.length === 1 && detail && !('properties' in detail) && <p style={{ color: T.ink[2] }}>{detail.kind === 'space' ? '공간(구역) 형상입니다. 구역 정보는 왼쪽 공간 트리에서 확인하세요.' : '개구부 형상입니다 (요소 아님).'}</p>}
+          {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: T.warn, fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
           {selection.length === 1 && detail && 'properties' in detail && <><StatusEditor key={detail.globalId} modelId={modelId} e={detail} reload={reloadStatus} /><Props e={detail} /></>}
           {selection.length > 1 && <MultiProps selection={selection} byGid={byGid} details={details} />}
           </>}
@@ -377,4 +378,4 @@ function readViewpoint(q: URLSearchParams): { v?: View; sel?: string; clip?: num
   return { v: n?.length === 6 ? { p: n.slice(0, 3), t: n.slice(3) } : undefined, sel: q.get('sel') ?? undefined, clip: c?.length === 6 && c.every(Number.isFinite) ? c : undefined, focus: q.has('focus') }
 }
 
-const sep = { width: 4, background: '#e5e5e5', cursor: 'col-resize' }
+const sep = { width: 4, background: T.bg.line, cursor: 'col-resize' }

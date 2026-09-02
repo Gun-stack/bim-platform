@@ -8,6 +8,7 @@ maplibregl.setWorkerUrl(new URL(workerUrl, location.href).href)   // Blob 워커
 import { ArrowLeft, Box, Crosshair, MapPin, X } from 'lucide-react'
 import { api, post, type Model } from './api'
 import { btn } from './ui'
+import { T } from './theme'
 
 type Feature = { type: 'Feature'; id: string; geometry: { type: 'Polygon'; coordinates: number[][][] }; properties: { name: string; georefSource: string | null; crs: string | null; manual: boolean | null; areaM2: number; lon: number; lat: number; elementCount: number } }
 
@@ -41,9 +42,9 @@ export default function MapPage() {
     m.on('error', e => setErr('map: ' + e.error?.message))
     m.on('load', async () => {
       m.addSource('fp', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      m.addLayer({ id: 'fp-fill', type: 'fill', source: 'fp', paint: { 'fill-color': ['case', ['==', ['get', 'manual'], true], '#f59e0b', '#2563eb'], 'fill-opacity': 0.35 } })
-      m.addLayer({ id: 'fp-line', type: 'line', source: 'fp', paint: { 'line-color': ['case', ['==', ['get', 'manual'], true], '#b45309', '#1d4ed8'], 'line-width': 2 } })
-      m.addLayer({ id: 'fp-label', type: 'symbol', source: 'fp', layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-anchor': 'top' }, paint: { 'text-halo-color': '#fff', 'text-halo-width': 1.5 } })
+      m.addLayer({ id: 'fp-fill', type: 'fill', source: 'fp', paint: { 'fill-color': ['case', ['==', ['get', 'manual'], true], T.warn, T.accent], 'fill-opacity': 0.35 } })
+      m.addLayer({ id: 'fp-line', type: 'line', source: 'fp', paint: { 'line-color': ['case', ['==', ['get', 'manual'], true], T.warn, T.accent], 'line-width': 2 } })
+      m.addLayer({ id: 'fp-label', type: 'symbol', source: 'fp', layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-anchor': 'top' }, paint: { 'text-halo-color': T.bg.surface, 'text-halo-width': 1.5 } })
       try { const fs = await reload(); if (fs.length) fitTo(m, fs) } catch (x) { setErr('로드 실패: ' + (x as Error).message) }
       m.on('click', 'fp-fill', e => {
         if (placingRef.current) return
@@ -72,24 +73,24 @@ export default function MapPage() {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', height: '100vh', fontFamily: 'system-ui', fontSize: 13 }}>
-      <aside style={{ overflow: 'auto', borderRight: '1px solid #e5e5e5', background: '#fafafa', padding: 12 }}>
-        <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#2563eb', fontSize: 12 }}><ArrowLeft size={13} /> 모델 목록</a>
+      <aside style={{ overflow: 'auto', borderRight: `1px solid ${T.bg.line}`, background: T.bg.raised, padding: 12 }}>
+        <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent, fontSize: 12 }}><ArrowLeft size={13} /> 모델 목록</a>
         <h3 style={{ margin: '6px 0 2px', display: 'flex', alignItems: 'center', gap: 6 }}><MapPin size={16} /> 지도</h3>
-        <div style={{ color: '#777', fontSize: 12, marginBottom: 10 }}>풋프린트 {features.length} · 미배치 {models.filter(m => !placed.has(m.id)).length}</div>
-        {placing && <div style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, padding: 10, marginBottom: 10 }}>
+        <div style={{ color: T.ink[3], fontSize: 12, marginBottom: 10 }}>풋프린트 {features.length} · 미배치 {models.filter(m => !placed.has(m.id)).length}</div>
+        {placing && <div style={{ background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: 8, padding: 10, marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Crosshair size={14} color="#b45309" /><b style={{ flex: 1 }}>{placing.name}</b><X size={14} style={{ cursor: 'pointer' }} onClick={() => { setPlacing(undefined); map.current!.getCanvas().style.cursor = '' }} /></div>
-          <div style={{ color: '#9a3412', fontSize: 12, margin: '4px 0' }}>지도에서 건물 위치를 클릭하세요</div>
+          <div style={{ color: T.warn, fontSize: 12, margin: '4px 0' }}>지도에서 건물 위치를 클릭하세요</div>
           <label style={{ fontSize: 12 }}>회전 <input type="number" value={placing.rotation} onChange={e => setPlacing({ ...placing, rotation: +e.target.value })} style={{ width: 60 }} />°</label>
         </div>}
-        {err && <p style={{ color: '#b91c1c', fontSize: 12 }}>{err}</p>}
+        {err && <p style={{ color: T.crit, fontSize: 12 }}>{err}</p>}
         {models.map(m => { const f = features.find(f => f.id === m.id); return (
-          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 6px', borderTop: '1px solid #eee' }}>
-            <Box size={14} style={{ color: f ? (f.properties.manual ? '#b45309' : '#2563eb') : '#bbb', flexShrink: 0 }} />
+          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 6px', borderTop: `1px solid ${T.bg.line}` }}>
+            <Box size={14} style={{ color: f ? (f.properties.manual ? T.warn : T.accent) : T.ink[3], flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>{m.name}</div>
-              <div style={{ color: '#888', fontSize: 11 }}>{f ? `${f.properties.manual ? '수동 배치' : f.properties.georefSource}${f.properties.crs ? ' · ' + f.properties.crs : ''} · ${f.properties.areaM2} m²` : '지리참조 없음 — 배치 → 지도 클릭'}</div>
+              <div style={{ color: T.ink[2], fontSize: 11 }}>{f ? `${f.properties.manual ? '수동 배치' : f.properties.georefSource}${f.properties.crs ? ' · ' + f.properties.crs : ''} · ${f.properties.areaM2} m²` : '지리참조 없음 — 배치 → 지도 클릭'}</div>
             </div>
-            {f ? <button onClick={() => flyTo(f)} style={btn}>이동</button> : <button onClick={() => startPlacing(m)} style={{ ...btn, borderColor: '#f59e0b', color: '#b45309' }}>배치</button>}
+            {f ? <button onClick={() => flyTo(f)} style={btn}>이동</button> : <button onClick={() => startPlacing(m)} style={{ ...btn, borderColor: T.warn, color: T.warn }}>배치</button>}
             {f && <button onClick={() => startPlacing(m)} title="다시 배치" style={btn}><MapPin size={12} /></button>}
           </div>) })}
       </aside>
