@@ -54,7 +54,7 @@ export const Gap = () => <span style={{ width: 1, background: T.bg.line, margin:
 export function Axis({ name, min, max, lo, hi, onChange }: { name: string; min: number; max: number; lo: number; hi: number; onChange: (lo: number, hi: number) => void }) {
   const st = { width: '100%', margin: 0, position: 'absolute' as const, left: 0, top: 0 }
   return <>
-    <span style={{ color: { X: '#e0403a', Y: '#6fa83a', Z: '#3a7de0' }[name as 'X'], fontWeight: 600 }}>{name}</span>
+    <span style={{ color: { X: T.axis.x, Y: T.axis.y, Z: T.axis.z }[name as 'X'], fontWeight: 600 }}>{name}</span>
     <div style={{ position: 'relative', height: 20 }}>
       <input type="range" className="dual" min={min} max={max} step={0.05} value={lo} onChange={e => onChange(Math.min(+e.target.value, hi - 0.05), hi)} style={st} />
       <input type="range" className="dual hi" min={min} max={max} step={0.05} value={hi} onChange={e => onChange(lo, Math.max(+e.target.value, lo + 0.05))} style={st} />

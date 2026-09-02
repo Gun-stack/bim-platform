@@ -8,8 +8,8 @@ import { btn as btnBase } from '../ui'
 import { T, num } from '../theme'
 
 /** 계통별 색 (ColorPanel 팔레트와 별개로 의미색 고정) */
-export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: num(T.warn), DOMESTICCOLDWATER: num(T.accent), WASTEWATER: 0x78350f, FIREPROTECTION: num(T.crit), SIGNAL: 0x9333ea, AIRCONDITIONING: 0x0d9488, CHILLEDWATER: 0x0284c7, VENTILATION: 0x65a30d, DOMESTICHOTWATER: 0xe11d48, GAS: 0xca8a04, DATA: 0x4f46e5, LIGHTING: 0xeab308,
-  비상전원: num(T.warn), 화재감지: 0x9333ea, 수송: 0x78716c, 주차관제: 0x0f766e }
+export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOMESTICCOLDWATER: 0x6a9ad9, WASTEWATER: 0x9c7b5a, FIREPROTECTION: 0xd46a62, SIGNAL: 0xa981d6, AIRCONDITIONING: 0x4fb3a6, CHILLEDWATER: 0x5aa7d6, VENTILATION: 0x93b552, DOMESTICHOTWATER: 0xd97a8c, GAS: 0xc9b24c, DATA: 0x9591dd, LIGHTING: 0xd9c65a,
+  비상전원: 0xe08a5a, 화재감지: 0xa981d6, 수송: 0xa39a91, 주차관제: 0x4fa39a }   // 팀 색(theme.ts)과 같은 계열의 낮은 채도 — 다크 배경 위 3D 채색용
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
 const SYSTEM_ICON: Record<string, LucideIcon> = { ELECTRICAL: Cable, DOMESTICCOLDWATER: Droplets, WASTEWATER: Waves, FIREPROTECTION: Flame, SIGNAL: Bell, AIRCONDITIONING: Wind, CHILLEDWATER: Snowflake, VENTILATION: Fan, DOMESTICHOTWATER: Thermometer, GAS: Flame, DATA: Network, LIGHTING: Lightbulb, 비상전원: BatteryCharging, 화재감지: Bell, 수송: ArrowUpDown, 주차관제: Car }
 

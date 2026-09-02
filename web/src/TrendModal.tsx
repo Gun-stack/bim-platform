@@ -54,15 +54,15 @@ function Chart({ k, s }: { k: string; s: S }) {
         <span style={{ color: T.ink[2] }}>{hi ? hhmm(hi.at) : '현재'}</span>
         <span style={{ marginLeft: 'auto', color: T.ink[2] }}>{fmt(min)}~{fmt(max)} · {s.length}건 · {hhmm(t0)}–{hhmm(t1)}</span>
       </div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${r?.label ?? k} 트렌드`} style={{ display: 'block', background: T.bg.raised, borderRadius: 6, marginTop: 3, cursor: 'crosshair' }}
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${r?.label ?? k} 트렌드`} style={{ display: 'block', background: T.bg.base, borderRadius: 6, marginTop: 3, cursor: 'crosshair' }}
            onMouseMove={e => { const b = e.currentTarget.getBoundingClientRect(); const t = t0 + Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)) * (t1 - t0)
              let best = 0; for (let i = 1; i < s.length; i++) if (Math.abs(s[i].at - t) < Math.abs(s[best].at - t)) best = i; setHover(best) }}
            onMouseLeave={() => setHover(null)}>
-        <line x1={PX} y1={H - PY} x2={W - PX} y2={H - PY} stroke="#e2e8f0" />
-        <path d={d} fill="none" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <line x1={PX} y1={H - PY} x2={W - PX} y2={H - PY} stroke={T.bg.line} />
+        <path d={d} fill="none" stroke={T.accent} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {hi && <>
-          <line x1={x(hi.at)} y1={0} x2={x(hi.at)} y2={H} stroke="#94a3b8" strokeDasharray="3 3" />
-          <circle cx={x(hi.at)} cy={y(hi.v)} r={4} fill="#2563eb" stroke="#fff" strokeWidth={2} />
+          <line x1={x(hi.at)} y1={0} x2={x(hi.at)} y2={H} stroke={T.ink[3]} strokeDasharray="3 3" />
+          <circle cx={x(hi.at)} cy={y(hi.v)} r={4} fill={T.accent} stroke={T.bg.raised} strokeWidth={2} />
         </>}
       </svg>
     </div>)

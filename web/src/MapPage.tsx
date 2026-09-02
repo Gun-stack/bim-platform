@@ -35,7 +35,7 @@ export default function MapPage() {
     const m = new maplibregl.Map({
       container: el.current, center: [127.8, 36.3], zoom: 6,   // 한국 전역
       style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' } },
-               layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
+               layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-brightness-max': 0.42, 'raster-saturation': -0.75, 'raster-contrast': 0.15 } }] },   // 다크 UI 에 맞춰 OSM 타일을 눌러 그린다 (무료 다크 타일은 키가 필요)
     })
     map.current = m
     m.addControl(new maplibregl.NavigationControl(), 'top-right')
@@ -44,7 +44,7 @@ export default function MapPage() {
       m.addSource('fp', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       m.addLayer({ id: 'fp-fill', type: 'fill', source: 'fp', paint: { 'fill-color': ['case', ['==', ['get', 'manual'], true], T.warn, T.accent], 'fill-opacity': 0.35 } })
       m.addLayer({ id: 'fp-line', type: 'line', source: 'fp', paint: { 'line-color': ['case', ['==', ['get', 'manual'], true], T.warn, T.accent], 'line-width': 2 } })
-      m.addLayer({ id: 'fp-label', type: 'symbol', source: 'fp', layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-anchor': 'top' }, paint: { 'text-halo-color': T.bg.surface, 'text-halo-width': 1.5 } })
+      m.addLayer({ id: 'fp-label', type: 'symbol', source: 'fp', layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-anchor': 'top' }, paint: { 'text-color': T.ink[1], 'text-halo-color': T.bg.base, 'text-halo-width': 1.5 } })
       try { const fs = await reload(); if (fs.length) fitTo(m, fs) } catch (x) { setErr('로드 실패: ' + (x as Error).message) }
       m.on('click', 'fp-fill', e => {
         if (placingRef.current) return

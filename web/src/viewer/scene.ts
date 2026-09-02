@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { NavCube } from './NavCube'
 import { coverRect } from '../context'
+import { T, num } from '../theme'
 
 export type Kind = 'element' | 'space' | 'opening'
 const GID = /^[0-9A-Za-z_$]{22}$/
@@ -11,10 +12,10 @@ export type Stats = { calls: number; triangles: number; fps: number }
 // 선택: 색상 모드의 어떤 팔레트와도 겹치지 않는 마젠타, 반투명 + 항상 앞에(depthTest off) + 외곽선. 가려져 있어도 어디가 선택됐는지 보인다
 const HIGHLIGHT = new THREE.MeshBasicMaterial({ color: 0xff2d95, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide })
 const OUTLINE = new THREE.LineBasicMaterial({ color: 0xff2d95, depthTest: false })
-const HOVER_OUTLINE = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.85, depthTest: false })
-const SPACE = new THREE.MeshStandardMaterial({ color: 0x4488ff, transparent: true, opacity: 0.25, depthWrite: false })
-const GHOST = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, transparent: true, opacity: 0.12, depthWrite: false })
-const FOCUS_SPACE = new THREE.MeshStandardMaterial({ color: 0x2563eb, emissive: 0x1e3a8a, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
+const HOVER_OUTLINE = new THREE.LineBasicMaterial({ color: num(T.accent), transparent: true, opacity: 0.85, depthTest: false })
+const SPACE = new THREE.MeshStandardMaterial({ color: 0x6a9ad9, transparent: true, opacity: 0.22, depthWrite: false })
+const GHOST = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, transparent: true, opacity: 0.15, depthWrite: false })   // 어두운 배경에선 유령이 배경보다 밝아야 보인다
+const FOCUS_SPACE = new THREE.MeshStandardMaterial({ color: num(T.accent), emissive: 0x24406e, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
 export type View = { p: number[]; t: number[] }
 /** 격리: 집합 밖 요소는 반투명(GHOST). undefined 면 해제 */
 export type Focus = { gids: Set<string> } | undefined
@@ -70,8 +71,8 @@ export class Scene3D {
 
   constructor(el: HTMLElement) {
     this.el = el
-    this.scene.background = new THREE.Color(0xf0f0f0)
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 1.5))
+    this.scene.background = new THREE.Color(num(T.bg.base))
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4048, 1.5))
     const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(1, 2, 1); this.scene.add(sun)
     this.scene.add(this.hoverGroup)
     this.camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 5000)
@@ -162,7 +163,7 @@ export class Scene3D {
   setColors(map?: Map<string, number>, ghostOthers = false) { this.colors = map; this.ghostOthers = ghostOthers; this.apply() }
 
   /** 요소 위치 비콘 (길찾기): 요소에서 건물 지붕 위까지 솟는 기둥 + 머리. 반투명·벽을 뚫고 보이도록 depthTest 끔 */
-  setMarker(gid?: string, color = 0xdc2626) {
+  setMarker(gid?: string, color = num(T.crit)) {
     if (this.marker) { this.scene.remove(this.marker); this.marker = undefined }
     if (!gid) return
     const ms = this.meshes.filter(m => m.name === gid); if (!ms.length) return
@@ -185,12 +186,12 @@ export class Scene3D {
     if (this.grid) { this.scene.remove(this.grid); this.grid.geometry.dispose(); (this.grid.material as THREE.Material).dispose(); this.grid = undefined }
     if (!on || this.box.isEmpty() || !(step > 0)) return
     const div = Math.max(2, Math.round(this.box.getSize(new THREE.Vector3()).length() * 1.5 / step))
-    const g = new THREE.GridHelper(div * step, div, 0x9ca3af, 0xd9dde3)   // 칸 크기가 정확히 step
+    const g = new THREE.GridHelper(div * step, div, 0x3a4048, 0x262b32)   // 칸 크기가 정확히 step
     const c = this.box.getCenter(new THREE.Vector3())
     if (plane === 'front') { g.rotation.x = Math.PI / 2; g.position.set(c.x, c.y, this.box.min.z - 0.02) }
     else if (plane === 'side') { g.rotation.z = Math.PI / 2; g.position.set(this.box.min.x - 0.02, c.y, c.z) }
     else g.position.set(c.x, this.box.min.y - 0.02, c.z)   // 바닥 슬래브와 z-fighting 방지
-    const m = g.material as THREE.Material; m.transparent = true; m.opacity = 0.5
+    const m = g.material as THREE.Material; m.transparent = true; m.opacity = 0.6
     this.grid = g; this.scene.add(g)
   }
 
@@ -243,17 +244,17 @@ export class Scene3D {
     if (!this.measurePt) { this.measurePt = hit; this.measureGroup.add(this.dot(hit)); return }
     const a = this.measurePt, b = hit; this.measurePt = undefined
     this.measureGroup.add(this.dot(b))
-    this.measureGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: 0xff3333, depthTest: false })))
+    this.measureGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: num(T.crit), depthTest: false })))
     const d = a.distanceTo(b)
     this.measureGroup.add(this.label(`${d.toFixed(2)} m`, a.clone().lerp(b, 0.5)))
     this.onMeasure?.({ a: a.toArray(), b: b.toArray(), d })
   }
   clearMeasures() { this.measurePt = undefined; this.measureGroup.clear(); this.previewDot = undefined }   // 미리보기 점은 다음 호버에서 재생성
-  private dot(p: THREE.Vector3) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3333, depthTest: false })); m.position.copy(p); m.renderOrder = 10; return m }
+  private dot(p: THREE.Vector3) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshBasicMaterial({ color: num(T.crit), depthTest: false })); m.position.copy(p); m.renderOrder = 10; return m }
   private label(text: string, p: THREE.Vector3) {
     const c = document.createElement('canvas'); c.width = 256; c.height = 64
-    const g = c.getContext('2d')!; g.fillStyle = '#222'; g.beginPath(); g.roundRect(8, 8, 240, 48, 10); g.fill()
-    g.fillStyle = '#fff'; g.font = 'bold 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 128, 33)
+    const g = c.getContext('2d')!; g.fillStyle = T.bg.raised; g.strokeStyle = T.bg.line; g.lineWidth = 2; g.beginPath(); g.roundRect(8, 8, 240, 48, 10); g.fill(); g.stroke()
+    g.fillStyle = T.ink[1]; g.font = 'bold 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 128, 33)
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, sizeAttenuation: false }))
     sp.scale.set(0.16, 0.04, 1); sp.position.copy(p); sp.renderOrder = 11; return sp
   }
@@ -303,9 +304,9 @@ export class Scene3D {
 
   private measurePreview(x: number, y: number) {
     const p = this.hitPoint(x, y)
-    if (!this.previewDot) { this.previewDot = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshBasicMaterial({ color: 0x2563eb, depthTest: false, transparent: true, opacity: 0.9 })); this.previewDot.renderOrder = 10; this.measureGroup.add(this.previewDot) }
+    if (!this.previewDot) { this.previewDot = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshBasicMaterial({ color: num(T.accent), depthTest: false, transparent: true, opacity: 0.9 })); this.previewDot.renderOrder = 10; this.measureGroup.add(this.previewDot) }
     this.previewDot.visible = !!p
-    if (p) { this.previewDot.position.copy(p); (this.previewDot.material as THREE.MeshBasicMaterial).color.set(this.lastSnap ? 0xff3333 : 0x2563eb); this.previewDot.scale.setScalar(this.lastSnap ? 1.6 : 1) }   // 스냅되면 빨갛게 커진다
+    if (p) { this.previewDot.position.copy(p); (this.previewDot.material as THREE.MeshBasicMaterial).color.set(this.lastSnap ? num(T.crit) : num(T.accent)); this.previewDot.scale.setScalar(this.lastSnap ? 1.6 : 1) }   // 스냅되면 빨갛게 커진다
   }
 
   private clearPreview() { if (this.previewDot) { this.measureGroup.remove(this.previewDot); this.previewDot.geometry.dispose(); (this.previewDot.material as THREE.Material).dispose(); this.previewDot = undefined } }
@@ -328,7 +329,7 @@ export class Scene3D {
       const gid = m.name, kind = this.kind.get(gid)!, inFocus = !this.focusSet || this.focusSet.gids.has(gid)
       m.visible = this.visible(gid, kind)
       m.material = this.picked.has(gid) ? HIGHLIGHT : !inFocus ? GHOST : gid === this.focusSpace ? FOCUS_SPACE : kind === 'space' ? SPACE
-        : this.colors ? (this.colors.has(gid) ? this.colorMat(this.colors.get(gid)!) : this.ghostOthers ? GHOST : this.colorMat(0xd8d8d8)) : this.original.get(m)!
+        : this.colors ? (this.colors.has(gid) ? this.colorMat(this.colors.get(gid)!) : this.ghostOthers ? GHOST : this.colorMat(0x8b9199)) : this.original.get(m)!   // 색 없음: 채색 요소보다 눌리는 회색
     }
     if (this.merged) this.setMerged(true)  // 병합 모드면 재구성 (하이라이트·고스트가 자기 그룹으로 분리)
   }

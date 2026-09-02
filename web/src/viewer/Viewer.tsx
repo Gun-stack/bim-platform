@@ -77,7 +77,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => {
     const s = scene.current; if (!s) return
     if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? num(T.warn) : route.direction === 'up' ? num(T.accent) : num(T.ok)); s.setColors(m, true); return }
-    if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, num(T.ok)); for (const g of power.unpowered) m.set(g, num(T.ink[3])); s.setColors(m, true); return }
+    if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, num(T.ok)); for (const g of power.unpowered) m.set(g, 0x555c66); /* 무전원: 배경보다 살짝 밝은 짙은 회색 */ s.setColors(m, true); return }
     if (statusView) { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? num(T.ink[3]) : st.On === false ? num(T.ink[3]) : STATUS[st.Status ?? '']?.color ?? num(T.ink[3])) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
     if (!sysColor || colorMode) { if (!colorMode) s.setColors(undefined); return }
     const m = new Map<string, number>()

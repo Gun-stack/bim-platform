@@ -1,7 +1,7 @@
 /* 겹친 range 두 개(섹션 박스 min/max): 트랙은 통과, thumb 만 클릭 */
 .dual { pointer-events: none; -webkit-appearance: none; appearance: none; height: 20px; }
-.dual::-webkit-slider-runnable-track { height: 4px; background: #ddd; border-radius: 2px; }
-.dual::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: #2563eb; border: 2px solid #fff; box-shadow: 0 0 0 1px #2563eb; cursor: pointer; }
+.dual::-webkit-slider-runnable-track { height: 4px; background: var(--bg-line); border-radius: 2px; }
+.dual::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg-surface); box-shadow: 0 0 0 1px var(--accent); cursor: pointer; }
 .dual.hi::-webkit-slider-runnable-track { background: transparent; }
 
 @keyframes spin { to { transform: rotate(360deg) } }
@@ -10,11 +10,11 @@
 /* 모델 목록: 삭제는 행 hover 에서만 보이고, 주 동작(뷰어)과 떨어진 마지막 열 */
 .row-trash { opacity: 0; transition: opacity .15s; }
 .model-row:hover .row-trash, .row-trash:focus-visible { opacity: 1; }
-.row-trash:hover { color: #b91c1c !important; background: #fef2f2 !important; }
+.row-trash:hover { color: var(--crit) !important; background: rgba(229,103,95,.16) !important; }
 
 /* 모니터: 새 경보·장애 행 4초 강조, 요약 바 펄스. 1200px 미만이면 이벤트 패널을 격자 아래로 */
-@keyframes fresh { 0%, 100% { box-shadow: 0 0 0 0 #dc262600 } 50% { box-shadow: 0 0 0 3px #dc262680 } }
+@keyframes fresh { 0%, 100% { box-shadow: 0 0 0 0 rgba(229,103,95,0) } 50% { box-shadow: 0 0 0 3px rgba(229,103,95,.55) } }
 .fresh { animation: fresh 1s ease-in-out 4; }
-@keyframes pulse { 50% { filter: brightness(0.93) } }
+@keyframes pulse { 50% { filter: brightness(1.15) } }   /* 다크에선 밝아지는 펄스만 보인다 */
 .pulse { animation: pulse 0.8s ease-in-out 5; }
 @media (max-width: 1599px) { .monitor-body { flex-direction: column } .monitor-events { width: auto !important; position: static !important; max-height: 320px !important } }

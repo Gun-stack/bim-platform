@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { T, num } from '../theme'
 
 /** 우하단 XYZ 축 기즈모 (Blender 스타일). 호버하면 구가 커지고 라벨이 뜨며, 클릭하면 그 축에서 본다. 가운데는 홈 뷰.
  *  자기 렌더러·씬·카메라를 가진 독립 캔버스 — Scene3D 와는 콜백 둘(onAxis·onHome)과 sync() 로만 통한다 */
@@ -17,16 +18,16 @@ export class NavCube {
     Object.assign(this.el.style, { position: 'absolute', right: '12px', bottom: '56px', width: '96px', height: '96px', cursor: 'pointer' })
     parent.appendChild(this.el)
     this.label = document.createElement('div')
-    Object.assign(this.label.style, { position: 'absolute', right: '112px', bottom: '92px', background: '#222', color: '#fff', padding: '2px 8px', borderRadius: '3px', fontSize: '12px', display: 'none', pointerEvents: 'none', whiteSpace: 'nowrap' })
+    Object.assign(this.label.style, { position: 'absolute', right: '112px', bottom: '92px', background: T.bg.raised, color: T.ink[1], border: `1px solid ${T.bg.line}`, padding: '2px 8px', borderRadius: '3px', fontSize: '12px', display: 'none', pointerEvents: 'none', whiteSpace: 'nowrap' })
     parent.appendChild(this.label)
     this.renderer = new THREE.WebGLRenderer({ canvas: this.el, alpha: true, antialias: true })
     this.renderer.setSize(96, 96, false); this.renderer.setPixelRatio(devicePixelRatio)
     this.camera.position.set(0, 0, 5)
     // X 빨강, Y 초록(위), Z 파랑 — glb 는 Y-up. 라벨은 건축 관례(정면 = +Z 에서 봄)
     const axes: [THREE.Vector3, number, string, string][] = [
-      [new THREE.Vector3(1, 0, 0), 0xe0403a, 'Right', 'Left'],
-      [new THREE.Vector3(0, 1, 0), 0x6fa83a, 'Top', 'Bottom'],
-      [new THREE.Vector3(0, 0, 1), 0x3a7de0, 'Front', 'Back']]
+      [new THREE.Vector3(1, 0, 0), num(T.axis.x), 'Right', 'Left'],
+      [new THREE.Vector3(0, 1, 0), num(T.axis.y), 'Top', 'Bottom'],
+      [new THREE.Vector3(0, 0, 1), num(T.axis.z), 'Front', 'Back']]
     const ball = new THREE.SphereGeometry(0.22, 16, 12)
     for (const [dir, color, pos, neg] of axes) {
       const line = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 8), new THREE.MeshBasicMaterial({ color }))
@@ -40,7 +41,7 @@ export class NavCube {
         this.root.add(m); this.balls.push(m)
       }
     }
-    const home = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), new THREE.MeshBasicMaterial({ color: 0x888888 }))
+    const home = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), new THREE.MeshBasicMaterial({ color: num(T.ink[3]) }))
     home.userData = { label: 'Home' }
     this.root.add(home); this.balls.push(home)
     this.scene.add(this.root)
