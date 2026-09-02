@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, AlertTriangle, ArrowLeft, BarChart3, Box, Car, ClipboardList, ExternalLink, Gauge, Layers, TrendingUp, Users, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
 import TrendModal from './TrendModal'
 import ObjectDrawer from './ObjectDrawer'
 import { objLinks, selQ } from './context'
 import { api, post, type Model } from './api'
 import { TEAMS, teamOfSystems } from './teams'
 import { day, btn } from './ui'
-import { statusUi, WO_STATUS, type WoStatus } from './status'
+import { isQuiet, statusUi, WO_STATUS, type WoStatus } from './status'
 import { KEY_EQUIP, isAbn, overdue, rank, teamStats, worst, type Ev, type Row, type StatRow } from './monitor'
 import { Section } from './Section'
 import { useSections } from './useSections'
@@ -71,46 +70,42 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13 * fs, padding: kiosk ? '14px 18px' : '20px 24px', paddingRight: sel && !kiosk ? 460 : undefined, minHeight: '100vh', background: T.bg.raised }}>   {/* 객체 패널(440px)이 떠 있으면 그만큼 비워 최근 이벤트 열이 가려지지 않게 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-        {!kiosk && <a href="#/" style={{ color: T.accent, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={14} /> 모델 목록</a>}
-        <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}><Activity size={18} /> {model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>설비 모니터링</span></h1>
-        <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: sound ? T.ink[1] : T.ink[2], cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} style={{ display: 'none' }} />{sound ? <Volume2 size={14} /> : <VolumeX size={14} />} 알림음</label>
+        {!kiosk && <a href="#/" style={{ color: T.accent, textDecoration: 'none' }}>← 모델 목록</a>}
+        <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>설비 모니터링</span></h1>
+        <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: T.ink[2], cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} /> 알림음</label>
         <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 * fs }}>갱신 {tick.toLocaleTimeString()} · 5초</span>
-        {!kiosk && <><a href={`#/models/${modelId}${selQ(sel)}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a><a href={`#/models/${modelId}/fm${selQ(sel)}`} style={btn}><Wrench size={13} /> 시설관리</a></>}
+        {!kiosk && <><a href={`#/models/${modelId}${selQ(sel)}`} style={btn}>3D 뷰어</a><a href={`#/models/${modelId}/fm${selQ(sel)}`} style={btn}>시설관리</a></>}
       </div>
 
       {/* 건물 전체 요약 — 관제 화면의 첫 줄은 총계 */}
-      <div className={flash.size ? 'pulse' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 16px', marginBottom: 12, borderRadius: 10, background: tot.alarm ? T.critSoft : tot.fault ? T.warnSoft : T.okSoft, border: '1px solid ' + (tot.alarm ? T.crit : tot.fault ? T.warn : T.okSoft), fontSize: 13 * fs }}>
-        <b style={{ fontSize: 15 * fs, color: tot.alarm ? T.crit : tot.fault ? T.warn : T.ok }}>{tot.alarm ? `경보 ${tot.alarm}건` : tot.fault ? `장애 ${tot.fault}건 · 경보 없음` : '건물 정상'}</b>
-        <Stat icon={Siren} label="경보" n={tot.alarm} color="#dc2626" /><Stat icon={AlertTriangle} label="장애" n={tot.fault} color="#f59e0b" />
-        <Stat icon={Gauge} label="계측 주의" n={tot.reading} color="#b45309" />
-        <Stat icon={Wrench} label="열린 작업지시" n={tot.wo} color="#1d4ed8" sub={tot.unassigned ? `미배정 ${tot.unassigned}` : undefined} />
-        <Stat icon={ClipboardList} label="점검 지연" n={tot.due} color="#b45309" />
-        <Stat icon={PlugZap} label={power === 'GENERATOR' ? '정전 — 비상발전' : power === 'UTILITY' ? '한전 수전 정상' : '전원 정보 없음'} n={tot.dead} color={power === 'GENERATOR' ? T.warn : T.ok} sub={tot.dead ? '무전원' : '정상'} />
-        <Stat icon={Car} label="주차" n={`${val('PCS', 'Occupied') ?? '—'}/${val('PCS', 'Capacity') ?? '—'}`} color="#0f766e" sub={val('DISP', 'Text') as string | undefined} />
-        {tot.noAsset > 0 && !kiosk && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(load)} style={{ ...btn, marginLeft: 'auto', cursor: 'pointer' }} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록"><Box size={12} /> 미등록 {tot.noAsset}개 자산 등록</button>}
+      <div className={flash.size ? 'pulse' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 16px', marginBottom: 12, borderRadius: T.radius, background: tot.alarm ? T.critSoft : tot.fault ? T.warnSoft : T.bg.surface, border: '1px solid ' + (tot.alarm ? T.crit : tot.fault ? T.warn : T.bg.line), fontSize: 13 * fs }}>
+        <b style={{ fontSize: 15 * fs, color: tot.alarm ? T.crit : tot.fault ? T.warn : T.ink[1] }}>{tot.alarm ? `경보 ${tot.alarm}건` : tot.fault ? `장애 ${tot.fault}건` : '건물 정상'}</b>
+        <Stat label="경보" n={tot.alarm} color={T.crit} /><Stat label="장애" n={tot.fault} color={T.warn} /><Stat label="계측 주의" n={tot.reading} color={T.warn} />
+        <Stat label="작업지시" n={tot.wo} color={T.accent} sub={tot.unassigned ? `미배정 ${tot.unassigned}` : undefined} /><Stat label="점검 지연" n={tot.due} color={T.warn} />
+        {power === 'GENERATOR' && <b style={{ color: T.warn }} title="발전기 절체 중 — 뷰어 상태판에서 복전">정전 · 무전원 {tot.dead}</b>}
+        {tot.noAsset > 0 && !kiosk && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(load)} style={{ ...btn, marginLeft: 'auto' }} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록">미등록 {tot.noAsset}개 자산 등록</button>}
         <span style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto', color: T.ink[2], fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? new Date(events[0].at).toLocaleTimeString() : '—'}</span>
       </div>
 
-      <Section title="팀 현황" icon={Users} count={team ? `${TEAMS.find(t => t.key === team)!.name} 선택 중 — 클릭해서 해제` : '카드를 누르면 그 팀만'} open={sec.teams} onToggle={() => toggleSec('teams')} pad={10}>
+      <Section title="팀 현황" count={team ? `${TEAMS.find(t => t.key === team)!.name} 선택 중 — 클릭해서 해제` : '카드를 누르면 그 팀만'} open={sec.teams} onToggle={() => toggleSec('teams')} pad={10}>
       <div style={{ display: 'flex', gap: 12 }}>
         {TEAMS.map(t => { const k = kpi(t), active = team === t.key; return (
-          <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} style={{ flex: '1 1 0', minWidth: 0, background: T.bg.surface, border: '2px solid ' + (active ? t.color : T.bg.line), borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: t.color, flexShrink: 0 }} /><b style={{ whiteSpace: 'nowrap' }}>{t.name}</b>
-              <span style={{ color: T.ink[2], fontSize: 12 * fs, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={t.systems.join(' · ')}>{t.systems.join(' · ')}</span></div>
+          <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} title={t.systems.join(' · ')} style={{ flex: '1 1 0', minWidth: 0, background: T.bg.surface, border: '1px solid ' + (active ? t.color : T.bg.line), borderRadius: T.radius, padding: '10px 12px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: t.color, flexShrink: 0 }} /><b style={{ whiteSpace: 'nowrap', color: active ? t.color : T.ink[1] }}>{t.name}</b></div>
             <div style={{ color: T.ink[2], fontSize: 12 * fs, marginTop: 2, whiteSpace: 'nowrap' }}>장비 {k.total} · 자산 {k.assets}{k.due ? <b style={{ color: T.warn, marginLeft: 6 }}>점검 지연 {k.due}</b> : ''}{k.dead ? <b style={{ color: T.ink[1], marginLeft: 6 }}>무전원 {k.dead}</b> : ''}</div>
             <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12 * fs, whiteSpace: 'nowrap' }}>
-              <span style={{ color: k.alarm ? T.crit : T.ink[2] }}><Siren size={12} style={{ verticalAlign: -2 }} /> 경보 <b>{k.alarm}</b></span>
-              <span style={{ color: k.fault ? T.warn : T.ink[2] }}><AlertTriangle size={12} style={{ verticalAlign: -2 }} /> 장애 <b>{k.fault}</b></span>
-              <span style={{ color: k.wo ? T.accent : T.ink[2] }}><Wrench size={12} style={{ verticalAlign: -2 }} /> 작업지시 <b>{k.wo}</b></span>
+              <span style={{ color: k.alarm ? T.crit : T.ink[3] }}>경보 <b>{k.alarm}</b></span>
+              <span style={{ color: k.fault ? T.warn : T.ink[3] }}>장애 <b>{k.fault}</b></span>
+              <span style={{ color: k.wo ? T.accent : T.ink[3] }}>작업지시 <b>{k.wo}</b></span>
             </div>
-            <div style={{ color: T.ink[2], fontSize: 11.5 * fs, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={metric(t)}>{metric(t)}</div>
+            <div style={{ color: T.ink[2], fontSize: 11 * fs, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={metric(t)}>{metric(t)}</div>
           </div>) })}
       </div>
       </Section>
 
       {/* 1) 지금 처리할 것 — 층·팀 격자보다 먼저. 경보 → 장애 → 계측 위험/무전원 → 주의·작업지시 순 */}
       {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (
-        <Section title="지금 처리할 것" icon={Siren} color={todo.some(isAbn) ? T.crit : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}{!todo.length && <span style={{ color: T.ok, marginLeft: 6 }}>이상·미처리 없음</span>}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
+        <Section title="지금 처리할 것" color={todo.some(isAbn) ? T.crit : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}{!todo.length && <span style={{ color: T.ok, marginLeft: 6 }}>이상·미처리 없음</span>}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
           {todo.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '2px 14px' }}>
             {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: T.ink[3], fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} /></div>)}
             {todo.length > 12 && <div style={{ color: T.ink[2], fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
@@ -122,23 +117,23 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
             {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: T.ink[1] } : statusUi(st), rs = inlineReadings(r.status, r.name), w = worst(r); return (
               <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: T.ink[1], background: isAbn(r) ? (st === 'ALARM' ? T.critSoft : T.warnSoft) : w === 'crit' ? T.critSoft : w === 'warn' ? T.warnSoft : T.bg.surface, border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? T.crit : T.warn) : T.bg.line), borderLeft: '4px solid ' + (sc?.color ?? T.bg.line), borderRadius: 8, padding: '8px 10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 * fs }} title={r.name ?? undefined}>{r.name}</span><b style={{ color: sc?.color ?? T.ink[3], fontSize: 12 * fs, whiteSpace: 'nowrap' }}>{sc?.label ?? '—'}</b></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 * fs }} title={r.name ?? undefined}>{r.name}</span><b style={{ color: !dead(r) && isQuiet(st) ? T.ink[2] : sc?.color ?? T.ink[3], fontSize: 12 * fs, whiteSpace: 'nowrap', fontWeight: !dead(r) && isQuiet(st) ? 400 : 600 }}>{sc?.label ?? '—'}</b></div>
                 <div style={{ color: T.ink[2], fontSize: 11 * fs, marginTop: 2 }}>{r.storey}{r.zone ? ` · ${r.zone.split('-').pop()}` : ''}{r.openWorkOrders ? <b style={{ color: r.woAssignee ? T.accent : T.warn, marginLeft: 6 }}>WO {r.woAssignee ?? '미배정'}</b> : ''}</div>
-                {rs.length > 0 && <div style={{ fontSize: 11.5 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'center' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 500 : 700 }}>{x.text}</b></span>)}<span onClick={e => { e.preventDefault(); setTrend(r) }} title="계측 트렌드" style={{ color: T.accent, cursor: 'pointer', display: 'inline-flex' }}><TrendingUp size={12} /></span></div>}
+                {rs.length > 0 && <div style={{ fontSize: 11 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'center' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 600 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 400 : 600 }}>{x.text}</b></span>)}<span className="row-act" onClick={e => { e.preventDefault(); setTrend(r) }} title="계측 트렌드" style={{ color: T.accent, cursor: 'pointer', marginLeft: 'auto' }}>트렌드</span></div>}
               </a>) })}
           </div>
         </Section>) : null })()}
 
-      <Section title="층 × 팀 전체 현황" icon={Layers} color="#6b7280" count={`${storeys.length}개 층 · ${visibleTeams.length}개 팀${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open={sec.grid} onToggle={() => toggleSec('grid')} pad={10}
+      <Section title="층 × 팀 전체 현황" count={`${storeys.length}개 층 · ${visibleTeams.length}개 팀${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open={sec.grid} onToggle={() => toggleSec('grid')} pad={10}
         right={<span style={{ display: 'inline-flex', border: `1px solid ${T.bg.line}`, borderRadius: 6, overflow: 'hidden', fontSize: 12 * fs }}>
-          {([['abnormal', '이상만'], ['equipment', '장비'], ['all', '전체']] as const).map(([k, l]) => <button key={k} onClick={() => setMode(k)} style={{ padding: '3px 9px', border: 0, cursor: 'pointer', background: mode === k ? T.ink[1] : T.bg.surface, color: mode === k ? T.bg.surface : T.ink[2], fontSize: 'inherit' }}>{l}</button>)}</span>}>
+          {([['abnormal', '이상만'], ['equipment', '장비'], ['all', '전체']] as const).map(([k, l]) => <button key={k} onClick={() => setMode(k)} style={{ padding: '3px 9px', border: 0, cursor: 'pointer', background: mode === k ? T.accent : T.bg.surface, color: mode === k ? T.bg.base : T.ink[2], fontSize: 'inherit' }}>{l}</button>)}</span>}>
       <div className="monitor-body" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}><div style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleTeams.length}, minmax(210px, 1fr))`, gap: 10, minWidth: 64 + visibleTeams.length * 220 }}>
           <div /> {visibleTeams.map(t => <div key={t.key} style={{ fontWeight: 600, color: t.color, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: t.color, flexShrink: 0, display: 'inline-block' }} /> {t.name}</div>)}
           {storeys.map(st => { const n = abnByStorey(st); return <div key={st} style={{ display: 'contents' }}>
             <div style={{ paddingTop: 8 }}>
-              <div onClick={() => setStoreyF(storeyF === st ? undefined : st)} title={storeyF === st ? '전체 층 보기' : '이 층만 보기'} style={{ fontWeight: 700, fontSize: 15 * fs, color: storeyF === st ? T.accent : T.ink[1], cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>{st}{n > 0 && <span style={{ fontSize: 10 * fs, background: T.crit, color: T.bg.base, borderRadius: 999, padding: '0 5px', fontWeight: 600 }}>{n}</span>}</div>
-              {!kiosk && <a href={storeyClip(st)} title="뷰어에서 이 층 단면" style={{ color: T.ink[3], display: 'inline-flex', marginTop: 2 }}><Layers size={13} /></a>}
+              <div onClick={() => setStoreyF(storeyF === st ? undefined : st)} title={storeyF === st ? '전체 층 보기' : '이 층만 보기'} style={{ fontWeight: 600, fontSize: 15 * fs, color: storeyF === st ? T.accent : T.ink[1], cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>{st}{n > 0 && <span style={{ fontSize: 10 * fs, background: T.crit, color: T.bg.base, borderRadius: 999, padding: '0 5px', fontWeight: 600 }}>{n}</span>}</div>
+              {!kiosk && <a href={storeyClip(st)} title="뷰어에서 이 층 단면" style={{ color: T.ink[3], fontSize: 11 * fs, textDecoration: 'none' }}>단면</a>}
             </div>
             {visibleTeams.map(t => { const rs = cell(st, t); return (
               <div key={st + t.key} style={{ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: 8, padding: 6, minHeight: 44 }}>
@@ -150,13 +145,13 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 
         {/* 최근 이벤트 — 격자는 '지금'만 보여주므로 '언제 무슨 일이' 는 여기 */}
         <div className="monitor-events" style={{ width: kiosk ? 400 : 300, flexShrink: 0,   /* 벽면에선 '최근 무슨 일'이 격자보다 자주 읽힌다 */ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: 10, padding: '8px 10px', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflow: 'auto' }}>
-          <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Activity size={14} /> 최근 이벤트 <span style={{ color: T.ink[2], fontWeight: 400, fontSize: 11 * fs }}>{events.length}</span></div>
+          <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>최근 이벤트 <span style={{ color: T.ink[2], fontWeight: 400, fontSize: 11 * fs }}>{events.length}</span></div>
           {!events.length && <div style={{ color: T.ink[3], fontSize: 12 * fs }}>아직 이벤트가 없습니다</div>}
           {events.map((e, i) => { const abn = e.status === 'ALARM' || e.status === 'FAULT'; return (
             <a key={i} href={e.globalId ? e.kind === 'WORK_ORDER' ? `#/models/${modelId}/fm?sel=${encodeURIComponent(e.globalId)}` : `#/models/${modelId}?sel=${encodeURIComponent(e.globalId)}&focus=1` : undefined} style={{ display: 'grid', gridTemplateColumns: `${40 * fs}px 1fr`, gap: 6, padding: '4px 4px', borderTop: `1px solid ${T.bg.raised}`, textDecoration: 'none', color: T.ink[1], fontSize: 12 * fs }}>
               <span style={{ color: T.ink[2], fontSize: 11 * fs, whiteSpace: 'nowrap' }}>{e.at ? new Date(e.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'}</span>
               <span style={{ minWidth: 0 }}>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.kind === 'WORK_ORDER' ? <><Wrench size={11} style={{ verticalAlign: -1, color: T.accent }} /> {e.woTitle}</> : <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: statusUi(e.status)?.color ?? T.ink[3], marginRight: 4 }} />{e.name} → <b style={{ color: abn ? statusUi(e.status)!.color : T.ok }}>{statusUi(e.status)?.label ?? e.status}</b></>}</div>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.kind === 'WORK_ORDER' ? <><span style={{ color: T.accent }}>WO</span> {e.woTitle}</> : <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: statusUi(e.status)?.color ?? T.ink[3], marginRight: 4 }} />{e.name} → <b style={{ color: abn ? statusUi(e.status)!.color : T.ink[2] }}>{statusUi(e.status)?.label ?? e.status}</b></>}</div>
                 <div style={{ color: T.ink[2], fontSize: 11 * fs }}>{e.storey ?? ''}{e.kind === 'WORK_ORDER' ? ` · 작업지시 ${WO_STATUS[e.woStatus as WoStatus] ?? e.woStatus}` : ''}</div>
               </span>
             </a>) })}
@@ -166,14 +161,14 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 
       {/* 경보 통계 — 이력(op_event)이 있어서 나오는 것. 격자는 '지금', 여기는 '얼마나 자주·얼마나 오래' */}
       {(() => { const ts = teamStats(stats), total = stats.reduce((n, r) => n + r.alarms + r.faults, 0), recurring = stats.filter(r => r.alarms + r.faults >= 2).slice(0, 8); return (
-        <Section title="경보 통계" icon={BarChart3} color="#6b7280" count={sec.stats ? `${days}일 · 에피소드 ${total} · 재발 장비 ${stats.filter(r => r.alarms + r.faults >= 2).length}` : '발생 빈도 · 복구 시간 · 재발'} open={sec.stats} onToggle={() => toggleSec('stats')} pad={10}
+        <Section title="경보 통계" count={sec.stats ? `${days}일 · 에피소드 ${total} · 재발 장비 ${stats.filter(r => r.alarms + r.faults >= 2).length}` : '발생 빈도 · 복구 시간 · 재발'} open={sec.stats} onToggle={() => toggleSec('stats')} pad={10}
           right={<select value={days} onChange={e => setDays(+e.target.value)} onClick={e => e.stopPropagation()} style={{ fontSize: 12 * fs }}>{[7, 30, 90].map(d => <option key={d} value={d}>최근 {d}일</option>)}</select>}>
           <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <table style={{ borderCollapse: 'collapse', fontSize: 12.5 * fs, background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: 8, minWidth: 520 }}><thead>
+            <table style={{ borderCollapse: 'collapse', fontSize: 12 * fs, background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: 8, minWidth: 520 }}><thead>
               <tr style={{ color: T.ink[2], textAlign: 'right' }}><th style={{ ...th, textAlign: 'left' }}>팀</th><th style={th}>경보</th><th style={th}>장애</th><th style={th} title="정상→이상 전이부터 다시 정상이 기록될 때까지, 복구된 에피소드 평균">평균 복구</th><th style={th}>미복구</th><th style={th} title="기간 안에 2회 이상 발생한 장비">재발 장비</th></tr></thead><tbody>
               {ts.map(s => <tr key={s.team.key} style={{ textAlign: 'right', borderTop: `1px solid ${T.bg.raised}`, color: s.alarms + s.faults ? T.ink[1] : T.ink[3] }}>
                 <td style={{ ...td, textAlign: 'left', color: s.team.color, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: s.team.color, flexShrink: 0, display: 'inline-block' }} /> {s.team.name}</td>
-                <td style={{ ...td, color: s.alarms ? T.crit : undefined, fontWeight: s.alarms ? 700 : 400 }}>{s.alarms}</td><td style={{ ...td, color: s.faults ? T.warn : undefined, fontWeight: s.faults ? 700 : 400 }}>{s.faults}</td>
+                <td style={{ ...td, color: s.alarms ? T.crit : undefined, fontWeight: s.alarms ? 600 : 400 }}>{s.alarms}</td><td style={{ ...td, color: s.faults ? T.warn : undefined, fontWeight: s.faults ? 600 : 400 }}>{s.faults}</td>
                 <td style={td}>{fmtMin(s.mttrMin)}</td><td style={{ ...td, color: s.open ? T.crit : undefined }}>{s.open}</td><td style={td}>{s.recurring}</td></tr>)}
             </tbody></table>
             <div style={{ flex: 1, minWidth: 280, fontSize: 12 * fs }}>
@@ -191,12 +186,13 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   )
 }
 
-const Stat = ({ icon: Icon, label, n, color, sub }: { icon: typeof Siren; label: string; n: number | string; color: string; sub?: string }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><Icon size={14} style={{ color: (typeof n === 'number' && n === 0) ? T.ink[3] : color }} /><span style={{ color: T.ink[2] }}>{label}</span><b style={{ color: (typeof n === 'number' && n === 0) ? T.ink[3] : color }}>{n}</b>{sub && <span style={{ color: T.ink[2], fontSize: '0.9em' }}>{sub}</span>}</span>)
+/** 총계 항목: 라벨 + 숫자. 0 은 흐리게, 0 이 아닐 때만 의미색 */
+const Stat = ({ label, n, color, sub }: { label: string; n: number; color: string; sub?: string }) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><span style={{ color: T.ink[2] }}>{label}</span><b style={{ color: n === 0 ? T.ink[3] : color }}>{n}</b>{sub && <span style={{ color: T.ink[2], fontSize: '0.9em' }}>{sub}</span>}</span>)
 
 function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number; onTrend?: (t: { globalId: string; name: string | null }) => void }) {
   const hasNum = Object.entries(r.status ?? {}).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt')
-  const s = r.status?.Status, st = dead ? { label: '무전원', color: T.ink[1] } : statusUi(s)
+  const s = r.status?.Status, st = dead ? { label: '무전원', color: T.ink[1] } : statusUi(s), quiet = !dead && isQuiet(s)   // 정상 계열은 무색 — 색은 이상에만
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
   return (
     <a data-gid={r.globalId} href={`#/models/${modelId}/monitor${selQ(r.globalId)}`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 객체 패널 · 3D 아이콘: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
@@ -205,14 +201,14 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: st
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? T.bg.line }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: T.ink[2], marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
         <span style={{ color: T.ink[2], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {r.openWorkOrders ? <b onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = `#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}` }} style={{ color: r.woAssignee ? T.accent : T.warn, cursor: 'pointer' }} title={`작업지시 ${r.openWorkOrders}건 — 클릭: 칸반 카드로`}>WO {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
-            : r.assetTag ? <><Box size={10} style={{ verticalAlign: -1 }} /> {r.assetTag}</> : ''}
+          {r.openWorkOrders ? <b onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = `#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}` }} style={{ color: r.woAssignee ? T.accent : T.warn, cursor: 'pointer', fontWeight: 400 }} title={`작업지시 ${r.openWorkOrders}건 — 클릭: 칸반 카드로`}>WO {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
+            : r.assetTag ? r.assetTag : ''}
           {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: T.crit, marginLeft: 4 }}>결함</b> : ''}
           {overdue(r) ? <b style={{ color: T.warn, marginLeft: 4 }} title={`다음 점검 ${day(r.nextDueOn!)} 지남`}>점검 지연</b> : ''}</span>
-        <b style={{ color: st?.color ?? T.ink[3], minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}{hasNum && onTrend && <span onClick={e => { e.preventDefault(); e.stopPropagation(); onTrend({ globalId: r.globalId, name: r.name }) }} title="계측 트렌드" style={{ color: T.accent, cursor: 'pointer', marginLeft: 5, verticalAlign: -1, display: 'inline-flex' }}><TrendingUp size={11} /></span>}<span onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = objLinks(modelId, r.globalId).viewer }} title="3D 위치 — 뷰어에서 구역 강조" style={{ color: T.ink[3], cursor: 'pointer', marginLeft: 5, verticalAlign: -1, display: 'inline-flex' }}><ExternalLink size={11} /></span></b>
+        <b style={{ color: quiet ? T.ink[2] : st?.color ?? T.ink[3], fontWeight: quiet ? 400 : 600, minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}{hasNum && onTrend && <span className="row-act" onClick={e => { e.preventDefault(); e.stopPropagation(); onTrend({ globalId: r.globalId, name: r.name }) }} title="계측 트렌드" style={{ color: T.accent, cursor: 'pointer', marginLeft: 6, fontWeight: 400 }}>트렌드</span>}<span className="row-act" onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = objLinks(modelId, r.globalId).viewer }} title="3D 위치 — 뷰어에서 구역 강조" style={{ color: T.accent, cursor: 'pointer', marginLeft: 6, fontWeight: 400 }}>3D</span></b>
       </span>
       {rs.length > 0 && <span style={{ display: 'block', paddingLeft: 16, marginTop: 1, fontSize: 11 * fs, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {rs.slice(0, 3).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700, marginRight: 8 }}>{x.label} {x.text}</span>)}{rs.length > 3 && <span style={{ color: T.ink[3] }}>+{rs.length - 3}</span>}</span>}
+        {rs.slice(0, 3).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 600, marginRight: 8 }}>{x.label} {x.text}</span>)}{rs.length > 3 && <span style={{ color: T.ink[3] }}>+{rs.length - 3}</span>}</span>}
     </a>
   )
 }

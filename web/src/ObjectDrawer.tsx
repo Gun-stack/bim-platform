@@ -1,4 +1,4 @@
-import { ExternalLink, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import ObjectSummary from './ObjectSummary'
 import StatusEditor from './viewer/StatusEditor'
 import FmPanel from './viewer/FmPanel'
@@ -18,7 +18,7 @@ export default function ObjectDrawer({ modelId, gid, tick, reload, onClose }: { 
     <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 14, overflow: 'auto', fontSize: 13, zIndex: 40, boxSizing: 'border-box', fontFamily: 'system-ui' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <b>객체</b><span style={{ color: T.ink[2], fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={gid}>{gid}</span>
-        <a href={links.viewer} title="뷰어에서 구역 강조 + 비콘" style={btn}><ExternalLink size={12} /> 3D 위치</a>
+        <a href={links.viewer} title="뷰어에서 구역 강조 + 비콘" style={btn}>3D 위치</a>
         <X size={16} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={onClose} />
       </div>
       {!d ? <p style={{ color: T.ink[2] }}>불러오는 중…</p> : <>

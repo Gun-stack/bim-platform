@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Box, X } from 'lucide-react'
 import { useObject } from './useObject'
 import { getRecent, getSnap, objLinks, pushRecent, selQ } from './context'
-import { statusUi } from './status'
+import { isQuiet, statusHex, statusLabel } from './status'
+import { badge } from './ui'
 import { teamOfSystems } from './teams'
 import { T } from './theme'
 
@@ -17,19 +18,19 @@ export default function ObjectDock({ modelId, route }: { modelId: string; route:
   const recent = getRecent(modelId).filter(r => r.gid !== sel)
   if (!sel && !recent.length) return null
   const snap = sel ? getSnap(modelId, sel) : undefined
-  const st = statusUi((detail?.properties.Pset_BimStatus as Record<string, unknown> | undefined)?.Status as string | undefined)
+  const st = (detail?.properties.Pset_BimStatus as Record<string, unknown> | undefined)?.Status as string | undefined
   const team = detail ? teamOfSystems(detail.systems, detail.name) : undefined
   const links = sel ? objLinks(modelId, sel) : undefined
   const link = { color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' } as const
   return (
-    <div style={{ position: 'fixed', left: 16, bottom: 16, width: 280, zIndex: 45, background: T.bg.surface, borderRadius: 10, boxShadow: T.shadow, padding: '8px 10px', fontSize: 12, fontFamily: 'system-ui', boxSizing: 'border-box' }}>
+    <div style={{ position: 'fixed', left: 16, bottom: 16, width: 280, zIndex: 45, background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, boxShadow: T.shadow, padding: '8px 10px', fontSize: 12, fontFamily: 'system-ui', boxSizing: 'border-box' }}>
       {sel && links && <>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {snap ? <img src={snap} alt="" width={56} height={35} style={{ borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} /> : <span style={{ width: 56, height: 35, borderRadius: 4, background: T.bg.line, display: 'grid', placeItems: 'center', color: T.ink[3], flexShrink: 0 }}><Box size={16} /></span>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={detail?.name ?? sel}>{detail?.name ?? '…'}</b>
-              {st && <span style={{ padding: '0 6px', borderRadius: 999, color: T.ink[1], fontSize: 10, fontWeight: 600, background: st.color, whiteSpace: 'nowrap' }}>{st.label}</span>}
-              {team && <span style={{ fontSize: 10, border: '1px solid ' + team.color, color: team.color, borderRadius: 4, padding: '0 3px', whiteSpace: 'nowrap' }}>{team.short}</span>}</div>
+              {st && !isQuiet(st) && <span style={badge(statusHex(st))}>{statusLabel(st)}</span>}
+              {team && <span style={{ fontSize: T.fs.xs, color: team.color, whiteSpace: 'nowrap' }}>{team.short}</span>}</div>
             <div style={{ display: 'flex', gap: 8, color: T.ink[2], fontSize: 11, marginTop: 1 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{detail?.spatialName ?? ''}{asset ? ` · ${asset.tag}` : ''}</span>
               <a href={links.viewer} style={link}>3D</a>

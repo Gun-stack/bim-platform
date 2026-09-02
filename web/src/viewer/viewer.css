@@ -18,3 +18,7 @@
 @keyframes pulse { 50% { filter: brightness(1.15) } }   /* 다크에선 밝아지는 펄스만 보인다 */
 .pulse { animation: pulse 0.8s ease-in-out 5; }
 @media (max-width: 1599px) { .monitor-body { flex-direction: column } .monitor-events { width: auto !important; position: static !important; max-height: 320px !important } }
+
+/* 행 안의 보조 동작(트렌드·3D)은 hover 에서만 — 장식이 아니라 동작이므로 필요할 때 나타난다 */
+.row-act { opacity: 0; transition: opacity .12s; }
+a:hover .row-act, a:focus-within .row-act { opacity: 1; }
