@@ -7,8 +7,9 @@ import java.util.List;
 final class Sql {
 	private Sql() {}
 
-	/** 배관·덕트·트레이·케이블 같은 '선'. 장비 목록·자산 일괄 등록에서 제외 (IFC2x3 일반 클래스 IfcFlowSegment/Fitting 포함) */
-	static final String SEGMENT_CLASSES = "('IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment', 'IfcFlowSegment', 'IfcFlowFitting')";
+	/** 배관·덕트·트레이·케이블 같은 '선'과 그 이음(피팅). 장비 목록·자산 일괄 등록에서 제외 (타입 없는 IFC2x3 일반 클래스 IfcFlowSegment/Fitting 포함) */
+	static final String SEGMENT_CLASSES = "('IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment', 'IfcFlowSegment', "
+		+ "'IfcPipeFitting', 'IfcDuctFitting', 'IfcCableCarrierFitting', 'IfcCableFitting', 'IfcFlowFitting')";
 
 	/** 요소의 층·구역 — SELECT 열과 그에 필요한 JOIN. 실(IfcSpace)에 속하면 구역 = 실 이름, 층 = 그 부모 */
 	static final String STOREY_ZONE_COLS = "coalesce(st.name, sn.name) storey, CASE WHEN sn.ifc_class = 'IfcSpace' THEN sn.name END zone";

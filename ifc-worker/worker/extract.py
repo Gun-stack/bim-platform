@@ -27,6 +27,21 @@ def spatial_tree(f):
     return rows
 
 
+# IFC2x3 는 덕트·조명·콘센트를 IfcFlowTerminal 같은 일반 클래스로 내고 종류는 타입(IfcAirTerminalType 등)에만 남긴다
+_GENERIC = {"IfcDistributionElement", "IfcDistributionFlowElement", "IfcDistributionControlElement", "IfcFlowTerminal", "IfcFlowSegment", "IfcFlowFitting",
+            "IfcFlowController", "IfcFlowMovingDevice", "IfcFlowStorageDevice", "IfcFlowTreatmentDevice", "IfcEnergyConversionDevice"}
+
+
+def _concrete_class(el):
+    """일반 클래스면 타입 이름으로 구체 클래스를 되찾는다 (IfcFlowTerminal + IfcAirTerminalType → IfcAirTerminal). 타입이 없으면 그대로"""
+    cls = el.is_a()
+    if cls in _GENERIC:
+        t = ue.get_type(el)
+        if t is not None and t.is_a().endswith("Type"):
+            return t.is_a()[:-4]
+    return cls
+
+
 def elements(f):
     """[(global_id, ifc_class, name, container_global_id|None, properties)]"""
     rows = []
@@ -35,13 +50,14 @@ def elements(f):
             continue
         psets = {k: {p: v for p, v in props.items() if p != "id"} for k, props in ue.get_psets(el).items()}
         c = ue.get_container(el)
-        rows.append((el.GlobalId, el.is_a(), el.Name, c.GlobalId if c else None, psets))
+        rows.append((el.GlobalId, _concrete_class(el), el.Name, c.GlobalId if c else None, psets))
     return rows
 
 
 _NOT_A_SYSTEM = {"", "Undefined", "Other", "Global", "Fitting"}
+# 레빗 System Classification → IfcDistributionSystemEnum 에 가까운 값 (뷰어 계통 색·아이콘이 이 값을 본다)
 _DERIVED_TYPE = {"SANITARY": "WASTEWATER", "HYDRONICSUPPLY": "CHILLEDWATER", "HYDRONICRETURN": "CHILLEDWATER",
-                 "POWER": "ELECTRICAL", "VENT": "VENTILATION"}
+                 "POWER": "ELECTRICAL", "VENT": "VENTILATION", "SUPPLYAIR": "AIRCONDITIONING", "RETURNAIR": "AIRCONDITIONING", "EXHAUSTAIR": "VENTILATION"}
 
 
 def _derived_type(name):

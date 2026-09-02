@@ -95,6 +95,26 @@ class DerivedSystemsTest(unittest.TestCase):
         self.assertEqual(len(sys), 1)
         self.assertEqual(sys[0][1], "급수")   # 진짜 계통이 있으면 유도 안 함
 
+    def test_hvac_classifications_map_to_standard_types(self):
+        self.assertEqual([extract._derived_type(n) for n in ("Supply Air", "Return Air", "Exhaust Air", "Domestic Cold Water")],
+                         ["AIRCONDITIONING", "AIRCONDITIONING", "VENTILATION", "DOMESTICCOLDWATER"])
+
+
+@unittest.skipIf(ifcopenshell is None, "ifcopenshell not installed")
+class GenericClassTest(unittest.TestCase):
+    """IFC2x3 일반 클래스(IfcFlowTerminal…)는 타입(IfcAirTerminalType…)으로 구체 클래스를 되찾는다."""
+
+    def test_generic_class_refined_by_type(self):
+        f = ifcopenshell.file(schema="IFC2X3")
+        a = f.create_entity("IfcFlowTerminal", GlobalId=g(), Name="디퓨저")
+        t = f.create_entity("IfcAirTerminalType", GlobalId=g(), Name="600x600", PredefinedType="DIFFUSER")
+        f.create_entity("IfcRelDefinesByType", GlobalId=g(), RelatedObjects=[a], RelatingType=t)
+        b = f.create_entity("IfcFlowSegment", GlobalId=g(), Name="타입 없음")
+        c = f.create_entity("IfcWall", GlobalId=g(), Name="벽")   # 일반 클래스가 아니면 타입이 있어도 그대로
+        f.create_entity("IfcRelDefinesByType", GlobalId=g(), RelatedObjects=[c], RelatingType=f.create_entity("IfcWallType", GlobalId=g(), PredefinedType="STANDARD"))
+        cls = {gid: k for gid, k, *_ in extract.elements(f)}
+        self.assertEqual((cls[a.GlobalId], cls[b.GlobalId], cls[c.GlobalId]), ("IfcAirTerminal", "IfcFlowSegment", "IfcWall"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -52,7 +52,7 @@ FMS·MEP 분야의 실무 경험을 바탕으로 업무 흐름과 기술 구현�
 
 ![자산 대장](images/11-fm-assets.png)
 
-**8. 실무 IFC — 업로드만으로.** buildingSMART의 Revit 배관 모델(Duplex Plumbing, IFC2x3)을 올리면 포트 연결(`IfcRelConnectsPorts`) 485건이 방향 그래프가 되고, IfcSystem이 없어도 Pset(System Classification)에서 **계통 7개가 유도**됩니다. 자산 일괄 등록(장비 40대)까지 버튼 하나 — 아래는 업로드 직후의 모니터링입니다.
+**8. 실무 IFC — 업로드만으로.** buildingSMART의 Revit 배관 모델(Duplex Plumbing, IFC2x3)을 올리면 포트 연결(`IfcRelConnectsPorts`) 485건이 방향 그래프가 되고, IfcSystem이 없어도 Pset(System Classification)에서 **계통 7개가 유도**됩니다. 자산 일괄 등록(장비 40대)까지 버튼 하나 — 아래는 업로드 직후의 모니터링입니다. 2라운드로 올린 Clinic HVAC(27MB, 포트 7,390·연결 3,695)은 요소 3,704개가 전부 IfcFlowTerminal 같은 IFC2x3 일반 클래스였는데, 타입(IfcAirTerminalType 등)으로 구체 클래스를 되찾아 디퓨저 440·VAV 115·팬 8·냉동기 1이 장비로 잡히고 덕트·피팅 3,100개는 빠집니다.
 
 ![실무 IFC — Duplex Plumbing 모니터링](images/12-plumbing-monitor.png)
 
@@ -186,6 +186,6 @@ compose.yaml  로컬 실행 환경
 
 ## 현재 범위와 다음 단계
 
-- ~~실무 IFC의 `IfcDistributionPort` / `IfcRelConnectsPorts` 변환~~ — 완료. 포트 연결을 방향 그래프로 변환(FlowDirection 기준)하고, 계통(IfcSystem)이 없는 레빗 파일은 Pset(System Classification)로 계통을 유도해 추적·모니터링·팀 분류·자산 일괄 등록까지 동작합니다. Revit 출력 Duplex Plumbing(IFC2x3, 포트 970·연결 485 → 유도 계통 7·자산 40)으로 검증
+- ~~실무 IFC의 `IfcDistributionPort` / `IfcRelConnectsPorts` 변환~~ — 완료. 포트 연결을 방향 그래프로 변환(FlowDirection 기준)하고, 계통(IfcSystem)이 없는 레빗 파일은 Pset(System Classification)로 계통을 유도해 추적·모니터링·팀 분류·자산 일괄 등록까지 동작합니다. Revit 출력 Duplex Plumbing(IFC2x3, 포트 970·연결 485 → 유도 계통 7·자산 40)과 Clinic HVAC(포트 7,390·연결 3,695 → 계통 7·장비 566, IFC2x3 일반 클래스를 타입으로 복원)으로 검증. 남은 관찰: 2x3 전기 모델은 회로 연결을 내보내지 않아 추적 불가(Clinic Electrical, 포트 0)
 - 인증·권한 관리와 외부 공개 배포 구성
 - 대규모 모델을 위한 3D Tiles와 확장성 검증
