@@ -166,6 +166,8 @@ python3 samples/gen/bms_sim.py <modelId>
 - `#/models/{id}/monitor` — 설비 모니터링 (`?kiosk=1` 벽면 모드)
 - `#/models/{id}/fm` — 자산·점검·작업지시
 - `#/map` — GIS 지도
+
+API 문서(springdoc): [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) · `GET /v3/api-docs`. 응답이 JSON 맵이라 스키마는 비어 있고, 응답 타입은 [`web/src/api.ts`](web/src/api.ts)가 계약입니다.
 </details>
 
 <details>

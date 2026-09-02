@@ -154,6 +154,7 @@ flowchart LR
 | API 호출·응답 타입 | `web/src/api.ts` | `api<T>()` — 응답 타입은 호출부가 선언 |
 | **공유 SQL 조각** | `api/…/Sql.java` | 선(배관) 제외 목록, 다음 점검일, 층/구역 조인, 계통 스코프 CTE |
 | API 오류 3종 + DB 제약 변환 | `api/…/ApiErrors.java` | |
+| API 문서 | `api/…/OpenApiConfig.java` (springdoc) | `localhost:8080/swagger-ui.html` — 경로 32개 자동, 응답 스키마는 `api.ts` 가 계약 |
 | 운영 상태·작업지시 규칙·전원 계산 | `api/…/StatusService.java` | `demoAggregates()` 는 가상 건물 전용 |
 | 자산·점검·작업지시 | `api/…/FmService.java` | |
 | 모니터링·이벤트 API | `api/…/MonitorController.java` | |
