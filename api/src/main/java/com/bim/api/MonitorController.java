@@ -49,6 +49,31 @@ class MonitorController {
 		return Map.of("power", status.powerSource(id).orElse("UNKNOWN"), "rows", rows);
 	}
 
+	/** 경보 통계: 기간 안에 정상→ALARM/FAULT 로 넘어간 에피소드를 요소별로 센다 (계측 갱신으로 같은 상태가 반복 기록돼도 1건).
+	 *  복구 = 그 뒤 처음 이상 아닌 상태가 기록된 시각. 팀 묶음·평균은 프론트(teams.ts)가 — 팀 매핑이 거기 한 곳이라 */
+	@GetMapping("/monitor/stats")
+	List<Map<String, Object>> stats(@PathVariable UUID id, @RequestParam(defaultValue = "30") int days) {
+		return db.sql("""
+			WITH ev AS (
+			  SELECT global_id, at, status, LAG(status) OVER (PARTITION BY global_id ORDER BY at, id) prev
+			    FROM op_event WHERE model_id = :id AND kind = 'STATUS' AND global_id IS NOT NULL),
+			onset AS (
+			  SELECT o.global_id, o.at, o.status,
+			         (SELECT min(r.at) FROM ev r WHERE r.global_id = o.global_id AND r.at > o.at AND r.status NOT IN ('ALARM', 'FAULT')) recovered
+			    FROM ev o
+			   WHERE o.status IN ('ALARM', 'FAULT') AND coalesce(o.prev, '') NOT IN ('ALARM', 'FAULT') AND o.at > now() - make_interval(days => :d))
+			SELECT o.global_id "globalId", e.name, e.ifc_class "ifcClass",
+			""" + Sql.SYSTEMS_AGG + """
+			,
+			       count(*) FILTER (WHERE o.status = 'ALARM') alarms, count(*) FILTER (WHERE o.status = 'FAULT') faults,
+			       count(*) FILTER (WHERE o.recovered IS NOT NULL) recovered, count(*) FILTER (WHERE o.recovered IS NULL) open,
+			       round(avg(EXTRACT(EPOCH FROM (o.recovered - o.at)) / 60)) "mttrMin", max(o.at) "lastAt"
+			  FROM onset o LEFT JOIN element e ON e.model_id = :id AND e.global_id = o.global_id
+			 GROUP BY o.global_id, e.id ORDER BY count(*) DESC, max(o.at) DESC""")
+			.param("id", id).param("d", Math.max(1, Math.min(days, 365))).query().listOfRows().stream()
+			.map(r -> { r.put("systems", Sql.csv(r.get("systems"))); return r; }).toList();
+	}
+
 	/** 최근 이벤트: op_event 이력 — 상태 패치·작업지시 생성/상태 변경이 그때 값으로 쌓인다 (V6). 최신순 limit */
 	@GetMapping("/monitor/events")
 	List<Map<String, Object>> events(@PathVariable UUID id, @RequestParam(defaultValue = "30") int limit) {

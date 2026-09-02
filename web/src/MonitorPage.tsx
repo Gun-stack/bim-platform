@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, AlertTriangle, ArrowLeft, Box, Car, ClipboardList, ExternalLink, Gauge, Layers, TrendingUp, Users, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowLeft, BarChart3, Box, Car, ClipboardList, ExternalLink, Gauge, Layers, TrendingUp, Users, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
 import TrendModal from './TrendModal'
 import { api, post, type Model } from './api'
 import { TEAMS, teamOfSystems } from './teams'
 import { day, btn } from './ui'
 import { statusUi, WO_STATUS, type WoStatus } from './status'
-import { KEY_EQUIP, isAbn, overdue, rank, worst, type Ev, type Row } from './monitor'
+import { KEY_EQUIP, isAbn, overdue, rank, teamStats, worst, type Ev, type Row, type StatRow } from './monitor'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
@@ -19,7 +19,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const [team, setTeam] = useState<string>(); const [storeyF, setStoreyF] = useState<string>(); const [mode, setMode] = useState<'abnormal' | 'equipment' | 'all'>(kiosk ? 'abnormal' : 'equipment'); const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
   const [trend, setTrend] = useState<{ globalId: string; name: string | null } | null>(null)   // 계측 트렌드 모달
-  const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true })
+  const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true, stats: false })
+  const [days, setDays] = useState(30); const [stats, setStats] = useState<StatRow[]>([])   // 경보 통계 — 섹션이 열려 있을 때만 갱신
   const [flash, setFlash] = useState<Set<string>>(new Set()); const [sound, setSound] = useState(false); const prevAbn = useRef<Set<string> | null>(null); const soundRef = useRef(false); useEffect(() => { soundRef.current = sound }, [sound])
   const load = useCallback(() => Promise.all([api<{ power: string; rows: Row[] }>(`/models/${modelId}/monitor`), api<{ unpowered: string[] }>(`/models/${modelId}/power`).catch(() => ({ unpowered: [] as string[] })), api<Ev[]>(`/models/${modelId}/monitor/events`).catch(() => [] as Ev[])])
     .then(([d, pw, ev]) => {
@@ -28,6 +29,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       prevAbn.current = abn
       setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setEvents(ev); setTick(new Date()) }), [modelId])
   useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId, load])
+  useEffect(() => { if (sec.stats) api<StatRow[]>(`/models/${modelId}/monitor/stats?days=${days}`).then(setStats).catch(() => {}) }, [modelId, days, sec.stats, tick])
 
   // ?sel={gid} 딥링크: 해당 행으로 스크롤 + 4초 플래시 (기존 .fresh 재사용). 현재 필터에 안 잡히는 행이면 '전체' 모드로
   const sel = useHashQuery().get('sel')
@@ -158,6 +160,28 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         </div>
       </div>
       </Section>
+
+      {/* 경보 통계 — 이력(op_event)이 있어서 나오는 것. 격자는 '지금', 여기는 '얼마나 자주·얼마나 오래' */}
+      {(() => { const ts = teamStats(stats), total = stats.reduce((n, r) => n + r.alarms + r.faults, 0), recurring = stats.filter(r => r.alarms + r.faults >= 2).slice(0, 8); return (
+        <Section title="경보 통계" icon={BarChart3} color="#6b7280" count={sec.stats ? `${days}일 · 에피소드 ${total} · 재발 장비 ${stats.filter(r => r.alarms + r.faults >= 2).length}` : '발생 빈도 · 복구 시간 · 재발'} open={sec.stats} onToggle={() => toggleSec('stats')} pad={10}
+          right={<select value={days} onChange={e => setDays(+e.target.value)} onClick={e => e.stopPropagation()} style={{ fontSize: 12 * fs }}>{[7, 30, 90].map(d => <option key={d} value={d}>최근 {d}일</option>)}</select>}>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: 12.5 * fs, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, minWidth: 520 }}><thead>
+              <tr style={{ color: '#666', textAlign: 'right' }}><th style={{ ...th, textAlign: 'left' }}>팀</th><th style={th}>경보</th><th style={th}>장애</th><th style={th} title="정상→이상 전이부터 다시 정상이 기록될 때까지, 복구된 에피소드 평균">평균 복구</th><th style={th}>미복구</th><th style={th} title="기간 안에 2회 이상 발생한 장비">재발 장비</th></tr></thead><tbody>
+              {ts.map(s => <tr key={s.team.key} style={{ textAlign: 'right', borderTop: '1px solid #f1f5f9', color: s.alarms + s.faults ? '#222' : '#aaa' }}>
+                <td style={{ ...td, textAlign: 'left', color: s.team.color, fontWeight: 600 }}><s.team.icon size={12} style={{ verticalAlign: -2 }} /> {s.team.name}</td>
+                <td style={{ ...td, color: s.alarms ? '#dc2626' : undefined, fontWeight: s.alarms ? 700 : 400 }}>{s.alarms}</td><td style={{ ...td, color: s.faults ? '#b45309' : undefined, fontWeight: s.faults ? 700 : 400 }}>{s.faults}</td>
+                <td style={td}>{fmtMin(s.mttrMin)}</td><td style={{ ...td, color: s.open ? '#dc2626' : undefined }}>{s.open}</td><td style={td}>{s.recurring}</td></tr>)}
+            </tbody></table>
+            <div style={{ flex: 1, minWidth: 280, fontSize: 12 * fs }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>재발 상위 <span style={{ color: '#999', fontWeight: 400 }}>같은 장비에 반복되면 원인 점검 대상</span></div>
+              {!recurring.length && <div style={{ color: '#bbb' }}>{stats.length ? '재발 장비 없음' : `최근 ${days}일 경보·장애 없음`}</div>}
+              {recurring.map(r => <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, padding: '3px 4px', borderTop: '1px solid #f1f5f9', textDecoration: 'none', color: '#222' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name ?? r.globalId}</span><span style={{ color: '#666' }}>{r.alarms ? `경보 ${r.alarms}` : ''}{r.alarms && r.faults ? ' · ' : ''}{r.faults ? `장애 ${r.faults}` : ''}</span>
+                <span style={{ color: '#999' }}>{r.mttrMin == null ? (r.open ? '미복구' : '') : `복구 ${fmtMin(r.mttrMin)}`}</span></a>)}
+            </div>
+          </div>
+        </Section>) })()}
       {trend && <TrendModal modelId={modelId} globalId={trend.globalId} name={trend.name ?? trend.globalId} onClose={() => setTrend(null)} />}
     </main>
   )
@@ -190,3 +214,7 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: st
 }
 /** 알림음: 외부 파일 없이 WebAudio 로 짧은 비프 2회 */
 const beep = () => { try { const c = new AudioContext(); [0, 0.25].forEach(t => { const o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(0.15, c.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + t + 0.18); o.start(c.currentTime + t); o.stop(c.currentTime + t + 0.2) }) } catch { /* 자동재생 차단 등 — 무시 */ } }
+const th = { padding: '6px 10px', fontWeight: 600, whiteSpace: 'nowrap' as const }
+const td = { padding: '5px 10px', whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' as const }
+/** 복구 시간(분) → 사람 말: 1분 미만 · N분 · N.N시간 · N일 */
+const fmtMin = (m: number | null) => m == null ? '—' : m < 1 ? '1분 미만' : m < 60 ? `${m}분` : m < 1440 ? `${(m / 60).toFixed(1)}시간` : `${(m / 1440).toFixed(1)}일`

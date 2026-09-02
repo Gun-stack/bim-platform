@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAbn, overdue, rank, type Row } from './monitor'
+import { isAbn, overdue, rank, teamStats, type Row, type StatRow } from './monitor'
 
 const row = (p: Partial<Row>): Row => ({ globalId: 'g', ifcClass: 'IfcPump', name: 'WP-1', storey: 'B1', zone: null, elevation: 0, systems: [], status: null, assetId: null, assetTag: null, assetStatus: 'ACTIVE', lastResult: null, openWorkOrders: 0, ...p })
 
@@ -26,6 +26,19 @@ describe('overdue — 점검 지연', () => {
     expect(overdue(row({ nextDueOn: '2000-01-01', assetStatus: 'RETIRED' }))).toBe(false)
     expect(overdue(row({ nextDueOn: '2999-01-01' }))).toBe(false)
     expect(overdue(row({ nextDueOn: null }))).toBe(false)
+  })
+})
+
+describe('teamStats — 팀별 경보 통계', () => {
+  const st = (p: Partial<StatRow>): StatRow => ({ globalId: 'g', name: null, ifcClass: null, systems: ['소방'], alarms: 0, faults: 0, recovered: 0, open: 0, mttrMin: null, lastAt: null, ...p })
+  it('복구 시간은 에피소드 수 가중 평균, 재발은 2회 이상 장비 수', () => {
+    const fire = teamStats([st({ alarms: 2, recovered: 2, mttrMin: 10 }), st({ globalId: 'h', faults: 1, recovered: 1, mttrMin: 40, open: 1 })]).find(s => s.team.key === 'fire')!
+    expect(fire).toMatchObject({ alarms: 2, faults: 1, open: 1, mttrMin: 20, recurring: 1 })   // (10·2 + 40·1) / 3
+  })
+  it('복구된 에피소드가 없으면 평균은 null, 팀 매핑은 teams.ts 규칙(조명제어반→전기)', () => {
+    const s = teamStats([st({ name: '조명제어반 1', systems: ['통신'], alarms: 1, open: 1 })])
+    expect(s.find(x => x.team.key === 'elec')).toMatchObject({ alarms: 1, mttrMin: null })
+    expect(s.find(x => x.team.key === 'comm')).toMatchObject({ alarms: 0 })
   })
 })
 

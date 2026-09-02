@@ -1,4 +1,4 @@
--- 설비 계통(M6).
+-- 설비 계통(M6). 02-data-model.md 와 1:1.
 CREATE TABLE system (
   id              bigserial PRIMARY KEY,
   model_id        uuid NOT NULL REFERENCES model ON DELETE CASCADE,

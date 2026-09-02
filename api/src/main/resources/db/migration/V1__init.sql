@@ -1,4 +1,4 @@
--- 기본 스키마. 개체 관계는 README 아키텍처 절 참조.
+-- 02-data-model.md 와 1:1. 변경 시 문서도 갱신.
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 CREATE TABLE project (

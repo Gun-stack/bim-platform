@@ -116,6 +116,7 @@ flowchart LR
 | 점검 주기·지연 | 자산 대장 (주기 입력·다음 점검 열·지연 필터) | 점검 이력이 사는 대장에서 예방정비로 확장 | `PATCH /assets/{id}` → `attributes.intervalMonths` |
 | COBie 내보내기 | 자산 대장 헤더 버튼 | 인수인계 산출물 = 자산 데이터의 출구 | `GET /export/cobie` (CSV zip) |
 | BCF 내보내기 | 작업지시 보드 우상단 버튼 | 이슈(작업지시)의 출구 — 조정 도구로 되넘김 | `GET /export/bcf` (topic·viewpoint) |
+| 경보 통계 (NEW 09-02) | 모니터링 맨 아래 접이식 "경보 통계" (기본 접힘, 7·30·90일) | 격자는 '지금', 통계는 '얼마나 자주·얼마나 오래' — 관제의 마지막 질문. 팀별 표 + 재발 상위 → 뷰어 포커스 | `GET /monitor/stats?days=` ← `op_event` 전이 분석 (정상→이상 에피소드·복구 시각). 팀 합계는 `monitor.ts teamStats` |
 
 ## 7. 배치 원칙
 
@@ -141,7 +142,7 @@ flowchart LR
 |---|---|---|
 | 모델 목록·라우팅 | `web/src/App.tsx` | 해시 라우팅 (`#/models/{id}`, `/monitor`, `/fm`, `#/map`) |
 | 3D 뷰어 | `web/src/viewer/Viewer.tsx` + `scene.ts`(Three) · `NavCube.ts` · `chrome.tsx`(플로팅·툴바) · `Props.tsx`(속성 표) · `LeftPanel.tsx` · `SystemPanel.tsx` · `FmPanel.tsx` · `StatusEditor.tsx` · `ColorPanel.tsx` | 딥링크 `?v= sel= clip= focus= wo= fm=` |
-| 설비 모니터링 | `web/src/MonitorPage.tsx` (화면) + `monitor.ts` (순수 로직: 우선순위 `rank`·점검 지연·핵심 장비) | `monitor.test.ts` 가 순서를 고정 |
+| 설비 모니터링 | `web/src/MonitorPage.tsx` (화면) + `monitor.ts` (순수 로직: 우선순위 `rank`·점검 지연·핵심 장비·경보 통계 팀 합계 `teamStats`) | `monitor.test.ts` 가 순서·합계를 고정 |
 | 시설관리 | `web/src/FmPage.tsx` (대장) + `FmBoard.tsx` (칸반) | |
 | 지도 | `web/src/MapPage.tsx` | |
 | 계측 트렌드 | `web/src/TrendModal.tsx` | 모니터링·뷰어 공용 |
