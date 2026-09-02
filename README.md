@@ -1,5 +1,7 @@
 # BIM Operations Platform
 
+[![CI](https://github.com/Gun-stack/bim-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Gun-stack/bim-platform/actions/workflows/ci.yml)
+
 > IFC 모델을 웹 3D 공간으로 전환하고, 설비 계통 추적부터 운영 모니터링·자산·점검·작업지시까지 연결한 BIM 기반 시설관리 데모 웹 앱
 
 FMS·MEP 분야의 실무 경험을 바탕으로 업무 흐름과 기술 구현을 보여주기 위해 만든 **포트폴리오용 개인 프로젝트**이며, 실제 운영·상용 서비스가 아닙니다. 제품 기획과 도메인 모델링부터 백엔드·프론트엔드, IFC 변환 워커, 데이터베이스, Docker 실행 환경까지 엔드투엔드로 설계·구현했습니다. AI 페어 프로그래밍을 적극 활용해 짧은 기간에 집중 개발했고, 설계 결정·도메인 규칙·검증은 직접 판단했습니다.
