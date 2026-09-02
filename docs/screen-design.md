@@ -48,6 +48,10 @@ flowchart LR
   A["자산 대장"] --> COBIE["COBie 내보내기"]
 ```
 
+### 객체 맥락 (2026-09-02)
+
+선택 객체는 URL `?sel=` 하나로 세 화면을 관통한다. 내비 링크가 `sel` 을 유지하고, 모니터링·시설관리는 `sel` 이 있으면 우측 **객체 패널**(뷰어 우측 패널과 같은 내용: `ObjectSummary`·`StatusEditor`·`FmPanel`)을 띄우며, 세 화면 좌하단의 **맥락 독**(`ObjectDock`)이 뷰어가 남긴 3D 스냅샷 썸네일·상태·팀·위치와 3D/모니터링/카드 링크, 최근 객체 칩을 보여준다. 모니터링 행 클릭은 같은 화면의 객체 패널(뷰어 이동은 행의 3D 아이콘), `fm?sel=` 은 객체 패널(카드는 패널 안 작업지시 목록에서). 벽면(kiosk)에선 둘 다 없음.
+
 ## 3. 설비 모니터링 — 관제의 우선순위 순서
 
 위에서 아래로 **총계 → 팀 → 처리할 것 → 핵심 장비 → 전체 격자**. 요약이 먼저, 상세가 나중. 우측 이벤트 열만 시간축이다.
@@ -146,6 +150,7 @@ flowchart LR
 | 시설관리 | `web/src/FmPage.tsx` (대장) + `FmBoard.tsx` (칸반) | |
 | 지도 | `web/src/MapPage.tsx` | |
 | 계측 트렌드 | `web/src/TrendModal.tsx` | 모니터링·뷰어 공용 |
+| **객체 맥락** | `web/src/context.ts`(`?sel=` 링크·최근·스냅샷 캐시) · `useObject.ts` · `ObjectSummary.tsx` · `ObjectDrawer.tsx` · `ObjectDock.tsx` · `viewer/scene.ts snapshot()` | `context.test.ts` |
 | 전역 경보 토스트 | `web/src/useAlerts.tsx` | 5초 폴링 + diff |
 | **상태 → 라벨·색** | `web/src/status.ts` | 모든 화면 공용 (`STATUS`, `statusLabel`, `statusHex`, `WO_STATUS`) |
 | **팀 ↔ 계통 매핑** | `web/src/teams.ts` | 조명제어반→전기팀 예외 포함 |
