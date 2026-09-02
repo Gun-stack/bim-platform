@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { api, type Model } from './api'
+import { api, post, type Model } from './api'
 import { AlertCircle, Box, CheckCircle2, Loader2, MapPin, RotateCcw, Trash2, Upload } from 'lucide-react'
 const Viewer = lazy(() => import('./viewer/Viewer'))
 const FmPage = lazy(() => import('./FmPage'))
@@ -28,9 +28,9 @@ function Models() {
 
   // 프로젝트 하나로 시작. 목록·선택 UI 는 M3(지도) 에서.
   useEffect(() => {
-    api('/projects').then(async (ps: { id: string }[]) => {
-      const p = ps[0] ?? await api('/projects', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'demo' }) })
-      setPid(p.id); setModels(await api(`/projects/${p.id}/models`))
+    api<{ id: string }[]>('/projects').then(async ps => {
+      const p = ps[0] ?? await post<{ id: string }>('/projects', { name: 'demo' })
+      setPid(p.id); setModels(await api<Model[]>(`/projects/${p.id}/models`))
     }).catch(e => setErr(e.message))
   }, [])
 
@@ -50,15 +50,15 @@ function Models() {
     setErr(undefined); setBusy(true)
     for (const file of Array.from(files)) {
       const fd = new FormData(); fd.append('file', file)
-      try { const m = await api(`/projects/${pid}/models`, { method: 'POST', body: fd }); setModels(ms => [{ progress: 0, ...m }, ...ms]) }
+      try { const m = await api<Model>(`/projects/${pid}/models`, { method: 'POST', body: fd }); setModels(ms => [{ ...m, progress: m.progress ?? 0 }, ...ms]) }
       catch (e) { setErr(`${file.name}: ${(e as Error).message}`) }
     }
     setBusy(false)
   }
-  const retry = (id: string) => api(`/models/${id}/retry`, { method: 'POST' })
-    .then((u: Model) => setModels(ms => ms.map(x => x.id === u.id ? u : x))).catch(e => setErr(e.message))
+  const retry = (id: string) => api<Model>(`/models/${id}/retry`, { method: 'POST' })
+    .then(u => setModels(ms => ms.map(x => x.id === u.id ? u : x))).catch(e => setErr(e.message))
   const remove = (m: Model) => { if (!window.confirm(`"${m.name}" 모델을 삭제할까요? 자산·작업지시도 함께 지워집니다.`)) return
-    setErr(undefined); api(`/models/${m.id}`, { method: 'DELETE' }).then(() => api(`/projects/${pid}/models`)).then(setModels).catch(e => setErr(e.message)) }
+    setErr(undefined); api(`/models/${m.id}`, { method: 'DELETE' }).then(() => api<Model[]>(`/projects/${pid}/models`)).then(setModels).catch(e => setErr(e.message)) }
 
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 980, margin: '0 auto', padding: '32px 20px' }}>

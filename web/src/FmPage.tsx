@@ -3,7 +3,7 @@ import { ArrowLeft, Box, ClipboardList, Download, ExternalLink, Plus, Tag, Wrenc
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
-import { day } from './viewer/FmPanel'
+import { btn, day, inp, inspectionOverdue } from './ui'
 import { ifcKo } from './ifcNames'
 import FmBoard from './FmBoard'
 import { useHashQuery } from './useHashQuery'
@@ -20,9 +20,9 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [syncMsg, setSyncMsg] = useState<string>()
   const [aq, setAq] = useState(''); const [acat, setAcat] = useState(''); const [ast, setAst] = useState('')   // 자산 대장 필터
   const [aod, setAod] = useState(false)   // 점검 지연만 보기
-  const reload = useCallback(() => Promise.all([api(`/models/${modelId}/assets`), api(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
+  const reload = useCallback(() => Promise.all([api<Asset[]>(`/models/${modelId}/assets`), api<WorkOrder[]>(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
   const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 5초 폴링 — 이상 배너 + 전역 경보 토스트
-  useEffect(() => { api(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
+  useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
 
   // 딥링크: ?wo={id} → 보드 펼침 + 카드 하이라이트/Drawer, ?sel={gid} → 열린 WO 있으면 그 카드, 없으면 자산 대장 필터
   const hq = useHashQuery(), selGid = hq.get('sel')
@@ -30,8 +30,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const selAsset = !woId && selGid ? assets.find(a => a.globalId === selGid) : undefined
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (selAsset) setAq(selAsset.tag) }, [selAsset?.id])
-  const today = new Date().toISOString().slice(0, 10)
-  const isOverdue = (a: Asset) => !!a.nextDueOn && a.nextDueOn < today && a.status === 'ACTIVE'   // 폐기·중지 자산은 지연으로 안 센다
+  const isOverdue = (a: Asset) => inspectionOverdue(a.nextDueOn, a.status)
   const overdue = assets.filter(isOverdue).length
   const filteredAssets = assets.filter(a => (!acat || a.category === acat) && (!ast || a.storey === ast) && (!aod || isOverdue(a)) && (!aq || [a.tag, a.elementName].some(x => x?.toLowerCase().includes(aq.toLowerCase()))))
 
@@ -51,7 +50,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
       <Section title="작업지시 보드" icon={Wrench} count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}>
       {abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8 }}>
         <span style={{ color: '#9a3412' }}>상태판 이상 <b>{abnormal.length}</b>건 ({abnormal.slice(0, 3).map(r => r.name).join(', ')}{abnormal.length > 3 ? ' …' : ''}) — 열린 작업지시 {wos.filter(w => w.status !== 'DONE').length}건</span>
-        <button onClick={() => { setSyncMsg(undefined); post(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: '#ea580c', color: '#fff', border: 0 }}>작업지시 동기화</button>
+        <button onClick={() => { setSyncMsg(undefined); post<{ created: number; suppressed: number; checked: number }>(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: '#ea580c', color: '#fff', border: 0 }}>작업지시 동기화</button>
         {syncMsg && <span style={{ fontSize: 12, color: '#666' }}>{syncMsg}</span>}</div>}
       {wos.length > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
         <a href={`/api/models/${modelId}/export/bcf`} title="작업지시를 BCF 2.1 topic·viewpoint 로 — Navisworks·BIMcollab 등에서 열람" style={btn}><Download size={12} /> BCF 내보내기</a></div>}
@@ -107,5 +106,3 @@ export default function FmPage({ modelId }: { modelId: string }) {
 const Stat = ({ icon: Icon, label, value, sub }: { icon: typeof Tag; label: string; value: number; sub: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1px solid #e5e5e5', borderRadius: 10, minWidth: 160 }}>
     <Icon size={18} style={{ color: '#2563eb' }} /><div><div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div><div style={{ fontSize: 12, color: '#888' }}>{label} · {sub}</div></div></div>)
-const inp = { padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }
-const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, color: '#222', textDecoration: 'none' }

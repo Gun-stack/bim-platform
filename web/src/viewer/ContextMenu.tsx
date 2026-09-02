@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
-export type MenuItem = { icon?: LucideIcon; label: string; hint?: string; disabled?: boolean; danger?: boolean; onClick?: () => void } | 'sep'
+export type MenuItem = { icon?: LucideIcon; label: string; hint?: string; disabled?: boolean; onClick?: () => void } | 'sep'
 
 /** 우클릭 메뉴. 화면 밖으로 나가지 않게 위치 보정, 바깥 클릭·Esc·스크롤로 닫힘 */
 export default function ContextMenu({ x, y, items, onClose }: { x: number; y: number; items: MenuItem[]; onClose: () => void }) {
@@ -24,10 +24,10 @@ export default function ContextMenu({ x, y, items, onClose }: { x: number; y: nu
   )
 }
 
-function Item({ icon: Icon, label, hint, disabled, danger, onClick, onClose }: Exclude<MenuItem, 'sep'> & { onClose: () => void }) {
+function Item({ icon: Icon, label, hint, disabled, onClick, onClose }: Exclude<MenuItem, 'sep'> & { onClose: () => void }) {
   return (
     <div onClick={() => { if (disabled) return; onClick?.(); onClose() }}
-         style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 8px', borderRadius: 5, cursor: disabled ? 'default' : 'pointer', color: disabled ? '#bbb' : danger ? '#b91c1c' : '#222' }}
+         style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 8px', borderRadius: 5, cursor: disabled ? 'default' : 'pointer', color: disabled ? '#bbb' : '#222' }}
          onPointerEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.background = '#eef2ff' }} onPointerLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
       <span style={{ width: 16, display: 'grid', placeItems: 'center' }}>{Icon && <Icon size={15} />}</span>
       <span style={{ flex: 1 }}>{label}</span>

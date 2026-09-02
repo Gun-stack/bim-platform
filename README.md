@@ -158,7 +158,7 @@ python3 samples/gen/bms_sim.py <modelId>
 ```bash
 (cd api && ./gradlew test)
 (cd ifc-worker && python3 -m unittest discover -s tests)
-(cd web && npm ci && npm run lint && npm run build)
+(cd web && npm ci && npm run lint && npm test && npm run build)
 ```
 
 - `#/` — 모델 목록과 IFC 업로드

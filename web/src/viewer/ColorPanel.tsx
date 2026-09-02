@@ -1,14 +1,12 @@
-/* oxlint-disable react/only-export-components, react/set-state-in-effect */
+/* oxlint-disable react/set-state-in-effect */
 import { useEffect, useMemo, useState } from 'react'
 import { Focus, X } from 'lucide-react'
 import { api, type ElementRow, type SpatialNode } from '../api'
+import { STATUS, hex } from '../status'
 
 /** 카테고리 팔레트 (Tableau 10 + 2). 값이 더 많으면 순환 */
-export const PALETTE = [0x4e79a7, 0xf28e2b, 0xe15759, 0x76b7b2, 0x59a14f, 0xedc948, 0xb07aa1, 0xff9da7, 0x9c755f, 0xbab0ac, 0x1b9e77, 0x7570b3]
-const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
+const PALETTE = [0x4e79a7, 0xf28e2b, 0xe15759, 0x76b7b2, 0x59a14f, 0xedc948, 0xb07aa1, 0xff9da7, 0x9c755f, 0xbab0ac, 0x1b9e77, 0x7570b3]
 const BUILTIN = ['ifcClass', 'storey']
-/** 상태값은 의미색 고정 (팔레트 순번이 아니라) */
-const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, OK: 0x16a34a, ONLINE: 0x16a34a, RUNNING: 0x16a34a, STANDBY: 0x6b7280, ALARM: 0xdc2626, FAULT: 0xf59e0b, TROUBLE: 0xf59e0b, OFFLINE: 0xf59e0b, OFF: 0x9ca3af, UTILITY: 0x2563eb, GENERATOR: 0xea580c }
 
 export type Legend = { value: string; color: number; gids: string[] }[]
 
@@ -19,7 +17,7 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
   const [keys, setKeys] = useState<{ key: string; n: number }[]>([])
   const [key, setKey] = useState('ifcClass')
   const [values, setValues] = useState<{ globalId: string; value: string }[]>()
-  useEffect(() => { api(`/models/${modelId}/property-keys`).then(setKeys) }, [modelId])
+  useEffect(() => { api<{ key: string; n: number }[]>(`/models/${modelId}/property-keys`).then(setKeys) }, [modelId])
 
   // 값 수집: 내장(클래스·층)은 로컬, 나머지는 API
   // oxlint-disable-next-line react/set-state-in-effect
@@ -31,14 +29,14 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
       return setValues(elements.map(e => ({ globalId: e.globalId, value: name(e.spatialNodeId) })))
     }
     setValues(undefined)
-    api(`/models/${modelId}/property-values?key=${encodeURIComponent(key)}`).then(setValues)
+    api<{ globalId: string; value: string }[]>(`/models/${modelId}/property-values?key=${encodeURIComponent(key)}`).then(setValues)
   }, [key, elements, spatial, modelId])
 
   const legend: Legend = useMemo(() => {
     if (!values) return []
     const groups = new Map<string, string[]>()
     for (const v of values) (groups.get(v.value) ?? groups.set(v.value, []).get(v.value)!).push(v.globalId)
-    return [...groups].sort((a, b) => b[1].length - a[1].length).map(([value, gids], i) => ({ value, gids, color: STATUS_COLOR[value.toUpperCase()] ?? PALETTE[i % PALETTE.length] }))
+    return [...groups].sort((a, b) => b[1].length - a[1].length).map(([value, gids], i) => ({ value, gids, color: STATUS[value.toUpperCase()]?.color ?? PALETTE[i % PALETTE.length] }))   // 상태값은 의미색 고정 (팔레트 순번이 아니라)
   }, [values])
   useEffect(() => {
     const m = new Map<string, number>(); for (const l of legend) for (const g of l.gids) m.set(g, l.color)

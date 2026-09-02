@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { AlertTriangle, ArrowDown, ArrowUp, Calendar, ChevronLeft, ChevronRight, ChevronsUp, ExternalLink, Plus, Search, User, X } from 'lucide-react'
 import { post, type Asset, type Priority, type WorkOrder } from './api'
-import { StatusBadge, day } from './viewer/FmPanel'
+import { StatusBadge } from './viewer/FmPanel'
+import { btn, day, inp, useEsc } from './ui'
+import { WO_STATUS } from './status'
 import { TEAMS, teamOfSystems } from './teams'
 import { ifcKo } from './ifcNames'
 
@@ -9,10 +11,8 @@ const teamOf = (w: WorkOrder) => teamOfSystems(w.systems, w.elementName)
 const PRIO: Record<Priority, { label: string; color: string; icon?: typeof ArrowUp }> = {
   URGENT: { label: '긴급', color: '#b91c1c', icon: ChevronsUp }, HIGH: { label: '높음', color: '#ea580c', icon: ArrowUp }, NORMAL: { label: '보통', color: '#2563eb' }, LOW: { label: '낮음', color: '#6b7280', icon: ArrowDown } }
 const COLS: WorkOrder['status'][] = ['OPEN', 'IN_PROGRESS', 'DONE']
-const COL_NAME = { OPEN: '대기', IN_PROGRESS: '진행', DONE: '완료' } as const
 /** 카드 버튼용 다음 단계 (드래그 못 하는 키보드·터치 경로) */
 const NEXT: Record<WorkOrder['status'], { s: WorkOrder['status']; label: string }> = { OPEN: { s: 'IN_PROGRESS', label: '시작' }, IN_PROGRESS: { s: 'DONE', label: '완료' }, DONE: { s: 'OPEN', label: '다시 열기' } }
-const useEsc = (fn: () => void) => useEffect(() => { const h = (e: KeyboardEvent) => e.key === 'Escape' && fn(); window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h) }, [fn])
 const overdue = (w: WorkOrder) => !!w.dueOn && w.status !== 'DONE' && new Date(w.dueOn) < new Date(new Date().toDateString())
 
 export default function FmBoard({ modelId, wos: server, assets, reload, openWoId }: { modelId: string; wos: WorkOrder[]; assets: Asset[]; reload: () => Promise<unknown>; openWoId?: string }) {
@@ -39,7 +39,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
     if (w.status === s) return Promise.resolve()
     const from = w.status; setPending(p => ({ ...p, [w.id]: s }))
     return post(`/work-orders/${w.id}`, { status: s }, 'PATCH').then(reload)
-      .then(() => undo && setToast({ msg: `"${w.title}" → ${COL_NAME[s]}`, undo: () => move({ ...w, status: s }, from, false) }))
+      .then(() => undo && setToast({ msg: `"${w.title}" → ${WO_STATUS[s]}`, undo: () => move({ ...w, status: s }, from, false) }))
       .catch(e => setToast({ msg: `이동 실패: ${e.message}`, error: true }))
       .finally(() => setPending(p => { const { [w.id]: _, ...rest } = p; return rest }))
   }
@@ -63,15 +63,15 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
         {COLS.map(s => { const items = visible.filter(w => w.status === s); if (folded.has(s)) return (
           <div key={s} onClick={() => fold(s)} onDragOver={e => { e.preventDefault(); setDragOver(s) }} onDragLeave={() => setDragOver(undefined)}
                onDrop={e => { e.preventDefault(); setDragOver(undefined); setDragging(undefined); const w = wos.find(x => x.id === e.dataTransfer.getData('text/wo')); if (w) move(w, s) }}
-               title={`${COL_NAME[s]} ${items.length}건 — 클릭해서 펼치기 (끌어다 놓기도 됨)`}
+               title={`${WO_STATUS[s]} ${items.length}건 — 클릭해서 펼치기 (끌어다 놓기도 됨)`}
                style={{ background: dragOver === s ? '#eef2ff' : '#f3f4f6', borderRadius: 10, minHeight: 320, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '10px 0', outline: dragOver === s ? '2px dashed #2563eb' : 'none' }}>
             <ChevronRight size={14} style={{ color: '#999' }} /><StatusBadge s={s} /><b style={{ color: '#666', fontSize: 12 }}>{items.length}</b>
-            <span style={{ writingMode: 'vertical-rl', color: '#999', fontSize: 11, letterSpacing: 2 }}>{COL_NAME[s]} 열 접힘</span></div>); return (
+            <span style={{ writingMode: 'vertical-rl', color: '#999', fontSize: 11, letterSpacing: 2 }}>{WO_STATUS[s]} 열 접힘</span></div>); return (
           <div key={s} onDragOver={e => { e.preventDefault(); setDragOver(s) }} onDragLeave={() => setDragOver(undefined)}
                onDrop={e => { e.preventDefault(); setDragOver(undefined); setDragging(undefined); const w = wos.find(x => x.id === e.dataTransfer.getData('text/wo')); if (w) move(w, s) }}
                style={{ background: dragOver === s ? '#eef2ff' : '#f3f4f6', borderRadius: 10, padding: 10, minHeight: 320, outline: dragOver === s ? '2px dashed #2563eb' : 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, minHeight: 20 }}><StatusBadge s={s} /><span style={{ color: '#888' }}>{items.length}</span>
-              {dragOver === s ? <span style={{ color: '#2563eb', fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>→ {COL_NAME[s]}(으)로 이동</span>
+              {dragOver === s ? <span style={{ color: '#2563eb', fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>→ {WO_STATUS[s]}(으)로 이동</span>
                 : s !== 'DONE' && items.some(overdue) && <span style={{ color: '#b91c1c', fontSize: 11, marginLeft: 'auto' }}><AlertTriangle size={11} style={{ verticalAlign: -1 }} /> 초과 {items.filter(overdue).length}</span>}
               <span onClick={() => fold(s)} title="열 접기" style={{ marginLeft: dragOver === s || (s !== 'DONE' && items.some(overdue)) ? 6 : 'auto', cursor: 'pointer', color: '#aaa', display: 'inline-flex' }}><ChevronLeft size={14} /></span></div>
             {items.map(w => <Card key={w.id} w={w} dragging={dragging === w.id} busy={w.id in pending} hilite={w.id === openWoId} onOpen={() => setOpen(w)} viewerUrl={viewerUrl(w)}
@@ -123,7 +123,7 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
           <span style={{ color: '#999', fontSize: 11 }}>{w.id.slice(0, 8)}</span><X size={16} style={{ marginLeft: 'auto', cursor: 'pointer', color: '#666' }} onClick={onClose} /></div>
         <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} style={{ ...inp, width: '100%', fontSize: 15, fontWeight: 600, marginBottom: 10 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>
-          <span style={lbl}>상태</span><div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>{COLS.map(s => <button key={s} onClick={() => move(w, s)} style={{ ...chip, fontWeight: w.status === s ? 700 : 400, borderColor: w.status === s ? '#2563eb' : '#ddd', background: w.status === s ? '#eff6ff' : '#fff' }}>{COL_NAME[s]}</button>)}<span style={{ fontSize: 10, color: '#999' }}>즉시 저장</span></div>
+          <span style={lbl}>상태</span><div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>{COLS.map(s => <button key={s} onClick={() => move(w, s)} style={{ ...chip, fontWeight: w.status === s ? 700 : 400, borderColor: w.status === s ? '#2563eb' : '#ddd', background: w.status === s ? '#eff6ff' : '#fff' }}>{WO_STATUS[s]}</button>)}<span style={{ fontSize: 10, color: '#999' }}>즉시 저장</span></div>
           <span style={lbl}>우선순위</span><select value={f.priority} onChange={e => setF({ ...f, priority: e.target.value as Priority })} style={inp}>{(Object.keys(PRIO) as Priority[]).map(p => <option key={p} value={p}>{PRIO[p].label}</option>)}</select>
           <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} placeholder="미배정" style={inp} />
           <span style={lbl}>기한</span><input type="date" value={f.dueOn} onChange={e => setF({ ...f, dueOn: e.target.value })} style={inp} />
@@ -169,7 +169,5 @@ function CreateModal({ assets, onClose, reload }: { assets: Asset[]; onClose: ()
   )
 }
 
-const inp = { padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }
-const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, color: '#222', textDecoration: 'none' }
 const chip = { ...btn, padding: '3px 8px', borderRadius: 999 }
 const lbl = { fontSize: 11, color: '#666' }

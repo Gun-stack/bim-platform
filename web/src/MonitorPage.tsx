@@ -3,31 +3,14 @@ import { Activity, AlertTriangle, ArrowLeft, Box, Car, ClipboardList, ExternalLi
 import TrendModal from './TrendModal'
 import { api, post, type Model } from './api'
 import { TEAMS, teamOfSystems } from './teams'
-import { day } from './viewer/FmPanel'
+import { day, btn } from './ui'
+import { statusUi, WO_STATUS, type WoStatus } from './status'
+import { KEY_EQUIP, isAbn, overdue, rank, worst, type Ev, type Row } from './monitor'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
 import { useHashQuery } from './useHashQuery'
 
-type Row = { globalId: string; ifcClass: string; name: string | null; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
-  status: (Record<string, unknown> & { Status?: string }) | null; assetId: string | null; assetTag: string | null; assetStatus: string | null; lastResult: string | null; openWorkOrders: number
-  woAssignee?: string | null; woDueOn?: string | null; woStatus?: string | null; nextDueOn?: string | null }
-type Ev = { at: string | null; kind: 'STATUS' | 'WORK_ORDER'; globalId: string | null; name: string | null; status: string | null; storey: string | null; woTitle: string | null; woStatus: string | null }
-
-const STATUS: Record<string, { label: string; color: string }> = { NORMAL: { label: '정상', color: '#16a34a' }, ONLINE: { label: '온라인', color: '#16a34a' }, RUNNING: { label: '운전', color: '#16a34a' }, STANDBY: { label: '대기(정상)', color: '#64748b' }, TRANSFERRED: { label: '절체', color: '#ea580c' }, ALARM: { label: '경보', color: '#dc2626' }, FAULT: { label: '장애', color: '#f59e0b' }, OFFLINE: { label: '오프라인', color: '#f59e0b' } }
-/** 점검 주기를 넘긴 자산(ACTIVE 만) — 지연은 긴급도 최하위로 '지금 처리할 것' 끝에 선다 */
-const overdue = (r: Row) => !!r.nextDueOn && r.nextDueOn < new Date().toISOString().slice(0, 10) && r.assetStatus === 'ACTIVE'
-const worst = (r: Row) => inlineReadings(r.status, r.name).reduce((m, x) => x.level === 'crit' ? 'crit' : m === 'crit' ? m : x.level === 'warn' ? 'warn' : m, 'ok' as 'ok' | 'warn' | 'crit')
-const rank = (r: Row, dead = false) => ({ ALARM: 0, FAULT: 1, OFFLINE: 1, TRANSFERRED: 2 }[r.status?.Status ?? ''] ?? (dead ? 2 : worst(r) === 'crit' ? 2 : worst(r) === 'warn' ? 3 : r.openWorkOrders ? 3 : r.lastResult === 'DEFECT' ? 4 : overdue(r) ? 5 : 9))
-const isAbn = (r: Row) => r.status?.Status === 'ALARM' || r.status?.Status === 'FAULT'
-/** 팀별 핵심(원천) 장비 — 이름 접두어. 팀을 고르면 격자보다 먼저 카드로 */
-const KEY_EQUIP: Record<string, string[]> = {
-  fire: ['FACP', 'FP-1', 'FT-1', 'SEF-1', 'PA-1', 'GS-1'],
-  trans: ['EL-1 승객', 'ES-1', 'PCS-1', 'BG-IN', 'BG-OUT', 'DISP-1'],
-  mech: ['CH-1', 'CT-1', 'AHU-1', 'B-1', 'HWB-1', 'WP-1', 'WT-1', 'HP-1', 'JF-1'],
-  comm: ['MDF', 'BMS', 'FMS', 'NVR', '출입통제', 'UPS-1'],
-  elec: ['HV-1', 'TR-1', 'MDB', 'EG-1', 'ATS-1', 'EMDB', 'PV-1', 'UPS-1'],
-}
 /** #/models/{id}/monitor — 건물 요약 → 팀 KPI → 팀 × 층 격자 + 최근 이벤트. 5초 자동 갱신. ?kiosk=1 은 관제실 벽면용 */
 export default function MonitorPage({ modelId }: { modelId: string }) {
   const kiosk = useHashQuery().has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대·이상만
@@ -38,13 +21,13 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const [trend, setTrend] = useState<{ globalId: string; name: string | null } | null>(null)   // 계측 트렌드 모달
   const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true })
   const [flash, setFlash] = useState<Set<string>>(new Set()); const [sound, setSound] = useState(false); const prevAbn = useRef<Set<string> | null>(null); const soundRef = useRef(false); useEffect(() => { soundRef.current = sound }, [sound])
-  const load = useCallback(() => Promise.all([api(`/models/${modelId}/monitor`), api(`/models/${modelId}/power`).catch(() => ({ unpowered: [] })), api(`/models/${modelId}/monitor/events`).catch(() => [])])
+  const load = useCallback(() => Promise.all([api<{ power: string; rows: Row[] }>(`/models/${modelId}/monitor`), api<{ unpowered: string[] }>(`/models/${modelId}/power`).catch(() => ({ unpowered: [] as string[] })), api<Ev[]>(`/models/${modelId}/monitor/events`).catch(() => [] as Ev[])])
     .then(([d, pw, ev]) => {
-      const abn = new Set<string>((d.rows as Row[]).filter(isAbn).map(r => r.globalId))
+      const abn = new Set<string>(d.rows.filter(isAbn).map(r => r.globalId))
       if (prevAbn.current) { const fresh = [...abn].filter(g => !prevAbn.current!.has(g)); if (fresh.length) { setFlash(new Set(fresh)); setTimeout(() => setFlash(new Set()), 4000); if (soundRef.current) beep() } }
       prevAbn.current = abn
       setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setEvents(ev); setTick(new Date()) }), [modelId])
-  useEffect(() => { api(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId, load])
+  useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId, load])
 
   // ?sel={gid} 딥링크: 해당 행으로 스크롤 + 4초 플래시 (기존 .fresh 재사용). 현재 필터에 안 잡히는 행이면 '전체' 모드로
   const sel = useHashQuery().get('sel')
@@ -69,11 +52,11 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const val = (prefix: string, key: string) => rows.find(r => r.name?.startsWith(prefix))?.status?.[key]
   /** 팀 카드의 대표 지표 — 정상일 때도 카드가 비지 않게 */
   const metric = (t: typeof TEAMS[number]) => ({
-    fire: () => `수신기 경보 ${val('FACP', 'ActiveAlarms') ?? 0} · 장애 ${val('FACP', 'Faults') ?? 0} · 소화펌프 ${STATUS[String(val('FP-1', 'Status'))]?.label ?? '—'}`,
+    fire: () => `수신기 경보 ${val('FACP', 'ActiveAlarms') ?? 0} · 장애 ${val('FACP', 'Faults') ?? 0} · 소화펌프 ${statusUi(String(val('FP-1', 'Status')))?.label ?? '—'}`,
     trans: () => `주차 ${val('PCS', 'Occupied') ?? '—'}/${val('PCS', 'Capacity') ?? '—'} · EL-1 ${val('EL-1 승객', 'Floor') ?? '—'}`,
     mech: () => `냉동기 ${val('CH-1', 'LoadPercent') ?? '—'}% · 저수조 ${val('WT-1', 'LevelPercent') ?? '—'}% · 소화수조 ${val('FT-1', 'LevelPercent') ?? '—'}%`,
     comm: () => `UPS ${val('UPS-1', 'LoadPercent') ?? '—'}% · 온라인 ${rows.filter(r => teamOf(r)?.key === 'comm' && r.status?.Status === 'ONLINE').length}/${rows.filter(r => teamOf(r)?.key === 'comm' && r.status).length}`,
-    elec: () => `변압기 ${val('TR-1', 'LoadPercent') ?? '—'}% · 발전기 ${STATUS[String(val('EG-1', 'Status'))]?.label ?? '—'} · 태양광 ${val('PV-1', 'OutputKW') ?? '—'}kW`,
+    elec: () => `변압기 ${val('TR-1', 'LoadPercent') ?? '—'}% · 발전기 ${statusUi(String(val('EG-1', 'Status')))?.label ?? '—'} · 태양광 ${val('PV-1', 'OutputKW') ?? '—'}kW`,
   } as Record<string, () => string>)[t.key]?.()
   const tot = { alarm: rows.filter(r => r.status?.Status === 'ALARM').length, fault: rows.filter(r => r.status?.Status === 'FAULT').length, wo: rows.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), dead: unpowered.size, noAsset: rows.filter(r => !r.assetId).length, unassigned: rows.filter(r => r.openWorkOrders && !r.woAssignee).length, reading: rows.filter(r => !isAbn(r) && worst(r) !== 'ok').length, due: rows.filter(overdue).length }
   const abnByStorey = (st: string) => rows.filter(r => r.storey === st && isAbn(r)).length
@@ -132,7 +115,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       {team && (() => { const t = TEAMS.find(x => x.key === team)!; const keys = KEY_EQUIP[team] ?? []; const eq = keys.map(k => rows.find(r => r.name?.startsWith(k))).filter(Boolean) as Row[]; return eq.length ? (
         <Section title={`${t.name} 핵심 장비`} icon={t.icon} color={t.color} count={`${eq.length}대 · 이상 ${eq.filter(r => isAbn(r) || worst(r) !== 'ok').length}`} open={sec.key} onToggle={() => toggleSec('key')} pad={10}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
-            {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: '#374151' } : st ? STATUS[st] : undefined, rs = inlineReadings(r.status, r.name), w = worst(r); return (
+            {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: '#374151' } : statusUi(st), rs = inlineReadings(r.status, r.name), w = worst(r); return (
               <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: '#222', background: isAbn(r) ? (st === 'ALARM' ? '#fef2f2' : '#fffbeb') : w === 'crit' ? '#fff1f2' : w === 'warn' ? '#fffbeb' : '#fff', border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? '#fecaca' : '#fde68a') : '#e5e7eb'), borderLeft: '4px solid ' + (sc?.color ?? '#d1d5db'), borderRadius: 8, padding: '8px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 * fs }} title={r.name ?? undefined}>{r.name}</span><b style={{ color: sc?.color ?? '#bbb', fontSize: 12 * fs, whiteSpace: 'nowrap' }}>{sc?.label ?? '—'}</b></div>
                 <div style={{ color: '#888', fontSize: 11 * fs, marginTop: 2 }}>{r.storey}{r.zone ? ` · ${r.zone.split('-').pop()}` : ''}{r.openWorkOrders ? <b style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309', marginLeft: 6 }}>WO {r.woAssignee ?? '미배정'}</b> : ''}</div>
@@ -168,8 +151,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             <a key={i} href={e.globalId ? e.kind === 'WORK_ORDER' ? `#/models/${modelId}/fm?sel=${encodeURIComponent(e.globalId)}` : `#/models/${modelId}?sel=${encodeURIComponent(e.globalId)}&focus=1` : undefined} style={{ display: 'grid', gridTemplateColumns: `${40 * fs}px 1fr`, gap: 6, padding: '4px 4px', borderTop: '1px solid #f1f5f9', textDecoration: 'none', color: '#222', fontSize: 12 * fs }}>
               <span style={{ color: '#999', fontSize: 11 * fs, whiteSpace: 'nowrap' }}>{e.at ? new Date(e.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'}</span>
               <span style={{ minWidth: 0 }}>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.kind === 'WORK_ORDER' ? <><Wrench size={11} style={{ verticalAlign: -1, color: '#1d4ed8' }} /> {e.woTitle}</> : <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: STATUS[e.status ?? '']?.color ?? '#9ca3af', marginRight: 4 }} />{e.name} → <b style={{ color: abn ? STATUS[e.status!].color : '#16a34a' }}>{STATUS[e.status ?? '']?.label ?? e.status}</b></>}</div>
-                <div style={{ color: '#999', fontSize: 11 * fs }}>{e.storey ?? ''}{e.kind === 'WORK_ORDER' ? ` · 작업지시 ${({ OPEN: '대기', IN_PROGRESS: '진행', DONE: '완료' } as Record<string, string>)[e.woStatus ?? ''] ?? e.woStatus}` : ''}</div>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.kind === 'WORK_ORDER' ? <><Wrench size={11} style={{ verticalAlign: -1, color: '#1d4ed8' }} /> {e.woTitle}</> : <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: statusUi(e.status)?.color ?? '#9ca3af', marginRight: 4 }} />{e.name} → <b style={{ color: abn ? statusUi(e.status)!.color : '#16a34a' }}>{statusUi(e.status)?.label ?? e.status}</b></>}</div>
+                <div style={{ color: '#999', fontSize: 11 * fs }}>{e.storey ?? ''}{e.kind === 'WORK_ORDER' ? ` · 작업지시 ${WO_STATUS[e.woStatus as WoStatus] ?? e.woStatus}` : ''}</div>
               </span>
             </a>) })}
         </div>
@@ -185,7 +168,7 @@ const Stat = ({ icon: Icon, label, n, color, sub }: { icon: typeof Siren; label:
 
 function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number; onTrend?: (t: { globalId: string; name: string | null }) => void }) {
   const hasNum = Object.entries(r.status ?? {}).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt')
-  const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : s ? STATUS[s] : undefined
+  const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : statusUi(s)
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
   return (
     <a data-gid={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
@@ -207,4 +190,3 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: st
 }
 /** 알림음: 외부 파일 없이 WebAudio 로 짧은 비프 2회 */
 const beep = () => { try { const c = new AudioContext(); [0, 0.25].forEach(t => { const o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; o.connect(g); g.connect(c.destination); g.gain.setValueAtTime(0.15, c.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + t + 0.18); o.start(c.currentTime + t); o.stop(c.currentTime + t + 0.2) }) } catch { /* 자동재생 차단 등 — 무시 */ } }
-const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', textDecoration: 'none', color: '#222', fontSize: 12 }

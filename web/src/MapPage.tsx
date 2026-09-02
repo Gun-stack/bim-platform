@@ -7,6 +7,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'   // 
 maplibregl.setWorkerUrl(new URL(workerUrl, location.href).href)   // Blob 워커 안의 import() 는 절대 URL 이어야 한다
 import { ArrowLeft, Box, Crosshair, MapPin, X } from 'lucide-react'
 import { api, post, type Model } from './api'
+import { btn } from './ui'
 
 type Feature = { type: 'Feature'; id: string; geometry: { type: 'Polygon'; coordinates: number[][][] }; properties: { name: string; georefSource: string | null; crs: string | null; manual: boolean | null; areaM2: number; lon: number; lat: number; elementCount: number } }
 
@@ -22,10 +23,10 @@ export default function MapPage() {
   const [err, setErr] = useState<string>()
 
   const reload = async () => {
-    const [fc, ps] = await Promise.all([api('/map/footprints'), api('/projects')])
+    const [fc, ps] = await Promise.all([api<{ features: Feature[] }>('/map/footprints'), api<{ id: string }[]>('/projects')])
     setFeatures(fc.features)
-    setModels((await Promise.all(ps.map((p: { id: string }) => api(`/projects/${p.id}/models`)))).flat().filter((m: Model) => m.status === 'READY'))
-    return fc.features as Feature[]
+    setModels((await Promise.all(ps.map(p => api<Model[]>(`/projects/${p.id}/models`)))).flat().filter(m => m.status === 'READY'))
+    return fc.features
   }
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export default function MapPage() {
       style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' } },
                layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
     })
-    map.current = m; (window as any).__map = m   // 디버그용 (콘솔·헤드리스 검증)
+    map.current = m
     m.addControl(new maplibregl.NavigationControl(), 'top-right')
     m.on('error', e => setErr('map: ' + e.error?.message))
     m.on('load', async () => {
@@ -102,4 +103,3 @@ function fitTo(m: maplibregl.Map, fs: Feature[]) {
   for (const f of fs) for (const c of f.geometry.coordinates[0]) b.extend(c as [number, number])
   m.fitBounds(b, { padding: 80, maxZoom: 18, duration: 800 })
 }
-const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12 }

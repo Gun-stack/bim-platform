@@ -132,3 +132,30 @@ flowchart LR
 - ✅ **뷰어 트렌드 진입** — 운영 상태 헤더의 📈 (숫자 계측값이 있는 요소만).
 - ✅ **점검 지연의 모니터링 노출** — 총계 줄·팀 카드 건수, "지금 처리할 것" 최하위 순위, 행 "점검 지연" 뱃지.
 - ✅ **키오스크 이벤트 열 확대** — 300→400px.
+
+## 9. 코드 위치 (2026-09-02 정비 후)
+
+화면과 규칙이 어느 파일에 사는지. 여러 화면이 같이 쓰는 규칙은 **한 파일**에만 있다 — 고칠 때 그 파일만 고치면 된다.
+
+| 무엇 | 파일 | 비고 |
+|---|---|---|
+| 모델 목록·라우팅 | `web/src/App.tsx` | 해시 라우팅 (`#/models/{id}`, `/monitor`, `/fm`, `#/map`) |
+| 3D 뷰어 | `web/src/viewer/Viewer.tsx` + `scene.ts`(Three) · `NavCube.ts` · `chrome.tsx`(플로팅·툴바) · `Props.tsx`(속성 표) · `LeftPanel.tsx` · `SystemPanel.tsx` · `FmPanel.tsx` · `StatusEditor.tsx` · `ColorPanel.tsx` | 딥링크 `?v= sel= clip= focus= wo= fm=` |
+| 설비 모니터링 | `web/src/MonitorPage.tsx` (화면) + `monitor.ts` (순수 로직: 우선순위 `rank`·점검 지연·핵심 장비) | `monitor.test.ts` 가 순서를 고정 |
+| 시설관리 | `web/src/FmPage.tsx` (대장) + `FmBoard.tsx` (칸반) | |
+| 지도 | `web/src/MapPage.tsx` | |
+| 계측 트렌드 | `web/src/TrendModal.tsx` | 모니터링·뷰어 공용 |
+| 전역 경보 토스트 | `web/src/useAlerts.tsx` | 5초 폴링 + diff |
+| **상태 → 라벨·색** | `web/src/status.ts` | 모든 화면 공용 (`STATUS`, `statusLabel`, `statusHex`, `WO_STATUS`) |
+| **팀 ↔ 계통 매핑** | `web/src/teams.ts` | 조명제어반→전기팀 예외 포함 |
+| **계측값 사전·등급** | `web/src/readings.ts` | 집수정·오수 수위 반전 포함, `readings.test.ts` |
+| 날짜·점검 지연 규칙·Esc·기본 스타일 | `web/src/ui.ts` | `inspectionOverdue` 는 대장·모니터링 공용 |
+| API 호출·응답 타입 | `web/src/api.ts` | `api<T>()` — 응답 타입은 호출부가 선언 |
+| **공유 SQL 조각** | `api/…/Sql.java` | 선(배관) 제외 목록, 다음 점검일, 층/구역 조인, 계통 스코프 CTE |
+| API 오류 3종 + DB 제약 변환 | `api/…/ApiErrors.java` | |
+| 운영 상태·작업지시 규칙·전원 계산 | `api/…/StatusService.java` | `demoAggregates()` 는 가상 건물 전용 |
+| 자산·점검·작업지시 | `api/…/FmService.java` | |
+| 모니터링·이벤트 API | `api/…/MonitorController.java` | |
+| COBie·BCF 내보내기 | `api/…/ExportController.java` | |
+| IFC 추출 (계통·연결·포트) | `ifc-worker/worker/extract.py` | `tests/test_ports.py` |
+| 변환 잡 루프·lease | `ifc-worker/worker/main.py` | RECOVER SQL 은 api 의 `ConversionJobIntegrationTests` 가 이 파일을 읽어 검증 |

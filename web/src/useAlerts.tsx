@@ -2,15 +2,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { api, type StatusRow } from './api'
+import { isAbnormal, statusHex, statusLabel } from './status'
 
-const isAbn = (r: StatusRow) => r.status.Status === 'ALARM' || r.status.Status === 'FAULT'
+const isAbn = (r: StatusRow) => isAbnormal(r.status.Status)
 
-/** 상태 5초 폴링 + 새 ALARM/FAULT 감지 — 어느 화면에서든 경보 인지 (MonitorPage 의 diff 방식과 동일한 클라이언트 diff) */
+/** 상태 5초 폴링 + 새 ALARM/FAULT 감지 — 어느 화면에서든 경보 인지 (MonitorPage 는 자기 데이터로 같은 diff 를 한다) */
 export function useAlerts(modelId: string) {
   const [rows, setRows] = useState<StatusRow[]>([])
   const [fresh, setFresh] = useState<StatusRow[]>([])   // 새로 발생한 경보 — 토스트로, 8초 후 자동 소거
   const prev = useRef<Set<string> | null>(null)
-  const reload = useCallback(() => api(`/models/${modelId}/status`).then((rs: StatusRow[]) => {
+  const reload = useCallback(() => api<StatusRow[]>(`/models/${modelId}/status`).then(rs => {
     const abn = new Set(rs.filter(isAbn).map(r => r.globalId))
     if (prev.current) {
       const nw = rs.filter(r => abn.has(r.globalId) && !prev.current!.has(r.globalId))
@@ -31,10 +32,10 @@ export function AlertToast({ modelId, fresh, dismiss, onFocus }: { modelId: stri
   const link = { color: '#2563eb', cursor: 'pointer', textDecoration: 'none' } as const
   return (
     <div style={{ position: 'fixed', right: 16, bottom: 16, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 60 }}>
-      {fresh.slice(-4).map(r => (
-        <div key={r.globalId} className="fresh" style={{ background: '#fff', borderLeft: '4px solid ' + (r.status.Status === 'ALARM' ? '#dc2626' : '#f59e0b'), borderRadius: 8, boxShadow: '0 6px 20px #0003', padding: '8px 12px', fontSize: 12, minWidth: 260, maxWidth: 340 }}>
+      {fresh.slice(-4).map(r => { const c = statusHex(r.status.Status); return (
+        <div key={r.globalId} className="fresh" style={{ background: '#fff', borderLeft: '4px solid ' + c, borderRadius: 8, boxShadow: '0 6px 20px #0003', padding: '8px 12px', fontSize: 12, minWidth: 260, maxWidth: 340 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <b style={{ color: r.status.Status === 'ALARM' ? '#dc2626' : '#b45309' }}>{r.status.Status === 'ALARM' ? '경보' : '장애'}</b>
+            <b style={{ color: c }}>{statusLabel(r.status.Status)}</b>
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
             <X size={14} onClick={() => dismiss(r)} style={{ cursor: 'pointer', color: '#888', flexShrink: 0 }} />
           </div>
@@ -46,7 +47,7 @@ export function AlertToast({ modelId, fresh, dismiss, onFocus }: { modelId: stri
             <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(r.globalId)}`} style={link}>모니터링</a>
             <a href={`#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}`} style={link}>카드</a>
           </div>
-        </div>))}
+        </div>) })}
     </div>
   )
 }

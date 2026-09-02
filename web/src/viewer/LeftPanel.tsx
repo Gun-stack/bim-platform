@@ -16,7 +16,7 @@ export type Opts = { openings: boolean; spaces: boolean; merged: boolean; grid: 
 
 export const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', 'IfcCovering', 'IfcCurtainWall']   // 구조체 숨김 토글 대상 (포커스 모드도 사용)
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
-export const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
+const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
 export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel, statusBoard, abnormal, onFit }: {
   model?: Model; stats: Stats; spatial: SpatialNode[]; elements: ElementRow[]
@@ -40,8 +40,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   const elRow = (e: ElementRow): Row => ({ key: 'e:' + e.globalId, gid: e.globalId, label: e.name ?? '(이름 없음)', sub: ifcKo(e.ifcClass) + (e.spatialNodeId != null && storeyOf.get(e.spatialNodeId) ? ' · ' + storeyOf.get(e.spatialNodeId) : ''), icon: classIcon(e.ifcClass), count: 0,
     hidden: hidden.gids.has(e.globalId) || hidden.classes.has(e.ifcClass), solo: hidden.solo?.key === 'e:' + e.globalId, gids: () => [e.globalId] })
   const spRow = (n: SpatialNode): Row => {
-    const g = desc(n)
-    const gs = desc(n); return { badge: gs.reduce((k, g) => k + (abnormal.has(g) ? 1 : 0), 0), key: 'n:' + n.id, label: n.name ?? '(이름 없음)', sub: n.ifcClass.replace('Ifc', '') + (n.elevation != null ? ` ${n.elevation.toFixed(2)}m` : ''), icon: classIcon(n.ifcClass), count: g.length,
+    const g = desc(n); return { badge: g.reduce((k, g) => k + (abnormal.has(g) ? 1 : 0), 0), key: 'n:' + n.id, label: n.name ?? '(이름 없음)', sub: n.ifcClass.replace('Ifc', '') + (n.elevation != null ? ` ${n.elevation.toFixed(2)}m` : ''), icon: classIcon(n.ifcClass), count: g.length,
       hidden: hidden.nodes.has(n.id), solo: hidden.solo?.key === 'n:' + n.id, gids: () => g,
       children: () => [...(childrenOf.get(n.id) ?? []).map(spRow), ...(byNode.get(n.id) ?? []).map(elRow)] }
   }

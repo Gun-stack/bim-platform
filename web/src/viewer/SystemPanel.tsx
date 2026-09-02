@@ -3,17 +3,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, ChevronDown, ChevronUp, Droplets, Fan, Flame, Focus, Network, PlugZap, Siren, Snowflake, Thermometer, Waves, Wind, X, ArrowUpDown, Car, type LucideIcon } from 'lucide-react'
 import { TEAMS } from '../teams'
 import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
+import { hex, isAbnormal, statusHex } from '../status'
+import { btn as btnBase } from '../ui'
 
 /** 계통별 색 (ColorPanel 팔레트와 별개로 의미색 고정) */
 export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xf59e0b, DOMESTICCOLDWATER: 0x2563eb, WASTEWATER: 0x78350f, FIREPROTECTION: 0xdc2626, SIGNAL: 0x9333ea, AIRCONDITIONING: 0x0d9488, CHILLEDWATER: 0x0284c7, VENTILATION: 0x65a30d, DOMESTICHOTWATER: 0xe11d48, GAS: 0xca8a04, DATA: 0x4f46e5,
   비상전원: 0xea580c, 화재감지: 0x9333ea, 수송: 0x78716c, 주차관제: 0x0f766e }
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? 0x888888
 const SYSTEM_ICON: Record<string, LucideIcon> = { ELECTRICAL: Cable, DOMESTICCOLDWATER: Droplets, WASTEWATER: Waves, FIREPROTECTION: Flame, SIGNAL: Bell, AIRCONDITIONING: Wind, CHILLEDWATER: Snowflake, VENTILATION: Fan, DOMESTICHOTWATER: Thermometer, GAS: Flame, DATA: Network, 비상전원: BatteryCharging, 화재감지: Bell, 수송: ArrowUpDown, 주차관제: Car }
-const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
 
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 선택 요소의 상류/하류 추적 */
-export const STATUS_COLOR: Record<string, number> = { NORMAL: 0x16a34a, ONLINE: 0x16a34a, RUNNING: 0x16a34a, STANDBY: 0x6b7280, TRANSFERRED: 0xea580c, ALARM: 0xdc2626, FAULT: 0xf59e0b, OFFLINE: 0xf59e0b }
-
 export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode }: {
   modelId: string; selection: string[]
   members: Map<number, SystemMember[]>; setMembers: (m: Map<number, SystemMember[]>) => void
@@ -23,17 +22,17 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
 }) {
   const [systems, setSystems] = useState<System[]>([])
   const [busy, setBusy] = useState(false)
-  useEffect(() => { api(`/models/${modelId}/systems`).then(setSystems) }, [modelId])
+  useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystems) }, [modelId])
   useEffect(() => {   // 멤버는 전부 미리 받아둔다 (색상 모드·솔로에 필요, 모델당 수백 개)
     if (!systems.length) return
-    Promise.all(systems.map(s => api(`/models/${modelId}/systems/${s.id}/elements`).then((m: SystemMember[]) => [s.id, m] as const))).then(r => setMembers(new Map(r)))
+    Promise.all(systems.map(s => api<SystemMember[]>(`/models/${modelId}/systems/${s.id}/elements`).then(m => [s.id, m] as const))).then(r => setMembers(new Map(r)))
   }, [systems, modelId, setMembers])
 
   const gid = selection.length === 1 ? selection[0] : undefined
   const inSystems = useMemo(() => systems.filter(s => (members.get(s.id) ?? []).some(m => m.globalId === gid)), [systems, members, gid])
   const signal = inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
   // 실무 IFC 는 계통(IfcSystem) 없이 포트 연결만 있는 경우가 많다 — 소속 계통이 없으면 scope=all 로 전체 연결 그래프를 탄다
-  const trace = (dir: 'up' | 'down') => { if (!gid) return; setBusy(true); api(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}${inSystems.length ? '' : '&scope=all'}`).then(setRoute).catch(() => setRoute(undefined)).finally(() => setBusy(false)) }
+  const trace = (dir: 'up' | 'down') => { if (!gid) return; setBusy(true); api<Route>(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}${inSystems.length ? '' : '&scope=all'}`).then(setRoute).catch(() => setRoute(undefined)).finally(() => setBusy(false)) }
 
   const traceSection = <>
       {!gid && <div style={{ color: '#888', fontSize: 12, padding: 6 }}>장비를 하나 선택하면 상류·하류를 추적할 수 있습니다.</div>}
@@ -94,8 +93,8 @@ export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setSt
   statusView: boolean; setStatusView: (b: boolean) => void; power?: PowerResult; setPower: (p?: PowerResult) => void
 }) {
   const [busy, setBusy] = useState(false)
-  const abnormal = rows.filter(r => r.status.Status === 'ALARM' || r.status.Status === 'FAULT')
-  const togglePower = () => { setBusy(true); post(`/models/${modelId}/power?source=${power?.source === 'GENERATOR' ? 'UTILITY' : 'GENERATOR'}`, {}).then((p: PowerResult) => setPower(p.source === 'GENERATOR' ? p : undefined)).then(reload).finally(() => setBusy(false)) }
+  const abnormal = rows.filter(r => isAbnormal(r.status.Status))
+  const togglePower = () => { setBusy(true); post<PowerResult>(`/models/${modelId}/power?source=${power?.source === 'GENERATOR' ? 'UTILITY' : 'GENERATOR'}`, {}).then(p => setPower(p.source === 'GENERATOR' ? p : undefined)).then(reload).finally(() => setBusy(false)) }
   return (
     <div style={{ padding: '6px 10px', background: abnormal.length ? '#fff5f5' : '#f0fdf4', borderBottom: '1px solid #e5e5e5' }}>
       <div onClick={() => setCollapsed(!collapsed)} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -110,9 +109,9 @@ export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setSt
         <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기
         <span style={{ display: 'inline-flex', gap: 6, marginLeft: 4, color: '#666', fontSize: 11 }}>{[['#16a34a', '정상'], ['#dc2626', '경보'], ['#f59e0b', '장애'], ['#64748b', '점유·소등']].map(([c, l]) => <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: c }} />{l}</span>)}</span></label>
       {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: 4, background: '#fff5f5' }}>
-        <AlertTriangle size={12} style={{ color: r.status.Status === 'ALARM' ? '#dc2626' : '#f59e0b' }} />
+        <AlertTriangle size={12} style={{ color: statusHex(r.status.Status) }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-        <span style={{ color: '#888' }}>{r.spatialName}</span><b style={{ color: r.status.Status === 'ALARM' ? '#dc2626' : '#f59e0b' }}>{r.status.Status}</b></div>)}
+        <span style={{ color: '#888' }}>{r.spatialName}</span><b style={{ color: statusHex(r.status.Status) }}>{r.status.Status}</b></div>)}
       <button disabled={busy} onClick={togglePower} style={{ ...btn, marginTop: 8, width: '100%', background: power ? '#fff7ed' : '#fff', borderColor: power ? '#f59e0b' : '#ddd', color: power ? '#9a3412' : '#222' }}>
         <PlugZap size={13} /> {power ? `정전 중 — 비상발전 운전 (무전원 ${power.unpowered.length}) · 클릭하면 복전` : '정전 시나리오 (발전기 절체)'}</button>
       </>}
@@ -134,4 +133,4 @@ const groupByTeam = (systems: System[]) => {
   return rest.length ? [...groups, [undefined, rest] as const] : groups
 }
 const groupBy = <T,>(xs: T[], k: (x: T) => string) => xs.reduce((m, x) => ((m[k(x)] ??= []).push(x), m), {} as Record<string, T[]>)
-const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, flex: 1, justifyContent: 'center' }
+const btn = { ...btnBase, padding: '5px 8px', flex: 1, justifyContent: 'center' }

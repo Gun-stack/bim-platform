@@ -3,12 +3,9 @@ import { AlertTriangle, CheckCircle2, Siren, TrendingUp, WifiOff } from 'lucide-
 import TrendModal from '../TrendModal'
 import type { ElementDetail } from '../api'
 import { patchStatus, statusPatchFor } from '../statusApi'
-import { STATUS_COLOR } from './SystemPanel'
+import { statusHex, statusLabel } from '../status'
 import { READINGS, readings, LEVEL_COLOR } from '../readings'
-
-const STATUS_LABEL: Record<string, string> = { NORMAL: '정상', ONLINE: '온라인', RUNNING: '운전', STANDBY: '대기', TRANSFERRED: '절체', ALARM: '경보', FAULT: '장애', OFFLINE: '오프라인' }
-const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
-const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12 }
+import { btn } from '../ui'
 
 /** 속성 패널 상단 "운영 상태": Status 버튼 + Pset_BimStatus 나머지 필드 인라인 편집(PATCH 는 jsonb 병합이라 키 하나씩 보내도 된다).
  *  Pset_BimStatus 가 없는 요소(배관·트레이 등)는 안 보인다 — 상태는 장비의 것. */
@@ -25,7 +22,7 @@ export default function StatusEditor({ modelId, e, reload }: { modelId: string; 
     <div style={{ margin: '0 0 10px', padding: 8, background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <b>운영 상태</b>
-        <span style={{ padding: '1px 8px', borderRadius: 999, color: '#fff', background: hex(STATUS_COLOR[cur] ?? 0x6b7280), fontWeight: 600 }}>{STATUS_LABEL[cur] ?? cur}</span>
+        <span style={{ padding: '1px 8px', borderRadius: 999, color: '#fff', background: statusHex(cur, '#6b7280'), fontWeight: 600 }}>{statusLabel(cur)}</span>
         {Object.entries(st).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt') && <button onClick={() => setTrend(true)} title="계측 트렌드 — 값이 언제부터 이랬는지" style={{ border: 0, background: 'none', cursor: 'pointer', color: '#2563eb', padding: 2, display: 'inline-flex' }}><TrendingUp size={13} /></button>}
         {typeof st.UpdatedAt === 'string' && <span style={{ color: '#999', fontSize: 11, marginLeft: 'auto' }}>{new Date(st.UpdatedAt).toLocaleString()}</span>}
       </div>
@@ -33,7 +30,7 @@ export default function StatusEditor({ modelId, e, reload }: { modelId: string; 
         {e.ifcClass === 'IfcSensor' && <button disabled={busy || cur === 'ALARM'} onClick={() => send(statusPatchFor('ALARM'))} style={{ ...btn, color: '#dc2626' }}><Siren size={12} /> 경보</button>}
         <button disabled={busy || cur === 'FAULT'} onClick={() => send(statusPatchFor('FAULT'))} style={{ ...btn, color: '#b45309' }}><AlertTriangle size={12} /> 장애</button>
         <button disabled={busy || cur === 'OFFLINE'} onClick={() => send(statusPatchFor('OFFLINE'))} style={{ ...btn, color: '#6b7280' }}><WifiOff size={12} /> 오프라인</button>
-        <button disabled={busy || cur === normal} onClick={() => send(statusPatchFor(normal))} style={{ ...btn, color: '#16a34a' }}><CheckCircle2 size={12} /> {STATUS_LABEL[normal]} 복구</button>
+        <button disabled={busy || cur === normal} onClick={() => send(statusPatchFor(normal))} style={{ ...btn, color: '#16a34a' }}><CheckCircle2 size={12} /> {statusLabel(normal)} 복구</button>
       </div>
       {fields.length > 0 && <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}><tbody>
         {fields.map(([k, v]) => <tr key={k} style={{ borderTop: '1px solid #eee' }}>

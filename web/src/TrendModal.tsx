@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { api } from './api'
 import { READINGS } from './readings'
+import { useEsc } from './ui'
 
 type Pt = { at: string; data: Record<string, unknown> }
 type S = { at: number; v: number }[]
@@ -9,8 +10,8 @@ type S = { at: number; v: number }[]
 /** 요소 계측 트렌드 — op_event.data 시계열을 계측 키별 미니 라인차트로. Esc/바깥 클릭 닫기 */
 export default function TrendModal({ modelId, globalId, name, onClose }: { modelId: string; globalId: string; name: string; onClose: () => void }) {
   const [pts, setPts] = useState<Pt[] | null>(null)
-  useEffect(() => { api(`/models/${modelId}/elements/${encodeURIComponent(globalId)}/readings`).then(setPts).catch(() => setPts([])) }, [modelId, globalId])
-  useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', h); return () => removeEventListener('keydown', h) }, [onClose])
+  useEffect(() => { api<Pt[]>(`/models/${modelId}/elements/${encodeURIComponent(globalId)}/readings`).then(setPts).catch(() => setPts([])) }, [modelId, globalId])
+  useEsc(onClose)
   const series = useMemo(() => {
     const keys = new Map<string, S>()
     for (const p of pts ?? []) for (const [k, v] of Object.entries(p.data ?? {}))

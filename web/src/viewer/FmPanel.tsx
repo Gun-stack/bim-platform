@@ -1,7 +1,8 @@
-/* oxlint-disable react/only-export-components */
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, ClipboardList, Plus, Tag, Wrench } from 'lucide-react'
 import { api, post, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Viewpoint } from '../api'
+import { WO_STATUS, type WoStatus } from '../status'
+import { btn, day, inp as inpBase } from '../ui'
 
 /** 우측 "자산" 탭. 선택 요소 ↔ asset 연결, 점검·작업지시. 자산 목록은 모델 단위로 한 번 받아 globalId 로 찾는다. */
 export default function FmPanel({ modelId, selection, byGid, detail, assets, reload, viewpoint }: {
@@ -33,7 +34,7 @@ const suggestTag = (el: ElementRow, n: number) => `${el.ifcClass.replace('Ifc', 
 
 function Register({ gid, el, detail, modelId, run, err }: { gid: string; el: ElementRow; detail?: ElementDetail; modelId: string; run: (p: Promise<unknown>) => Promise<void>; err?: string }) {
   const [tag, setTag] = useState(''); const [category, setCategory] = useState(el.ifcClass.replace('Ifc', ''))
-  useEffect(() => { api(`/models/${modelId}/assets`).then((as: Asset[]) => setTag(suggestTag(el, as.length + 1))) }, [gid, modelId, el])
+  useEffect(() => { api<Asset[]>(`/models/${modelId}/assets`).then(as => setTag(suggestTag(el, as.length + 1))) }, [gid, modelId, el])
   const attrs = snapshot(detail)
   return (
     <form onSubmit={e => { e.preventDefault(); run(post(`/models/${modelId}/assets`, { globalId: gid, tag, category, attributes: attrs })) }}>
@@ -52,7 +53,7 @@ function Bulk({ selection, byGid, byElement, modelId, run, err }: { selection: s
   const todo = selection.filter(g => byGid.has(g) && !byElement.has(g)), done = selection.length - todo.length
   const [prefix, setPrefix] = useState('AST'); const [category, setCategory] = useState('')
   const register = async () => {
-    const start = ((await api(`/models/${modelId}/assets`)) as Asset[]).length + 1
+    const start = (await api<Asset[]>(`/models/${modelId}/assets`)).length + 1
     for (const [i, g] of todo.entries()) await post(`/models/${modelId}/assets`, { globalId: g, tag: `${prefix}-${String(start + i).padStart(3, '0')}`, category: category || byGid.get(g)!.ifcClass.replace('Ifc', ''), attributes: {} })
   }
   return (
@@ -68,7 +69,7 @@ function Bulk({ selection, byGid, byElement, modelId, run, err }: { selection: s
 
 function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Promise<unknown>) => Promise<void>; err?: string; viewpoint: () => Viewpoint }) {
   const [d, setD] = useState<AssetDetail>()
-  const load = useCallback(() => api(`/assets/${asset.id}`).then(setD), [asset.id])
+  const load = useCallback(() => api<AssetDetail>(`/assets/${asset.id}`).then(setD), [asset.id])
   useEffect(() => { load() }, [load, asset.lastInspectedOn, asset.openWorkOrders])
   const [note, setNote] = useState(''); const [wo, setWo] = useState({ title: '', assignee: '', dueOn: '' }); const [showWo, setShowWo] = useState(false)
   const inspect = (result: 'OK' | 'DEFECT') => run(post(`/assets/${asset.id}/inspections`, { result, note: note || null })).then(() => setNote(''))
@@ -106,22 +107,18 @@ function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Prom
       </div>}
       {d?.workOrders.map(w => <div key={w.id} style={{ fontSize: 12, padding: '5px 0', borderTop: '1px solid #eee' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><StatusBadge s={w.status} /><span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={w.title}>{w.title}</span>
-          <span style={{ display: 'inline-flex', gap: 2 }}>{(['OPEN', 'IN_PROGRESS', 'DONE'] as const).map(st => <button key={st} disabled={w.status === st} onClick={() => run(post(`/work-orders/${w.id}`, { status: st }, 'PATCH')).then(load)} style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ddd', borderRadius: 999, background: w.status === st ? '#eef2ff' : '#fff', color: w.status === st ? '#1d4ed8' : '#555', cursor: w.status === st ? 'default' : 'pointer' }}>{{ OPEN: '대기', IN_PROGRESS: '진행', DONE: '완료' }[st]}</button>)}</span></div>
+          <span style={{ display: 'inline-flex', gap: 2 }}>{(['OPEN', 'IN_PROGRESS', 'DONE'] as const).map(st => <button key={st} disabled={w.status === st} onClick={() => run(post(`/work-orders/${w.id}`, { status: st }, 'PATCH')).then(load)} style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ddd', borderRadius: 999, background: w.status === st ? '#eef2ff' : '#fff', color: w.status === st ? '#1d4ed8' : '#555', cursor: w.status === st ? 'default' : 'pointer' }}>{WO_STATUS[st]}</button>)}</span></div>
         <div style={{ color: '#888', fontSize: 11, marginTop: 2, paddingLeft: 2 }}>{w.assignee ? `담당 ${w.assignee}` : <span style={{ color: '#b45309' }}>미배정</span>}{w.dueOn ? ` · 기한 ${day(w.dueOn)}` : ''}{w.priority && w.priority !== 'NORMAL' ? ` · ${({ URGENT: '긴급', HIGH: '높음', LOW: '낮음' } as Record<string, string>)[w.priority] ?? w.priority}` : ''}</div></div>)}
     </div>
   )
 }
 
-/** API 의 date 는 ISO 타임스탬프 문자열로 온다 → YYYY-MM-DD */
-export const day = (s?: string | null) => s ? s.slice(0, 10) : ''
-
-export function StatusBadge({ s }: { s: 'OPEN' | 'IN_PROGRESS' | 'DONE' }) {
+export function StatusBadge({ s }: { s: WoStatus }) {
   const c = { OPEN: ['#b91c1c', '#fee2e2'], IN_PROGRESS: ['#1d4ed8', '#dbe4ff'], DONE: ['#15803d', '#dcfce7'] }[s]
-  return <span style={{ padding: '1px 7px', borderRadius: 999, background: c[1], color: c[0], fontSize: 11, whiteSpace: 'nowrap' }}>{{ OPEN: '대기', IN_PROGRESS: '진행', DONE: '완료' }[s]}</span>
+  return <span style={{ padding: '1px 7px', borderRadius: 999, background: c[1], color: c[0], fontSize: 11, whiteSpace: 'nowrap' }}>{WO_STATUS[s]}</span>
 }
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => <label style={{ display: 'block', marginBottom: 8 }}><div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>{label}</div>{children}</label>
 const Err = ({ e }: { e?: string }) => e ? <p style={{ color: '#b91c1c', fontSize: 12 }}>{e}</p> : null
-const inp = { width: '100%', boxSizing: 'border-box' as const, padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }
-const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12 }
+const inp = { ...inpBase, width: '100%', boxSizing: 'border-box' as const }
 const btnPrimary = { ...btn, background: '#2563eb', color: '#fff', border: 0 }
 const h4 = { display: 'flex', alignItems: 'center', gap: 6, margin: '14px 0 6px', fontSize: 13 }

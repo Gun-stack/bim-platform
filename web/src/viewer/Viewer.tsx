@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { MapPinned, Check, Copy, GripVertical, Magnet, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors, type LucideIcon } from 'lucide-react'
-import { api, type Asset, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
+import { MapPinned, Check, Copy, Magnet, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors } from 'lucide-react'
+import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type System, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
-import SystemPanel, { STATUS_COLOR, StatusBoard, systemColor } from './SystemPanel'
+import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
 import { ifcKo } from '../ifcNames'
 import { TEAMS } from '../teams'
-import { StatusBadge, day } from './FmPanel'
+import { STATUS, isAbnormal, statusHex, statusLabel } from '../status'
+import { day, useEsc } from '../ui'
+import FmPanel, { StatusBadge } from './FmPanel'
 import StatusEditor from './StatusEditor'
-import FmPanel from './FmPanel'
 import { Scene3D, type Kind, type Stats, type View } from './scene'
 import LeftPanel, { STRUCT, type Hidden, type Opts, type SelectMode } from './LeftPanel'
 import ColorPanel from './ColorPanel'
 import ContextMenu, { type MenuItem } from './ContextMenu'
+import { Axis, Floating, Gap, Tool } from './chrome'
+import { MultiProps, Props } from './Props'
 import { useHashQuery } from '../useHashQuery'
 import './viewer.css'
 
@@ -43,10 +46,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [sysMembers, setSysMembers] = useState<Map<number, SystemMember[]>>(new Map())
   const [sysColor, setSysColor] = useState(false)     // 계통별 색
   const [route, setRoute] = useState<Route>()          // 추적 결과
-  const [systemsMeta, setSystemsMeta] = useState<{ id: number; name: string; predefinedType: string | null }[]>([])
+  const [systemsMeta, setSystemsMeta] = useState<System[]>([])
   const [power, setPower] = useState<PowerResult>()
   const [statusView, setStatusView] = useState(false); const [boardCollapsed, setBoardCollapsed] = useState(false)
-  const [assetDetail, setAssetDetail] = useState<{ id: string; workOrders: WorkOrder[] }>()
+  const [assetDetail, setAssetDetail] = useState<AssetDetail>()
   const [focusInfo, setFocusInfo] = useState<{ gid: string; name: string; zone?: string; storey?: string; status?: string; spaceGid?: string }>()
   const [loaded, setLoaded] = useState(false)   // glb 로드 완료 — 딥링크 재적용 effect 가드
   /** 경보/장애 요소로 포커스: 구역 반투명 강조 + 요소 하이라이트 + 위층 단면 + 구역에 카메라 */
@@ -62,37 +65,37 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.preset('home')   // 건물 전체가 보이는 홈 뷰 — 어느 층·어느 구역인지 한눈에 (길찾기용, 줌인하지 않음)
     const st = statusRows.find(r => r.globalId === gid)?.status.Status
     setFocusInfo({ gid, name: el.name ?? gid, zone: space?.name ?? undefined, storey: storey?.name ?? undefined, status: st, spaceGid: space?.globalId })
-    s.setMarker(gid, st === 'FAULT' ? 0xf59e0b : 0xdc2626)
+    s.setMarker(gid, STATUS[st ?? '']?.color ?? 0xdc2626)
   }
   const focusRef = useRef(focusOn); focusRef.current = focusOn
   useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); setFocus('none'); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])   // 다른 요소를 고르면 포커스 모드(격리·비콘)도 해제 — 배너 X 와 동일
   const { rows: statusRows, fresh: freshAlerts, dismiss: dismissAlert, reload: reloadStatus } = useAlerts(modelId)   // 5초 폴링 — 상태판·트리 배지도 함께 최신 유지
-  useEffect(() => { api(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
+  useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
   // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
   useEffect(() => {
     const s = scene.current; if (!s) return
     if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? 0xffaa00 : route.direction === 'up' ? 0x2563eb : 0x16a34a); s.setColors(m, true); return }
     if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, 0x16a34a); for (const g of power.unpowered) m.set(g, 0x374151); s.setColors(m, true); return }
-    if (statusView) { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? 0x64748b : st.On === false ? 0x9ca3af : STATUS_COLOR[st.Status ?? ''] ?? 0x888888) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
+    if (statusView) { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? 0x64748b : st.On === false ? 0x9ca3af : STATUS[st.Status ?? '']?.color ?? 0x888888) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
     if (!sysColor || colorMode) { if (!colorMode) s.setColors(undefined); return }
     const m = new Map<string, number>()
     for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, systemColor(sm))
     s.setColors(m, true)   // 구조체는 반투명 — 계통이 건물 안에서 보이게
   }, [sysColor, sysMembers, systemsMeta, route, colorMode, bounds, power, statusView, statusRows])
   const [menu, setMenu] = useState<{ x: number; y: number }>()
-  const hq = useHashQuery(), qs = hq.toString(), woId = hq.get('wo'), wantFm = hq.has('fm') || hq.has('wo')
+  const hq = useHashQuery(), woId = hq.get('wo'), wantFm = hq.has('fm') || hq.has('wo')
   const [tab, setTab] = useState<'props' | 'fm'>(wantFm ? 'fm' : 'props')
   useEffect(() => { if (wantFm) setTab('fm') }, [wantFm])   // 같은 페이지에서 ?fm/?wo 딥링크가 와도 탭 전환
   const [wo, setWo] = useState<WorkOrder>()   // ?wo= 로 열었을 때 상단 배너
-  useEffect(() => { if (woId) api(`/work-orders/${woId}`).then(setWo).catch(() => {}); else setWo(undefined) }, [woId])
+  useEffect(() => { if (woId) api<WorkOrder>(`/work-orders/${woId}`).then(setWo).catch(() => {}); else setWo(undefined) }, [woId])
   const [assets, setAssets] = useState<Asset[]>([])
-  const reloadAssets = useCallback(() => api(`/models/${modelId}/assets`).then(setAssets), [modelId])
+  const reloadAssets = useCallback(() => api<Asset[]>(`/models/${modelId}/assets`).then(setAssets), [modelId])
   useEffect(() => { reloadAssets() }, [reloadAssets])
   const assetByGid = useMemo(() => new Map(assets.filter(a => a.globalId).map(a => [a.globalId!, a])), [assets])
 
   useEffect(() => {
     setErr(undefined)
-    Promise.all([api(`/models/${modelId}`), api(`/models/${modelId}/spatial`), api(`/models/${modelId}/elements`)])
+    Promise.all([api<Model>(`/models/${modelId}`), api<SpatialNode[]>(`/models/${modelId}/spatial`), api<ElementRow[]>(`/models/${modelId}/elements`)])
       .then(([m, s, e]) => { setModel(m); setSpatial(s); setElements(e) }).catch(e => setErr(e.message))
   }, [modelId])
 
@@ -135,12 +138,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
   // share() 는 history.replaceState 라 hashchange 가 안 떠 루프 없음. 동일 해시 재클릭은 이벤트 미발생 — 허용.
   useEffect(() => {
     const s = scene.current; if (!loaded || !s) return
-    const vp = readViewpoint()
-    if (vp?.v) s.setView(vp.v)
-    if (vp?.clip) setClip(vp.clip)
-    if (vp?.sel) { const sel = vp.sel.split(','); s.select(sel); if (vp.focus) setTimeout(() => focusRef.current(sel[0]), 300) }   // byGid·spatial 준비 후
-  // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, qs])
+    const vp = readViewpoint(hq)
+    if (vp.v) s.setView(vp.v)
+    if (vp.clip) setClip(vp.clip)
+    if (vp.sel) { const sel = vp.sel.split(','); s.select(sel); if (vp.focus) setTimeout(() => focusRef.current(sel[0]), 300) }   // byGid·spatial 준비 후
+  }, [loaded, hq])
 
   useEffect(() => {   // 트리 눈 토글 + 표시 옵션 → 표시 조건
     scene.current?.setVisible((gid, kind) => {
@@ -154,7 +156,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     })
   }, [opts.openings, opts.spaces, hiddenNodes, hidden, byGid, spaceStorey, bounds])
   useEffect(() => {   // 선택 → 상세(1개) / 요약용 상세들(여러 개, 최대 20)
-    const fetch1 = (gid: string) => api(`/models/${modelId}/elements/${encodeURIComponent(gid)}`) as Promise<ElementDetail>
+    const fetch1 = (gid: string) => api<ElementDetail>(`/models/${modelId}/elements/${encodeURIComponent(gid)}`)
     if (selection.length === 1) {
       const gid = selection[0]
       if (!byGid.has(gid)) setDetail({ globalId: gid, kind: spaceGids.has(gid) ? 'space' : 'opening' })
@@ -171,10 +173,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
   const [snap, setSnap] = useState(() => { try { return localStorage.getItem('viewer.snap') !== '0' } catch { return true } })
   useEffect(() => { if (scene.current) scene.current.snap = snap; try { localStorage.setItem('viewer.snap', snap ? '1' : '0') } catch { /* 저장 불가 환경 */ } }, [snap, loaded])
-  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && setMeasuring(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
+  useEsc(useCallback(() => setMeasuring(false), []))
   useEffect(() => {   // 격리(반투명) — 선택 집합 기준 (+ 포커스 모드면 구역도 함께, 구역은 진한 파랑)
     const spaceGid = focusInfo?.spaceGid
-    scene.current?.setFocus(focus !== 'ghost' || !selSet.size ? undefined : { mode: 'ghost', gids: spaceGid ? new Set([...selSet, spaceGid]) : selSet }, spaceGid)
+    scene.current?.setFocus(focus !== 'ghost' || !selSet.size ? undefined : { gids: spaceGid ? new Set([...selSet, spaceGid]) : selSet }, spaceGid)
   }, [focus, selSet, focusInfo?.spaceGid])
   const soloSelected = () => {
     if (!selection.length) return
@@ -217,9 +219,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }
 
   const storeys = spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0))
-  const abnormal = useMemo(() => new Map(statusRows.filter(r => r.status.Status === 'ALARM' || r.status.Status === 'FAULT').map(r => [r.globalId, r.status.Status!])), [statusRows])
+  const abnormal = useMemo(() => new Map(statusRows.filter(r => isAbnormal(r.status.Status)).map(r => [r.globalId, r.status.Status!])), [statusRows])
   const selAsset = selection.length === 1 ? assetByGid.get(selection[0]) : undefined
-  useEffect(() => { if (!selAsset) { setAssetDetail(undefined); return } api(`/assets/${selAsset.id}`).then(setAssetDetail).catch(() => setAssetDetail(undefined)) }, [selAsset?.id, selAsset?.openWorkOrders])   // eslint-disable-line react-hooks/exhaustive-deps
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- 자산 id·열린 작업지시 수가 바뀔 때만
+  useEffect(() => { if (!selAsset) { setAssetDetail(undefined); return } api<AssetDetail>(`/assets/${selAsset.id}`).then(setAssetDetail).catch(() => setAssetDetail(undefined)) }, [selAsset?.id, selAsset?.openWorkOrders])
   const selSystems = useMemo(() => selection.length === 1 ? systemsMeta.filter(sm => (sysMembers.get(sm.id) ?? []).some(m => m.globalId === selection[0])) : [], [selection, systemsMeta, sysMembers])
   const routeSummary = useMemo(() => { if (!route) return undefined; const st = new Map<number, string>(); for (const n of spatial) { let c: SpatialNode | undefined = n; while (c && c.ifcClass !== 'IfcBuildingStorey') c = c.parentId == null ? undefined : spatial.find(x => x.id === c!.parentId); if (c?.name) st.set(n.id, c.name) }
     const floors = new Set<string>(); const cls = new Map<string, number>(); for (const n of route.nodes) { const e = byGid.get(n.globalId); if (e?.spatialNodeId != null && st.get(e.spatialNodeId)) floors.add(st.get(e.spatialNodeId)!); cls.set(n.ifcClass, (cls.get(n.ifcClass) ?? 0) + 1) }
@@ -247,9 +250,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
           {/* 경보/장애 포커스 배너 (구역 강조 + 위치 비콘) */}
           {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', background: focusInfo.status === 'ALARM' ? '#fef2f2' : focusInfo.status === 'FAULT' ? '#fffbeb' : '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', fontSize: 12, maxWidth: 460 }}>
-            <MapPinned size={14} style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#2563eb' }} />
+            <MapPinned size={14} style={{ color: isAbnormal(focusInfo.status) ? statusHex(focusInfo.status) : '#2563eb' }} />
             <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
-            {focusInfo.status && <b style={{ color: focusInfo.status === 'ALARM' ? '#dc2626' : focusInfo.status === 'FAULT' ? '#f59e0b' : '#16a34a' }}>{{ ALARM: '경보', FAULT: '장애', NORMAL: '정상' }[focusInfo.status] ?? focusInfo.status}</b>}
+            {focusInfo.status && <b style={{ color: statusHex(focusInfo.status, '#16a34a') }}>{statusLabel(focusInfo.status)}</b>}
             <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(focusInfo.gid)}`} title="모니터링에서 이 장비" style={{ color: '#2563eb', textDecoration: 'none', whiteSpace: 'nowrap' }}>모니터링</a>
             {(assetByGid.get(focusInfo.gid)?.openWorkOrders ?? 0) > 0 && <a href={`#/models/${modelId}/fm?sel=${encodeURIComponent(focusInfo.gid)}`} title="칸반 보드에서 이 자산의 카드" style={{ color: '#2563eb', textDecoration: 'none', whiteSpace: 'nowrap' }}>칸반</a>}
             <X size={14} style={{ cursor: 'pointer', color: '#888' }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined) }} /></div>}
@@ -338,10 +341,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Panel defaultSize={340} minSize={200} collapsible collapsedSize={0}>
         <aside style={{ overflow: 'auto', height: '100%', padding: 12, boxSizing: 'border-box' }}>
           {/* 요약 카드: 무엇·어디·어느 팀·자산·작업지시 — 탭을 오가지 않아도 한눈에 */}
-          {selection.length === 1 && detail && 'properties' in detail && (() => { const st = (detail.properties.Pset_BimStatus as Record<string, unknown> | undefined)?.Status as string | undefined, sc = STATUS_COLOR[st ?? ''], open = assetDetail?.workOrders.filter(w => w.status !== 'DONE') ?? []; return (
+          {selection.length === 1 && detail && 'properties' in detail && (() => { const st = (detail.properties.Pset_BimStatus as Record<string, unknown> | undefined)?.Status as string | undefined, open = assetDetail?.workOrders.filter(w => w.status !== 'DONE') ?? []; return (
             <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: st === 'ALARM' ? '#fef2f2' : st === 'FAULT' ? '#fffbeb' : '#f8fafc', border: '1px solid ' + (st === 'ALARM' ? '#fecaca' : st === 'FAULT' ? '#fde68a' : '#e5e7eb') }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.name ?? ''}>{detail.name}</b>
-                {st && <span style={{ padding: '1px 8px', borderRadius: 999, color: '#fff', fontSize: 11, fontWeight: 600, background: '#' + (sc ?? 0x6b7280).toString(16).padStart(6, '0') }}>{{ NORMAL: '정상', ONLINE: '온라인', RUNNING: '운전', STANDBY: '대기', ALARM: '경보', FAULT: '장애', OFFLINE: '오프라인', TRANSFERRED: '절체' }[st] ?? st}</span>}</div>
+                {st && <span style={{ padding: '1px 8px', borderRadius: 999, color: '#fff', fontSize: 11, fontWeight: 600, background: statusHex(st, '#6b7280') }}>{statusLabel(st)}</span>}</div>
               <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{ifcKo(detail.ifcClass)} · {detail.spatialName ?? '위치 없음'}{selSystems.length > 0 && <span style={{ marginLeft: 6, display: 'inline-flex', gap: 4 }}>{selSystems.map(sm => { const t = TEAMS.find(t => t.systems.includes(sm.name)); return <span key={sm.id} style={{ fontSize: 10, border: '1px solid ' + (t?.color ?? '#999'), color: t?.color ?? '#666', borderRadius: 4, padding: '0 4px' }}>{sm.name}</span> })}</span>}</div>
               {/* 좁은 패널(기본 340px)에서 단어 중간이 꺾이지 않게: 항목별 nowrap + 컨테이너 wrap */}
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px', fontSize: 12, marginTop: 4 }}>
@@ -370,117 +373,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
   )
 }
 
-function readViewpoint(): { v?: View; sel?: string; clip?: number[]; focus?: boolean } | undefined {
-  const q = new URLSearchParams(location.hash.split('?')[1] ?? '')
+/** URL 쿼리의 뷰포인트: v=카메라 6수, sel=GlobalId 목록, clip=섹션 박스 6수, focus=포커스 모드 */
+function readViewpoint(q: URLSearchParams): { v?: View; sel?: string; clip?: number[]; focus: boolean } {
   const n = q.get('v')?.split(',').map(Number), c = q.get('clip')?.split(',').map(Number)
   return { v: n?.length === 6 ? { p: n.slice(0, 3), t: n.slice(3) } : undefined, sel: q.get('sel') ?? undefined, clip: c?.length === 6 && c.every(Number.isFinite) ? c : undefined, focus: q.has('focus') }
 }
 
 const sep = { width: 4, background: '#e5e5e5', cursor: 'col-resize' }
-
-/** 캔버스 위 플로팅 패널: 그립(또는 빈 표면)을 끌어 이동, 위치는 localStorage(viewer.float.{id}) 기억, 그립 더블클릭 → 원위치.
- *  ponytail: 창이 줄어 저장 위치가 화면 밖이면 더블클릭 원위치로 복구 — 렌더 시 재클램프는 생략 */
-function Floating({ id, anchor, children }: { id: string; anchor: React.CSSProperties; children: React.ReactNode }) {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => { try { return JSON.parse(localStorage.getItem('viewer.float.' + id) ?? 'null') } catch { return null } })
-  const ref = useRef<HTMLDivElement>(null)
-  const onDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || (e.target as HTMLElement).closest('button, input, a, select, textarea')) return   // 컨트롤 조작은 드래그 아님
-    const el = ref.current!, parent = el.offsetParent as HTMLElement | null; if (!parent) return
-    const r = el.getBoundingClientRect(), pr = parent.getBoundingClientRect()
-    const sx = e.clientX, sy = e.clientY, ox = r.left - pr.left, oy = r.top - pr.top
-    let cur: { x: number; y: number } | null = null
-    const cl = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi))
-    const move = (ev: PointerEvent) => {
-      let x = cl(ox + ev.clientX - sx, 0, pr.width - r.width), y = cl(oy + ev.clientY - sy, 0, pr.height - r.height)
-      // 가장자리 스냅: 16px 이내로 다가가면 여백 8px 에 자석처럼 붙는다
-      if (x < 16) x = 8; else if (x > pr.width - r.width - 16) x = pr.width - r.width - 8
-      if (y < 16) y = 8; else if (y > pr.height - r.height - 16) y = pr.height - r.height - 8
-      cur = { x, y }; setPos(cur)
-    }
-    const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); if (cur) { try { localStorage.setItem('viewer.float.' + id, JSON.stringify(cur)) } catch { /* 저장 불가 환경 */ } } }
-    addEventListener('pointermove', move); addEventListener('pointerup', up)
-  }
-  const reset = () => { setPos(null); try { localStorage.removeItem('viewer.float.' + id) } catch { /* 저장 불가 환경 */ } }
-  return (
-    <div ref={ref} onPointerDown={onDown} style={{ position: 'absolute', display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 8, boxShadow: '0 2px 10px #0002, 0 0 0 1px #0000000d', ...anchor, ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto', transform: 'none' } : {}), touchAction: 'none' }}>
-      <span title="드래그로 이동 · 더블클릭 원위치" onDoubleClick={reset} style={{ display: 'grid', cursor: 'grab', color: '#c8c8c8', flexShrink: 0 }}><GripVertical size={13} /></span>
-      {children}
-    </div>
-  )
-}
-
-function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { icon: LucideIcon; label: string; hint?: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
-  const [hov, setHov] = useState(false)
-  return <span style={{ position: 'relative', display: 'inline-block' }} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
-    <button aria-label={label} onClick={onClick} disabled={disabled}
-      style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', border: 0, borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
-               background: active ? '#2563eb' : hov && !disabled ? '#eef2ff' : 'transparent', color: active ? '#fff' : disabled ? '#c5c5c5' : '#333', transition: 'background .12s' }}>
-      <Icon size={18} strokeWidth={1.8} /></button>
-    {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: '#222', color: '#fff', padding: '4px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: '0 2px 6px #0003' }}>
-      {label}{disabled && hint && <span style={{ color: '#aaa' }}> · {hint}</span>}</span>}
-  </span>
-}
-
-const Gap = () => <span style={{ width: 1, background: '#e3e3e3', margin: '6px 4px' }} />
-
-/** 축 하나의 min/max 범위 슬라이더 (native range 두 개 겹침) */
-function Axis({ name, min, max, lo, hi, onChange }: { name: string; min: number; max: number; lo: number; hi: number; onChange: (lo: number, hi: number) => void }) {
-  const st = { width: '100%', margin: 0, position: 'absolute' as const, left: 0, top: 0 }
-  return <>
-    <span style={{ color: { X: '#e0403a', Y: '#6fa83a', Z: '#3a7de0' }[name as 'X'], fontWeight: 600 }}>{name}</span>
-    <div style={{ position: 'relative', height: 20 }}>
-      <input type="range" className="dual" min={min} max={max} step={0.05} value={lo} onChange={e => onChange(Math.min(+e.target.value, hi - 0.05), hi)} style={st} />
-      <input type="range" className="dual hi" min={min} max={max} step={0.05} value={hi} onChange={e => onChange(lo, Math.max(+e.target.value, lo + 0.05))} style={st} />
-    </div>
-    <span style={{ color: '#666', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{lo.toFixed(2)} ~ {hi.toFixed(2)} m</span>
-  </>
-}
-
-/** 여러 개 선택: 클래스별 개수 + 공통 Pset (모두 같은 값만, 다르면 —) */
-function MultiProps({ selection, byGid, details }: { selection: string[]; byGid: Map<string, ElementRow>; details: ElementDetail[] }) {
-  const classes = new Map<string, number>()
-  for (const g of selection) { const c = byGid.get(g)?.ifcClass ?? '(형상만)'; classes.set(c, (classes.get(c) ?? 0) + 1) }
-  const common: [string, string][] = []
-  if (details.length) {
-    const keys = new Set<string>(); for (const d of details) for (const [ps, props] of Object.entries(d.properties)) for (const k of Object.keys(props)) keys.add(ps + '.' + k)
-    const order = (k: string) => (k.startsWith('Pset_') || k.startsWith('Qto_') ? '0' : '1') + k
-    for (const key of [...keys].sort((a, b) => order(a).localeCompare(order(b)))) {
-      const [ps, k] = key.split(/\.(.*)/s), vals = new Set(details.map(d => String(d.properties[ps]?.[k] ?? '')))
-      if (vals.size === 1 && !vals.has('')) common.push([key, [...vals][0]])
-    }
-  }
-  return (
-    <>
-      <b>{selection.length}개 선택</b>
-      <table style={{ width: '100%', borderCollapse: 'collapse', margin: '6px 0 10px' }}><tbody>
-        {[...classes].sort((a, b) => b[1] - a[1]).map(([c, n]) => <tr key={c} style={{ borderTop: '1px solid #eee' }}><td style={{ padding: '2px 4px' }}>{c}</td><td align="right" style={{ padding: '2px 4px', color: '#666' }}>{n}</td></tr>)}
-      </tbody></table>
-      {details.length > 0 && <>
-        <div style={{ color: '#666', fontSize: 12, marginBottom: 4 }}>공통 속성 {details.length < selection.length && `(앞 ${details.length}개 기준)`}</div>
-        {common.length ? <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}><tbody>
-          {common.map(([k, v]) => <tr key={k} style={{ borderTop: '1px solid #eee' }}><td title={k} style={{ width: '50%', color: '#666', padding: '2px 4px', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k}</td><td style={{ padding: '2px 4px', overflowWrap: 'anywhere' }}>{v}</td></tr>)}
-        </tbody></table> : <div style={{ color: '#999' }}>모두 같은 값인 속성 없음</div>}
-      </>}
-    </>
-  )
-}
-
-function Props({ e }: { e: ElementDetail }) {
-  return (
-    <>
-      <b>{e.ifcClass}</b> <span>{e.name}</span>
-      <div style={{ color: '#666', margin: '4px 0 8px' }}>{e.spatialClass} {e.spatialName} · <code>{e.globalId}</code></div>
-      {Object.entries(e.properties).filter(([pset]) => pset !== 'Pset_BimStatus').map(([pset, props]) => (
-        <details key={pset} open={pset.startsWith('Pset_')}>
-          <summary>{pset}</summary>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}><tbody>
-            {Object.entries(props).map(([k, v]) => (
-              <tr key={k} style={{ borderTop: '1px solid #eee' }}><td style={{ color: '#666', padding: '2px 4px', whiteSpace: 'nowrap' }}>{k}</td><td style={{ padding: '2px 4px', wordBreak: 'break-all' }}>{String(v)}</td></tr>
-            ))}
-          </tbody></table>
-        </details>
-      ))}
-      {e.properties.Pset_BimStatus && <details><summary style={{ color: '#999' }}>Pset_BimStatus 원본</summary><pre style={{ fontSize: 11, color: '#666', whiteSpace: 'pre-wrap', margin: '4px 0' }}>{JSON.stringify(e.properties.Pset_BimStatus, null, 1)}</pre></details>}
-    </>
-  )
-}
