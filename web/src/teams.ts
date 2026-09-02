@@ -9,4 +9,6 @@ export const TEAMS: { key: string; name: string; short: string; icon: LucideIcon
   { key: 'comm', name: '통신·제어팀', short: '통신', icon: Network, color: '#4f46e5', systems: ['통신'] },
   { key: 'elec', name: '전기팀', short: '전기', icon: Cable, color: '#f59e0b', systems: ['전기', '비상전원', 'Power'] },
 ]
-export const teamOfSystems = (systems: string[] | undefined) => TEAMS.find(t => (systems ?? []).some(s => t.systems.includes(s)))
+/** 요소의 팀 — 계통 기준. 예외: 조명제어반은 통신 계통에도 걸리지만 전기팀 (모든 화면이 같은 답을 내야 하므로 여기 한 곳) */
+export const teamOfSystems = (systems: string[] | undefined, name?: string | null) =>
+  name?.includes('조명제어반') ? TEAMS.find(t => t.key === 'elec') : TEAMS.find(t => (systems ?? []).some(s => t.systems.includes(s)))

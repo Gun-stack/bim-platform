@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, AlertTriangle, ArrowLeft, Box, Car, ClipboardList, ExternalLink, Gauge, Layers, TrendingUp, Users, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
 import TrendModal from './TrendModal'
 import { api, post, type Model } from './api'
-import { TEAMS } from './teams'
+import { TEAMS, teamOfSystems } from './teams'
 import { day } from './viewer/FmPanel'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
 import { useHashQuery } from './useHashQuery'
 
-type Row = { globalId: string; ifcClass: string; name: string; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
+type Row = { globalId: string; ifcClass: string; name: string | null; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
   status: (Record<string, unknown> & { Status?: string }) | null; assetId: string | null; assetTag: string | null; assetStatus: string | null; lastResult: string | null; openWorkOrders: number
   woAssignee?: string | null; woDueOn?: string | null; woStatus?: string | null; nextDueOn?: string | null }
 type Ev = { at: string | null; kind: 'STATUS' | 'WORK_ORDER'; globalId: string | null; name: string | null; status: string | null; storey: string | null; woTitle: string | null; woStatus: string | null }
@@ -28,15 +28,14 @@ const KEY_EQUIP: Record<string, string[]> = {
   comm: ['MDF', 'BMS', 'FMS', 'NVR', '출입통제', 'UPS-1'],
   elec: ['HV-1', 'TR-1', 'MDB', 'EG-1', 'ATS-1', 'EMDB', 'PV-1', 'UPS-1'],
 }
-const kiosk = new URLSearchParams(location.hash.split('?')[1] ?? '').has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대·이상만
-
 /** #/models/{id}/monitor — 건물 요약 → 팀 KPI → 팀 × 층 격자 + 최근 이벤트. 5초 자동 갱신. ?kiosk=1 은 관제실 벽면용 */
 export default function MonitorPage({ modelId }: { modelId: string }) {
+  const kiosk = useHashQuery().has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대·이상만
   const [model, setModel] = useState<Model>()
   const [rows, setRows] = useState<Row[]>([]); const [power, setPower] = useState('UNKNOWN'); const [events, setEvents] = useState<Ev[]>([])
   const [team, setTeam] = useState<string>(); const [storeyF, setStoreyF] = useState<string>(); const [mode, setMode] = useState<'abnormal' | 'equipment' | 'all'>(kiosk ? 'abnormal' : 'equipment'); const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
-  const [trend, setTrend] = useState<{ globalId: string; name: string } | null>(null)   // 계측 트렌드 모달
+  const [trend, setTrend] = useState<{ globalId: string; name: string | null } | null>(null)   // 계측 트렌드 모달
   const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true })
   const [flash, setFlash] = useState<Set<string>>(new Set()); const [sound, setSound] = useState(false); const prevAbn = useRef<Set<string> | null>(null); const soundRef = useRef(false); useEffect(() => { soundRef.current = sound }, [sound])
   const load = useCallback(() => Promise.all([api(`/models/${modelId}/monitor`), api(`/models/${modelId}/power`).catch(() => ({ unpowered: [] })), api(`/models/${modelId}/monitor/events`).catch(() => [])])
@@ -60,13 +59,12 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [sel, gotRows])
 
-  // 팀 우선순위: 소방 > 수송 > 설비 > 통신·제어 > 전기 (TEAMS 순서). 예외: 조명제어반은 통신 계통에도 걸리지만 전기팀
-  const teamOf = (r: Row) => r.name?.includes('조명제어반') ? TEAMS.find(t => t.key === 'elec') : TEAMS.find(t => r.systems.some(s => t.systems.includes(s)))
+  const teamOf = (r: Row) => teamOfSystems(r.systems, r.name)
   const storeyList = useMemo(() => [...new Map(rows.filter(r => r.storey).map(r => [r.storey!, r.elevation ?? 0])).entries()].sort((a, b) => b[1] - a[1]), [rows])
   const storeys = storeyList.map(e => e[0]).filter(s => !storeyF || s === storeyF)
   const visibleTeams = TEAMS.filter(t => !team || t.key === team)
   const dead = (r: Row) => unpowered.has(r.globalId)
-  const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (mode === 'all' || (mode === 'equipment' ? !!r.status || !!r.assetId || rank(r, dead(r)) < 9 : rank(r, dead(r)) < 9))).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (a.zone ?? '').localeCompare(b.zone ?? '') || a.name.localeCompare(b.name))
+  const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (mode === 'all' || (mode === 'equipment' ? !!r.status || !!r.assetId || rank(r, dead(r)) < 9 : rank(r, dead(r)) < 9))).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (a.zone ?? '').localeCompare(b.zone ?? '') || (a.name ?? '').localeCompare(b.name ?? ''))
   const kpi = (t: typeof TEAMS[number]) => { const rs = rows.filter(r => teamOf(r)?.key === t.key); return { total: rs.length, alarm: rs.filter(r => r.status?.Status === 'ALARM').length, fault: rs.filter(r => r.status?.Status === 'FAULT').length, wo: rs.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), assets: rs.filter(r => r.assetId).length, dead: rs.filter(r => unpowered.has(r.globalId)).length, due: rs.filter(overdue).length } }
   const val = (prefix: string, key: string) => rows.find(r => r.name?.startsWith(prefix))?.status?.[key]
   /** 팀 카드의 대표 지표 — 정상일 때도 카드가 비지 않게 */
@@ -136,7 +134,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
             {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: '#374151' } : st ? STATUS[st] : undefined, rs = inlineReadings(r.status, r.name), w = worst(r); return (
               <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: '#222', background: isAbn(r) ? (st === 'ALARM' ? '#fef2f2' : '#fffbeb') : w === 'crit' ? '#fff1f2' : w === 'warn' ? '#fffbeb' : '#fff', border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? '#fecaca' : '#fde68a') : '#e5e7eb'), borderLeft: '4px solid ' + (sc?.color ?? '#d1d5db'), borderRadius: 8, padding: '8px 10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 * fs }} title={r.name}>{r.name}</span><b style={{ color: sc?.color ?? '#bbb', fontSize: 12 * fs, whiteSpace: 'nowrap' }}>{sc?.label ?? '—'}</b></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 * fs }} title={r.name ?? undefined}>{r.name}</span><b style={{ color: sc?.color ?? '#bbb', fontSize: 12 * fs, whiteSpace: 'nowrap' }}>{sc?.label ?? '—'}</b></div>
                 <div style={{ color: '#888', fontSize: 11 * fs, marginTop: 2 }}>{r.storey}{r.zone ? ` · ${r.zone.split('-').pop()}` : ''}{r.openWorkOrders ? <b style={{ color: r.woAssignee ? '#1d4ed8' : '#b45309', marginLeft: 6 }}>WO {r.woAssignee ?? '미배정'}</b> : ''}</div>
                 {rs.length > 0 && <div style={{ fontSize: 11.5 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'center' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 500 : 700 }}>{x.text}</b></span>)}<span onClick={e => { e.preventDefault(); setTrend(r) }} title="계측 트렌드" style={{ color: '#2563eb', cursor: 'pointer', display: 'inline-flex' }}><TrendingUp size={12} /></span></div>}
               </a>) })}
@@ -177,7 +175,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         </div>
       </div>
       </Section>
-      {trend && <TrendModal modelId={modelId} globalId={trend.globalId} name={trend.name} onClose={() => setTrend(null)} />}
+      {trend && <TrendModal modelId={modelId} globalId={trend.globalId} name={trend.name ?? trend.globalId} onClose={() => setTrend(null)} />}
     </main>
   )
 }
@@ -185,7 +183,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 const Stat = ({ icon: Icon, label, n, color, sub }: { icon: typeof Siren; label: string; n: number | string; color: string; sub?: string }) => (
   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><Icon size={14} style={{ color: (typeof n === 'number' && n === 0) ? '#9ca3af' : color }} /><span style={{ color: '#555' }}>{label}</span><b style={{ color: (typeof n === 'number' && n === 0) ? '#9ca3af' : color }}>{n}</b>{sub && <span style={{ color: '#888', fontSize: '0.9em' }}>{sub}</span>}</span>)
 
-function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number; onTrend?: (t: { globalId: string; name: string }) => void }) {
+function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number; onTrend?: (t: { globalId: string; name: string | null }) => void }) {
   const hasNum = Object.entries(r.status ?? {}).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt')
   const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : s ? STATUS[s] : undefined
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)

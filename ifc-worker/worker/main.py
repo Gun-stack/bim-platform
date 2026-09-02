@@ -5,6 +5,7 @@ import threading
 import time
 import traceback
 import uuid
+from urllib.parse import urlsplit
 
 import psycopg
 from minio import Minio
@@ -18,7 +19,8 @@ POLL_SEC = 2
 STALE = "10 minutes"
 HEARTBEAT_SEC = int(os.environ.get("JOB_HEARTBEAT_SEC", "30"))
 MAX_ATTEMPTS = 3
-S3 = os.environ.get("S3_ENDPOINT", "http://localhost:9000").split("://", 1)[1]
+_S3_URL = urlsplit(os.environ.get("S3_ENDPOINT", "http://localhost:9000"))
+S3, S3_SECURE = _S3_URL.netloc, _S3_URL.scheme == "https"
 BUCKET = "bim"
 PROGRESS_EVERY = 25
 
@@ -95,7 +97,7 @@ class Heartbeat:
 
 def convert(conn, job_id, model_id, lease_owner):
     import tempfile
-    s3 = Minio(S3, access_key=os.environ.get("S3_ACCESS_KEY", "minio"), secret_key=os.environ.get("S3_SECRET_KEY", "minio123"), secure=False)
+    s3 = Minio(S3, access_key=os.environ.get("S3_ACCESS_KEY", "minio"), secret_key=os.environ.get("S3_SECRET_KEY", "minio123"), secure=S3_SECURE)
     ifc_key = conn.execute("SELECT ifc_key FROM model WHERE id=%s", (model_id,)).fetchone()[0]
     # A fenced-out worker may still finish native conversion. Never let it overwrite
     # the object referenced by a newer lease; only the winning DB transaction publishes this key.

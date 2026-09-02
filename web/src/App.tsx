@@ -102,7 +102,7 @@ function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove
     <div className="model-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 100px 70px 64px minmax(120px, 160px) 232px 28px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: '1px solid #eee' }}>
       <div style={{ overflow: 'hidden' }}>
         <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>{m.name}</div>
-        <div style={{ color: '#999', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.id.slice(0, 8)} · {new Date((m as any).createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}</div>
+        <div style={{ color: '#999', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.id.slice(0, 8)} · {m.createdAt ? new Date(m.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}</div>
       </div>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: st.bg, color: st.color, fontSize: 12, width: 'fit-content' }}>
         <Icon size={12} className={running ? 'spin' : undefined} /> {st.label}</span>

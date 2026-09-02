@@ -5,7 +5,7 @@ import { StatusBadge, day } from './viewer/FmPanel'
 import { TEAMS, teamOfSystems } from './teams'
 import { ifcKo } from './ifcNames'
 
-const teamOf = (w: WorkOrder) => teamOfSystems(w.systems)
+const teamOf = (w: WorkOrder) => teamOfSystems(w.systems, w.elementName)
 const PRIO: Record<Priority, { label: string; color: string; icon?: typeof ArrowUp }> = {
   URGENT: { label: '긴급', color: '#b91c1c', icon: ChevronsUp }, HIGH: { label: '높음', color: '#ea580c', icon: ArrowUp }, NORMAL: { label: '보통', color: '#2563eb' }, LOW: { label: '낮음', color: '#6b7280', icon: ArrowDown } }
 const COLS: WorkOrder['status'][] = ['OPEN', 'IN_PROGRESS', 'DONE']
