@@ -8,6 +8,8 @@ import { ifcKo } from './ifcNames'
 import FmBoard from './FmBoard'
 import { useHashQuery } from './useHashQuery'
 import { AlertToast, useAlerts } from './useAlerts'
+import ObjectDrawer from './ObjectDrawer'
+import { selQ } from './context'
 
 /** #/models/{id}/fm — 자산 대장 + 작업지시 보드. 작업지시 → 뷰어 뷰포인트로 이동 */
 export default function FmPage({ modelId }: { modelId: string }) {
@@ -24,9 +26,9 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 5초 폴링 — 이상 배너 + 전역 경보 토스트
   useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
 
-  // 딥링크: ?wo={id} → 보드 펼침 + 카드 하이라이트/Drawer, ?sel={gid} → 열린 WO 있으면 그 카드, 없으면 자산 대장 필터
+  // 딥링크: ?wo={id} → 보드 펼침 + 카드 하이라이트/Drawer, ?sel={gid} → 객체 패널(작업지시 목록 포함) + 자산 대장 필터
   const hq = useHashQuery(), selGid = hq.get('sel')
-  const woId = hq.get('wo') ?? (selGid ? wos.find(w => w.globalId === selGid && w.status !== 'DONE')?.id : undefined)
+  const woId = hq.get('wo') ?? undefined
   const selAsset = !woId && selGid ? assets.find(a => a.globalId === selGid) : undefined
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (selAsset) setAq(selAsset.tag) }, [selAsset?.id])
@@ -36,11 +38,11 @@ export default function FmPage({ modelId }: { modelId: string }) {
 
 
   return (
-    <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 1100, margin: '0 auto', padding: '24px 20px' }}>
+    <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 1100, margin: '0 auto', padding: '24px 20px', paddingRight: selGid ? 460 : 20 }}>   {/* 객체 패널(440px) 자리 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <a href="#/" style={{ color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={14} /> 모델 목록</a>
         <h1 style={{ margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={18} /> {model?.name ?? '…'} <span style={{ color: '#888', fontWeight: 400 }}>시설관리</span></h1>
-        <a href={`#/models/${modelId}/monitor`} style={{ marginLeft: 'auto', ...btn }}>모니터링{abnormal.length > 0 && <b style={{ color: '#dc2626' }}>{abnormal.length}</b>}</a><a href={`#/models/${modelId}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a>
+        <a href={`#/models/${modelId}/monitor${selQ(selGid)}`} style={{ marginLeft: 'auto', ...btn }}>모니터링{abnormal.length > 0 && <b style={{ color: '#dc2626' }}>{abnormal.length}</b>}</a><a href={`#/models/${modelId}${selQ(selGid)}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a>
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
         <Stat icon={Tag} label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />
@@ -98,6 +100,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>조건에 맞는 자산이 없습니다.</div>}
         </div>
       </Section>
+      {selGid && <ObjectDrawer modelId={modelId} gid={selGid} reload={reload} onClose={() => { location.hash = `#/models/${modelId}/fm` }} />}
       <AlertToast modelId={modelId} fresh={fresh} dismiss={dismiss} />
     </main>
   )

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { api, post, type Model } from './api'
 import { AlertCircle, Box, CheckCircle2, Loader2, MapPin, RotateCcw, Trash2, Upload } from 'lucide-react'
+import ObjectDock from './ObjectDock'
 const Viewer = lazy(() => import('./viewer/Viewer'))
 const FmPage = lazy(() => import('./FmPage'))
 const MapPage = lazy(() => import('./MapPage'))
@@ -14,9 +15,11 @@ const useHash = () => {
 }
 
 export default function App() {
-  const h = useHash(), m = h.match(/^#\/models\/([0-9a-f-]{36})(\/fm|\/monitor)?/)
+  const h = useHash(), m = h.match(/^#\/models\/([0-9a-f-]{36})(\/fm|\/monitor)?/), kiosk = h.includes('kiosk')
   const page = h.startsWith('#/map') ? <MapPage /> : m ? (m[2] === '/fm' ? <FmPage modelId={m[1]} /> : m[2] === '/monitor' ? <MonitorPage modelId={m[1]} /> : <Viewer modelId={m[1]} />) : <Models />
-  return <Suspense fallback={<main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', color: '#666' }}><Loader2 className="spin" /> 불러오는 중…</main>}>{page}</Suspense>
+  return <><Suspense fallback={<main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', color: '#666' }}><Loader2 className="spin" /> 불러오는 중…</main>}>{page}</Suspense>
+    {/* 맥락 독: 모델 화면 셋 공통, 벽면(kiosk) 제외 */}
+    {m && !kiosk && <ObjectDock modelId={m[1]} route={(m[2] ?? '') as '' | '/monitor' | '/fm'} />}</>
 }
 
 function Models() {

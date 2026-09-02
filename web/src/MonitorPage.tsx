@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, AlertTriangle, ArrowLeft, BarChart3, Box, Car, ClipboardList, ExternalLink, Gauge, Layers, TrendingUp, Users, PlugZap, Siren, Volume2, VolumeX, Wrench } from 'lucide-react'
 import TrendModal from './TrendModal'
+import ObjectDrawer from './ObjectDrawer'
+import { objLinks, selQ } from './context'
 import { api, post, type Model } from './api'
 import { TEAMS, teamOfSystems } from './teams'
 import { day, btn } from './ui'
@@ -66,13 +68,13 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const fs = kiosk ? 1.25 : 1
 
   return (
-    <main style={{ fontFamily: 'system-ui', fontSize: 13 * fs, padding: kiosk ? '14px 18px' : '20px 24px', minHeight: '100vh', background: '#f6f7f9' }}>
+    <main style={{ fontFamily: 'system-ui', fontSize: 13 * fs, padding: kiosk ? '14px 18px' : '20px 24px', paddingRight: sel && !kiosk ? 460 : undefined, minHeight: '100vh', background: '#f6f7f9' }}>   {/* 객체 패널(440px)이 떠 있으면 그만큼 비워 최근 이벤트 열이 가려지지 않게 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
         {!kiosk && <a href="#/" style={{ color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={14} /> 모델 목록</a>}
         <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}><Activity size={18} /> {model?.name ?? '…'} <span style={{ color: '#888', fontWeight: 400 }}>설비 모니터링</span></h1>
         <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: sound ? '#1f2937' : '#999', cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} style={{ display: 'none' }} />{sound ? <Volume2 size={14} /> : <VolumeX size={14} />} 알림음</label>
         <span style={{ marginLeft: 'auto', color: '#888', fontSize: 12 * fs }}>갱신 {tick.toLocaleTimeString()} · 5초</span>
-        {!kiosk && <><a href={`#/models/${modelId}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a><a href={`#/models/${modelId}/fm`} style={btn}><Wrench size={13} /> 시설관리</a></>}
+        {!kiosk && <><a href={`#/models/${modelId}${selQ(sel)}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a><a href={`#/models/${modelId}/fm${selQ(sel)}`} style={btn}><Wrench size={13} /> 시설관리</a></>}
       </div>
 
       {/* 건물 전체 요약 — 관제 화면의 첫 줄은 총계 */}
@@ -182,6 +184,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             </div>
           </div>
         </Section>) })()}
+      {sel && !kiosk && <ObjectDrawer modelId={modelId} gid={sel} tick={tick} reload={load} onClose={() => { location.hash = `#/models/${modelId}/monitor` }} />}
       {trend && <TrendModal modelId={modelId} globalId={trend.globalId} name={trend.name ?? trend.globalId} onClose={() => setTrend(null)} />}
     </main>
   )
@@ -195,7 +198,7 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: st
   const s = r.status?.Status, st = dead ? { label: '무전원', color: '#374151' } : statusUi(s)
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
   return (
-    <a data-gid={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
+    <a data-gid={r.globalId} href={`#/models/${modelId}/monitor${selQ(r.globalId)}`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 객체 패널 · 3D 아이콘: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
        style={{ display: 'block', padding: '3px 6px', borderRadius: 5, textDecoration: 'none', color: '#222', fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? '#fef2f2' : '#fffbeb') : dead ? '#f3f4f6' : worst(r) === 'crit' ? '#fff1f2' : worst(r) === 'warn' ? '#fffbeb' : 'transparent', opacity: dead ? 0.7 : 1 }}>
       <span style={{ display: 'grid', gridTemplateColumns: '10px minmax(60px, 1fr) minmax(0, auto) auto', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? '#d1d5db' }} />
@@ -205,7 +208,7 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: st
             : r.assetTag ? <><Box size={10} style={{ verticalAlign: -1 }} /> {r.assetTag}</> : ''}
           {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: '#b91c1c', marginLeft: 4 }}>결함</b> : ''}
           {overdue(r) ? <b style={{ color: '#b45309', marginLeft: 4 }} title={`다음 점검 ${day(r.nextDueOn!)} 지남`}>점검 지연</b> : ''}</span>
-        <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}{hasNum && onTrend && <span onClick={e => { e.preventDefault(); e.stopPropagation(); onTrend({ globalId: r.globalId, name: r.name }) }} title="계측 트렌드" style={{ color: '#2563eb', cursor: 'pointer', marginLeft: 5, verticalAlign: -1, display: 'inline-flex' }}><TrendingUp size={11} /></span>}</b>
+        <b style={{ color: st?.color ?? '#bbb', minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}{hasNum && onTrend && <span onClick={e => { e.preventDefault(); e.stopPropagation(); onTrend({ globalId: r.globalId, name: r.name }) }} title="계측 트렌드" style={{ color: '#2563eb', cursor: 'pointer', marginLeft: 5, verticalAlign: -1, display: 'inline-flex' }}><TrendingUp size={11} /></span>}<span onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = objLinks(modelId, r.globalId).viewer }} title="3D 위치 — 뷰어에서 구역 강조" style={{ color: '#94a3b8', cursor: 'pointer', marginLeft: 5, verticalAlign: -1, display: 'inline-flex' }}><ExternalLink size={11} /></span></b>
       </span>
       {rs.length > 0 && <span style={{ display: 'block', paddingLeft: 16, marginTop: 1, fontSize: 11 * fs, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {rs.slice(0, 3).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 700, marginRight: 8 }}>{x.label} {x.text}</span>)}{rs.length > 3 && <span style={{ color: '#bbb' }}>+{rs.length - 3}</span>}</span>}
