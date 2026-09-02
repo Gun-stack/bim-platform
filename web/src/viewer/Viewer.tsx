@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { MapPinned, Check, Copy, Magnet, Route as RouteIcon, Wrench, Tag, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors } from 'lucide-react'
+import { MapPinned, Check, Copy, Magnet, Route as RouteIcon, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors } from 'lucide-react'
 import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type System, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
-import { ifcKo } from '../ifcNames'
-import { TEAMS } from '../teams'
 import { STATUS, isAbnormal, statusHex, statusLabel } from '../status'
+import ObjectSummary from '../ObjectSummary'
+import { ifcKo } from '../ifcNames'
 import { day, useEsc } from '../ui'
 import FmPanel, { StatusBadge } from './FmPanel'
 import StatusEditor from './StatusEditor'
@@ -223,7 +223,6 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const selAsset = selection.length === 1 ? assetByGid.get(selection[0]) : undefined
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- 자산 id·열린 작업지시 수가 바뀔 때만
   useEffect(() => { if (!selAsset) { setAssetDetail(undefined); return } api<AssetDetail>(`/assets/${selAsset.id}`).then(setAssetDetail).catch(() => setAssetDetail(undefined)) }, [selAsset?.id, selAsset?.openWorkOrders])
-  const selSystems = useMemo(() => selection.length === 1 ? systemsMeta.filter(sm => (sysMembers.get(sm.id) ?? []).some(m => m.globalId === selection[0])) : [], [selection, systemsMeta, sysMembers])
   const routeSummary = useMemo(() => { if (!route) return undefined; const st = new Map<number, string>(); for (const n of spatial) { let c: SpatialNode | undefined = n; while (c && c.ifcClass !== 'IfcBuildingStorey') c = c.parentId == null ? undefined : spatial.find(x => x.id === c!.parentId); if (c?.name) st.set(n.id, c.name) }
     const floors = new Set<string>(); const cls = new Map<string, number>(); for (const n of route.nodes) { const e = byGid.get(n.globalId); if (e?.spatialNodeId != null && st.get(e.spatialNodeId)) floors.add(st.get(e.spatialNodeId)!); cls.set(n.ifcClass, (cls.get(n.ifcClass) ?? 0) + 1) }
     const sorted = [...floors].sort((a, b) => (storeys.find(x => x.name === a)?.elevation ?? 0) - (storeys.find(x => x.name === b)?.elevation ?? 0))
@@ -340,20 +339,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
       <Panel defaultSize={340} minSize={200} collapsible collapsedSize={0}>
         <aside style={{ overflow: 'auto', height: '100%', padding: 12, boxSizing: 'border-box' }}>
-          {/* 요약 카드: 무엇·어디·어느 팀·자산·작업지시 — 탭을 오가지 않아도 한눈에 */}
-          {selection.length === 1 && detail && 'properties' in detail && (() => { const st = (detail.properties.Pset_BimStatus as Record<string, unknown> | undefined)?.Status as string | undefined, open = assetDetail?.workOrders.filter(w => w.status !== 'DONE') ?? []; return (
-            <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: st === 'ALARM' ? '#fef2f2' : st === 'FAULT' ? '#fffbeb' : '#f8fafc', border: '1px solid ' + (st === 'ALARM' ? '#fecaca' : st === 'FAULT' ? '#fde68a' : '#e5e7eb') }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.name ?? ''}>{detail.name}</b>
-                {st && <span style={{ padding: '1px 8px', borderRadius: 999, color: '#fff', fontSize: 11, fontWeight: 600, background: statusHex(st, '#6b7280') }}>{statusLabel(st)}</span>}</div>
-              <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{ifcKo(detail.ifcClass)} · {detail.spatialName ?? '위치 없음'}{selSystems.length > 0 && <span style={{ marginLeft: 6, display: 'inline-flex', gap: 4 }}>{selSystems.map(sm => { const t = TEAMS.find(t => t.systems.includes(sm.name)); return <span key={sm.id} style={{ fontSize: 10, border: '1px solid ' + (t?.color ?? '#999'), color: t?.color ?? '#666', borderRadius: 4, padding: '0 4px' }}>{sm.name}</span> })}</span>}</div>
-              {/* 좁은 패널(기본 340px)에서 단어 중간이 꺾이지 않게: 항목별 nowrap + 컨테이너 wrap */}
-              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px', fontSize: 12, marginTop: 4 }}>
-                {selAsset ? <span style={{ whiteSpace: 'nowrap' }}><Tag size={11} style={{ verticalAlign: -1, color: '#2563eb' }} /> {selAsset.tag}</span> : <span style={{ color: '#999', whiteSpace: 'nowrap' }}><Tag size={11} style={{ verticalAlign: -1 }} /> 자산 미등록</span>}
-                {selAsset && (open.length ? <a href={`#/models/${modelId}/fm?wo=${open[0].id}`} title="칸반 보드에서 이 카드 열기" style={{ color: '#1d4ed8', textDecoration: 'none', whiteSpace: 'nowrap' }}><Wrench size={11} style={{ verticalAlign: -1 }} /> 작업지시 {open.length} · {open[0].assignee ?? <span style={{ color: '#b45309' }}>미배정</span>}{open[0].dueOn ? ` ~${day(open[0].dueOn)}` : ''}</a> : <span style={{ color: '#999', whiteSpace: 'nowrap' }}><Wrench size={11} style={{ verticalAlign: -1 }} /> 열린 작업지시 없음</span>)}
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, whiteSpace: 'nowrap' }}>{/* 두 링크는 한 묶음 — 좁으면 같이 다음 줄 오른쪽으로 */}
-                  <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(detail.globalId)}`} title="모니터링에서 이 장비" style={{ color: '#2563eb', fontSize: 11, textDecoration: 'none' }}>모니터링 →</a>
-                  <a onClick={() => setTab('fm')} style={{ color: '#2563eb', cursor: 'pointer', fontSize: 11 }}>자산·점검 →</a></span></div>
-            </div>) })()}
+          {selection.length === 1 && detail && 'properties' in detail && <ObjectSummary modelId={modelId} detail={detail} asset={selAsset} openWos={assetDetail?.workOrders.filter(w => w.status !== 'DONE')} onFm={() => setTab('fm')} />}
           <div style={{ display: 'flex', borderBottom: '1px solid #e5e5e5', marginBottom: 10 }}>
             {(['props', 'fm'] as const).map(t => <button key={t} onClick={() => setTab(t)}
               style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? '#2563eb' : '#666', borderBottom: tab === t ? '2px solid #2563eb' : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
