@@ -106,10 +106,10 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         <span style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto', color: T.ink[2], fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? hms(events[0].at) : '—'}</span>
       </div>
 
-      <Section title="팀 현황" count={team ? `${TEAMS.find(t => t.key === team)!.name} 선택 중 — 클릭해서 해제` : '카드를 누르면 그 팀만'} open={sec.teams} onToggle={() => toggleSec('teams')} pad={10}>
+      <Section title="분야 현황" count={team ? `${TEAMS.find(t => t.key === team)!.name}만 표시 — 클릭 해제` : undefined} open={sec.teams} onToggle={() => toggleSec('teams')} pad={10}>
       <div style={{ display: 'flex', gap: 12 }}>
         {TEAMS.map(t => { const k = kpi(t), active = team === t.key; return (
-          <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} title={t.systems.join(' · ')} style={{ flex: '1 1 0', minWidth: 0, background: T.bg.surface, border: '1px solid ' + (active ? t.color : T.bg.line), borderRadius: T.radius, padding: '10px 12px', cursor: 'pointer' }}>
+          <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} title={`클릭: 이 분야만 보기\n${t.systems.join(' · ')}`} style={{ flex: '1 1 0', minWidth: 0, background: T.bg.surface, border: '1px solid ' + (active ? t.color : T.bg.line), borderRadius: T.radius, padding: '10px 12px', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: t.color, flexShrink: 0 }} /><b style={{ whiteSpace: 'nowrap', color: active ? t.color : T.ink[1] }}>{t.name}</b></div>
             <div style={{ color: T.ink[2], fontSize: 12 * fs, marginTop: 2, whiteSpace: 'nowrap' }}>장비 {k.total} · 자산 {k.assets}{k.due ? <b style={{ color: T.warn, marginLeft: 6 }}>점검 지연 {k.due}</b> : ''}{k.dead ? <b style={{ color: T.ink[1], marginLeft: 6 }}>무전원 {k.dead}</b> : ''}</div>
             <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12 * fs, whiteSpace: 'nowrap' }}>
@@ -143,7 +143,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           </div>
         </Section>) : null })()}
 
-      <Section title="층 × 팀 전체 현황" count={`${storeys.length}개 층 · ${visibleTeams.length}개 팀${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open={sec.grid} onToggle={() => toggleSec('grid')} pad={10}
+      <Section title="층 × 분야 전체 현황" count={`${storeys.length}개 층 · ${visibleTeams.length}개 분야${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open={sec.grid} onToggle={() => toggleSec('grid')} pad={10}
         right={<span style={{ display: 'inline-flex', border: `1px solid ${T.bg.line}`, borderRadius: 6, overflow: 'hidden', fontSize: 12 * fs }}>
           {([['abnormal', '이상만'], ['equipment', '장비'], ['all', '전체']] as const).map(([k, l]) => <button key={k} onClick={() => setMode(k)} style={{ padding: '3px 9px', border: 0, cursor: 'pointer', background: mode === k ? T.accent : T.bg.surface, color: mode === k ? T.bg.base : T.ink[2], fontSize: 'inherit' }}>{l}</button>)}</span>}>
       <div className="monitor-body" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
@@ -184,7 +184,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           right={<select value={days} onChange={e => setDays(+e.target.value)} onClick={e => e.stopPropagation()} style={{ fontSize: 12 * fs }}>{[7, 30, 90].map(d => <option key={d} value={d}>최근 {d}일</option>)}</select>}>
           <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <table style={{ borderCollapse: 'collapse', fontSize: 12 * fs, background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, minWidth: 520 }}><thead>
-              <tr style={{ color: T.ink[2], textAlign: 'right' }}><th style={{ ...th, textAlign: 'left' }}>팀</th><th style={th}>경보</th><th style={th}>장애</th><th style={th} title="정상→이상 전이부터 다시 정상이 기록될 때까지, 복구된 에피소드 평균">평균 복구</th><th style={th}>미복구</th><th style={th} title="기간 안에 2회 이상 발생한 장비">재발 장비</th></tr></thead><tbody>
+              <tr style={{ color: T.ink[2], textAlign: 'right' }}><th style={{ ...th, textAlign: 'left' }}>분야</th><th style={th}>경보</th><th style={th}>장애</th><th style={th} title="정상→이상 전이부터 다시 정상이 기록될 때까지, 복구된 에피소드 평균">평균 복구</th><th style={th}>미복구</th><th style={th} title="기간 안에 2회 이상 발생한 장비">재발 장비</th></tr></thead><tbody>
               {ts.map(s => <tr key={s.team.key} style={{ textAlign: 'right', borderTop: `1px solid ${T.bg.raised}`, color: s.alarms + s.faults ? T.ink[1] : T.ink[3] }}>
                 <td style={{ ...td, textAlign: 'left', color: s.team.color, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: s.team.color, flexShrink: 0, display: 'inline-block' }} /> {s.team.name}</td>
                 <td style={{ ...td, color: s.alarms ? T.crit : undefined, fontWeight: s.alarms ? 600 : 400 }}>{s.alarms}</td><td style={{ ...td, color: s.faults ? T.warn : undefined, fontWeight: s.faults ? 600 : 400 }}>{s.faults}</td>
