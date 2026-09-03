@@ -37,7 +37,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
   const trace = (dir: 'up' | 'down') => { if (!gid) return; setBusy(true); api<Route>(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}${inSystems.length ? '' : '&scope=all'}`).then(setRoute).catch(() => setRoute(undefined)).finally(() => setBusy(false)) }
 
   const traceSection = <>
-      {!gid && <div style={{ color: T.ink[2], fontSize: 12, padding: 6 }}>장비를 하나 선택하면 상류·하류를 추적할 수 있습니다.</div>}
+      {!gid && <div style={{ color: T.ink[2], fontSize: 12, padding: 6 }}>요소를 하나 선택하면 상류·하류를 추적할 수 있습니다.</div>}
       {gid && <>
         {systems.length > 0 && <div style={{ fontSize: 12, color: T.ink[2], padding: '0 6px 6px' }}>선택 요소 계통: {inSystems.length ? inSystems.map(s => s.name).join(', ') : '없음 — 전체 연결에서 추적'}</div>}
         <div style={{ display: 'flex', gap: 6, padding: '0 6px' }}>

@@ -14,13 +14,13 @@ export const READINGS: Record<string, Reading> = {
   Pressure: { label: '배관압', unit: 'MPa', order: 1, warn: v => v < 0.3 },        // 스프링클러 알람밸브 배관압
   PressureMPa: { label: '충전압', unit: 'MPa', order: 1, warn: v => v < 3.5 },      // 가스계 소화약제 용기 충전압
   PressureBar: { label: '압력', unit: 'bar', order: 1, warn: v => v < 1.0 || v > 3.5 },
-  OutletKPa: { label: '2차압', unit: 'kPa', order: 1, warn: v => v < 2.0 || v > 3.0 },
+  OutletKPa: { label: '2차측 압력', unit: 'kPa', order: 1, warn: v => v < 2.0 || v > 3.0 },
   OilTemp: { label: '유온', unit: '°C', order: 2, warn: v => v >= 70, crit: v => v >= 85 },
-  OutletTemp: { label: '출구', unit: '°C', order: 1 },
-  SupplyTemp: { label: '급기', unit: '°C', order: 1 },
+  OutletTemp: { label: '출구온도', unit: '°C', order: 1 },
+  SupplyTemp: { label: '급기온도', unit: '°C', order: 1 },
   CHWSupplyTemp: { label: '냉수', unit: '°C', order: 1, warn: v => v > 9 },
   RoomTemp: { label: '실온', unit: '°C', order: 1, warn: v => v < 18 || v > 28 },
-  SetTemp: { label: '설정', unit: '°C', order: 3 },
+  SetTemp: { label: '설정온도', unit: '°C', order: 3 },
   Temp: { label: '온도', unit: '°C', order: 1 },
   DeltaT: { label: 'ΔT', unit: '°C', order: 1, warn: v => v < 3 },
   DiffPressure: { label: '차압', unit: 'bar', order: 1, warn: v => v >= 0.25 },
@@ -33,20 +33,20 @@ export const READINGS: Record<string, Reading> = {
   OutputKW: { label: '출력', unit: 'kW', order: 1 },
   DemandKW: { label: '수요', unit: 'kW', order: 1 },
   kWh: { label: '누적', unit: 'kWh', order: 3, fmt: v => Number(v).toLocaleString() },
-  COP: { label: 'COP', order: 2, warn: v => v < 3 },
+  COP: { label: '성적계수(COP)', order: 2, warn: v => v < 3 },
   EarthOhm: { label: '접지', unit: 'Ω', order: 1, warn: v => v > 10 },
   RunHours: { label: '운전', unit: 'h', order: 3, fmt: v => Number(v).toLocaleString() },
   RunCount: { label: '운행', unit: '회', order: 3, fmt: v => Number(v).toLocaleString() },
   Cycles: { label: '개폐횟수', unit: '회', order: 3, fmt: v => Number(v).toLocaleString() },   // 누적 개폐 회수 (Open '개폐'=열림/닫힘 상태와 구분)
   CashLevel: { label: '지폐', unit: '%', order: 1, warn: v => v > 90 },
   Occupied: { label: '점유', order: 1, fmt: v => typeof v === 'boolean' ? (v ? '점유' : '공차') : String(v) },
-  Capacity: { label: '면', order: 2 }, TodayIn: { label: '입차', unit: '대', order: 3 }, TodayOut: { label: '출차', unit: '대', order: 3 },
+  Capacity: { label: '면수', unit: '면', order: 2 }, TodayIn: { label: '입차', unit: '대', order: 3 }, TodayOut: { label: '출차', unit: '대', order: 3 },
   ActiveAlarms: { label: '경보', order: 1, warn: v => v > 0 }, Faults: { label: '장애', order: 1, warn: v => v > 0 },
   Points: { label: '포인트', order: 3 }, Cameras: { label: '카메라', unit: '대', order: 2 }, Uplink: { label: '업링크', order: 3 },
   Floor: { label: '층', order: 1 }, Direction: { label: '방향', order: 2, fmt: v => ({ UP: '상행', DOWN: '하행', IDLE: '정지' } as Record<string, string>)[String(v)] ?? String(v) },
   Open: { label: '개폐', order: 1, fmt: v => v ? '열림' : '닫힘' }, On: { label: '점등', order: 1, fmt: v => v ? '점등' : '소등' }, Charging: { label: '충전', order: 1, fmt: v => v ? '충전 중' : '대기' }, OnBattery: { label: '배터리 운전', order: 1, fmt: v => v ? '예' : '아니오', warn: v => !!v },
   Breaker: { label: '차단기', order: 1, fmt: v => ({ CLOSED: '투입', OPEN: '트립' } as Record<string, string>)[String(v)] ?? String(v) }, Source: { label: '전원', order: 1, fmt: v => ({ UTILITY: '한전', GENERATOR: '발전기' } as Record<string, string>)[String(v)] ?? String(v) },
-  Scene: { label: '씬', order: 3 }, Text: { label: '표시', order: 1 }, LastTest: { label: '점검', order: 4 }, AlarmAt: { label: '발생', order: 4, fmt: ts }, AckAt: { label: '확인', order: 4, fmt: ts },
+  Scene: { label: '씬', order: 3 }, Text: { label: '표시', order: 1 }, LastTest: { label: '자가진단', order: 4 }, AlarmAt: { label: '발생', order: 4, fmt: ts }, AckAt: { label: '확인', order: 4, fmt: ts },
 }
 const SKIP = new Set(['Status', 'UpdatedAt'])
 export type Shown = { key: string; label: string; text: string; level: 'ok' | 'warn' | 'crit'; order: number }

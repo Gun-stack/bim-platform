@@ -11,7 +11,7 @@ export default function NavLinks({ modelId, gid, viewer, onViewer, style }: { mo
   const stop = (e: React.MouseEvent) => e.stopPropagation()   // 카드 자체 클릭(드로어 열기)과 겹치지 않게
   const threeD = onViewer ? <a onClick={e => { stop(e); onViewer() }} style={a}>3D</a>
     : (viewer ?? links?.viewer) && here !== 'viewer' ? <a href={viewer ?? links!.viewer} onClick={stop} title="뷰어에서 위치 강조" style={a}>3D</a> : null
-  const monitor = links && here !== 'monitor' ? <a href={links.monitor} onClick={stop} title="모니터링에서 이 장비" style={a}>모니터링</a> : null
+  const monitor = links && here !== 'monitor' ? <a href={links.monitor} onClick={stop} title="모니터링에서 이 요소" style={a}>모니터링</a> : null
   const card = links && here !== 'fm' ? <a href={links.fm} onClick={stop} title="시설관리에서 이 자산의 카드" style={a}>시설관리</a> : null
   if (!threeD && !monitor && !card) return null
   return <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, fontSize: 11, whiteSpace: 'nowrap', ...style }}>{threeD}{monitor}{card}</span>

@@ -76,7 +76,7 @@ export default function MapPage() {
       <aside style={{ overflow: 'auto', borderRight: `1px solid ${T.bg.line}`, background: T.bg.raised, padding: 12 }}>
         <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent, fontSize: 12 }}>← 모델 목록</a>
         <h3 style={{ margin: '6px 0 2px', display: 'flex', alignItems: 'center', gap: 6 }}>지도</h3>
-        <div style={{ color: T.ink[3], fontSize: 12, marginBottom: 10 }}>풋프린트 {features.length} · 미배치 {models.filter(m => !placed.has(m.id)).length}</div>
+        <div style={{ color: T.ink[3], fontSize: 12, marginBottom: 10 }}>배치 {features.length} · 미배치 {models.filter(m => !placed.has(m.id)).length}</div>
         {placing && <div style={{ background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: T.radius, padding: 10, marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1 }}>{placing.name}</b><X size={14} style={{ cursor: 'pointer' }} onClick={() => { setPlacing(undefined); map.current!.getCanvas().style.cursor = '' }} /></div>
           <div style={{ color: T.warn, fontSize: 12, margin: '4px 0' }}>지도에서 건물 위치를 클릭하세요</div>
