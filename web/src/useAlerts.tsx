@@ -28,7 +28,7 @@ export function useAlerts(modelId: string) {
   return { rows, abnormal: rows.filter(isAbn), fresh, dismiss, reload }
 }
 
-/** 우하단 경보 토스트 스택: 이름·위치 + 3D/모니터링/칸반 카드 링크. 뷰어에서는 onFocus 로 같은 화면 포커스 */
+/** 우하단 경보 토스트 스택: 이름·위치 + 3D/모니터링/시설관리 링크. 뷰어에서는 onFocus 로 같은 화면 포커스 */
 export function AlertToast({ modelId, fresh, dismiss, onFocus }: { modelId: string; fresh: StatusRow[]; dismiss: (r: StatusRow) => void; onFocus?: (gid: string) => void }) {
   if (!fresh.length) return null
   return (

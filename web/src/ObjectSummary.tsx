@@ -22,8 +22,8 @@ export default function ObjectSummary({ modelId, detail, asset, openWos, onFm, n
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px', fontSize: 12, marginTop: 4 }}>
         {asset ? <span style={{ whiteSpace: 'nowrap' }}>자산 <b>{asset.tag}</b></span> : <span style={{ color: T.ink[3], whiteSpace: 'nowrap' }}>자산 미등록</span>}
         {asset && (openWos
-          ? (open.length ? <a href={`#/models/${modelId}/fm?wo=${open[0].id}`} title="칸반 보드에서 이 카드 열기" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>작업지시 {open.length} · {open[0].assignee ?? <span style={{ color: T.warn }}>미배정</span>}{open[0].dueOn ? ` ~${day(open[0].dueOn)}` : ''}</a> : <span style={{ color: T.ink[3], whiteSpace: 'nowrap' }}>열린 작업지시 없음</span>)
-          : (asset.openWorkOrders ? <a href={links.fm} title="칸반 보드에서 이 자산의 카드" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>작업지시 {asset.openWorkOrders}</a> : <span style={{ color: T.ink[3], whiteSpace: 'nowrap' }}>열린 작업지시 없음</span>))}
+          ? (open.length ? <a href={`#/models/${modelId}/fm?wo=${open[0].id}`} title="작업지시 보드에서 이 카드 열기" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>작업지시 {open.length} · {open[0].assignee ?? <span style={{ color: T.warn }}>미배정</span>}{open[0].dueOn ? ` ~${day(open[0].dueOn)}` : ''}</a> : <span style={{ color: T.ink[3], whiteSpace: 'nowrap' }}>열린 작업지시 없음</span>)
+          : (asset.openWorkOrders ? <a href={links.fm} title="작업지시 보드에서 이 자산의 카드" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>작업지시 {asset.openWorkOrders}</a> : <span style={{ color: T.ink[3], whiteSpace: 'nowrap' }}>열린 작업지시 없음</span>))}
         <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, whiteSpace: 'nowrap', fontSize: 11 }}>{/* 링크 묶음 — 좁으면 같이 다음 줄 오른쪽으로. 이동 링크(NavLinks)는 항상 맨 끝 */}
           {onFm && <a onClick={onFm} style={{ color: T.accent, cursor: 'pointer' }}>자산·점검 ↓</a>}
           {nav && <NavLinks modelId={modelId} gid={detail.globalId} style={{ marginLeft: 0 }} />}</span></div>

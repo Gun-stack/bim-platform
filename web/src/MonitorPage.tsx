@@ -109,7 +109,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
           <Stat label="작업지시" n={tot.wo} color={T.accent} href={kiosk ? undefined : `#/models/${modelId}/fm`} title="시설관리 칸반으로" />
           {tot.unassigned > 0 && (kiosk ? <span style={{ color: T.ink[2], fontSize: '0.9em' }}>미배정 {tot.unassigned}</span>
-            : <a className="stat-link" href={`#/models/${modelId}/fm?assignee=none`} title="칸반에서 미배정 작업지시만" style={{ color: T.ink[2], fontSize: '0.9em' }}>미배정 {tot.unassigned}</a>)}
+            : <a className="stat-link" href={`#/models/${modelId}/fm?assignee=none`} title="작업지시 보드에서 미배정만" style={{ color: T.ink[2], fontSize: '0.9em' }}>미배정 {tot.unassigned}</a>)}
         </span>
         <Stat label="점검 지연" n={tot.due} color={T.warn} href={kiosk ? undefined : `#/models/${modelId}/fm?due=1`} title="자산 대장에서 지연 자산만" />
         {power === 'GENERATOR' && (kiosk ? <b style={{ color: T.warn }} title="발전기 절체 중">정전 · 무전원 {tot.dead}</b>
@@ -149,7 +149,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: T.ink[1] } : statusUi(st), rs = inlineReadings(r.status, r.name), w = worst(r); return (
               <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: T.ink[1], background: isAbn(r) ? (st === 'ALARM' ? T.critSoft : T.warnSoft) : w === 'crit' ? T.critSoft : w === 'warn' ? T.warnSoft : T.bg.surface, border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? T.crit : T.warn) : T.bg.line), borderLeft: '4px solid ' + (sc?.color ?? T.bg.line), borderRadius: T.radius, padding: '8px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 * fs }} title={r.name ?? undefined}>{r.name}</span><b style={{ color: !dead(r) && isQuiet(st) ? T.ink[2] : sc?.color ?? T.ink[3], fontSize: 12 * fs, whiteSpace: 'nowrap', fontWeight: !dead(r) && isQuiet(st) ? 400 : 600 }}>{sc?.label ?? '—'}</b></div>
-                <div style={{ color: T.ink[2], fontSize: 11 * fs, marginTop: 2 }}>{r.storey}{r.zone ? ` · ${r.zone.split('-').pop()}` : ''}{r.openWorkOrders ? <b style={{ color: r.woAssignee ? T.accent : T.warn, marginLeft: 6 }}>WO {r.woAssignee ?? '미배정'}</b> : ''}</div>
+                <div style={{ color: T.ink[2], fontSize: 11 * fs, marginTop: 2 }}>{r.storey}{r.zone ? ` · ${r.zone.split('-').pop()}` : ''}{r.openWorkOrders ? <b style={{ color: r.woAssignee ? T.accent : T.warn, marginLeft: 6 }}>작업지시 {r.woAssignee ?? '미배정'}</b> : ''}</div>
                 {rs.length > 0 && <div style={{ fontSize: 11 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'center' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 600 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 400 : 600 }}>{x.text}</b></span>)}<span className="row-act" onClick={e => { e.preventDefault(); setTrend(r) }} title="계측 트렌드" style={{ color: T.accent, cursor: 'pointer', marginLeft: 'auto' }}>트렌드</span></div>}
               </a>) })}
           </div>
@@ -238,7 +238,7 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend, reload }: { r: Row; mod
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? T.bg.line }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: T.ink[2], marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
         <span style={{ color: T.ink[2], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {r.openWorkOrders ? <b onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = `#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}` }} style={{ color: r.woAssignee ? T.accent : T.warn, cursor: 'pointer', fontWeight: 400 }} title={`작업지시 ${r.openWorkOrders}건 — 클릭: 칸반 카드로`}>WO {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
+          {r.openWorkOrders ? <b onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = `#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}` }} style={{ color: r.woAssignee ? T.accent : T.warn, cursor: 'pointer', fontWeight: 400 }} title={`작업지시 ${r.openWorkOrders}건 — 클릭: 작업지시 보드로`}>작업지시 {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
             : r.assetTag ? r.assetTag : ''}
           {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: T.crit, marginLeft: 4 }}>결함</b> : ''}
           {overdue(r) ? <b style={{ color: T.warn, marginLeft: 4 }} title={`다음 점검 ${day(r.nextDueOn!)} 지남`}>점검 지연</b> : ''}</span>
