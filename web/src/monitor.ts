@@ -3,14 +3,14 @@ import { isAbnormal } from './status'
 import { TEAMS, teamOfSystems } from './teams'
 import { inspectionOverdue } from './ui'
 
-/** 모니터링 화면의 순수 로직 — 행 타입과 '지금 처리할 것' 우선순위. 컴포넌트 밖에 두어 테스트한다 (monitor.test.ts) */
+/** 모니터링 화면의 순수 로직 — 행 타입과 '조치 필요' 우선순위. 컴포넌트 밖에 두어 테스트한다 (monitor.test.ts) */
 export type Row = { globalId: string; ifcClass: string; name: string | null; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
   status: (Record<string, unknown> & { Status?: string }) | null; assetId: string | null; assetTag: string | null; assetStatus: string | null; lastResult: string | null; openWorkOrders: number
   woAssignee?: string | null; woDueOn?: string | null; woStatus?: string | null; nextDueOn?: string | null }
 export type Ev = { at: string | null; kind: 'STATUS' | 'WORK_ORDER'; globalId: string | null; name: string | null; status: string | null; storey: string | null; woTitle: string | null; woStatus: string | null }
 
 export const isAbn = (r: Row) => isAbnormal(r.status?.Status)
-/** 점검 주기를 넘긴 자산(ACTIVE 만) — 지연은 긴급도 최하위로 '지금 처리할 것' 끝에 선다 */
+/** 점검 주기를 넘긴 자산(ACTIVE 만) — 지연은 긴급도 최하위로 '조치 필요' 끝에 선다 */
 export const overdue = (r: Row) => inspectionOverdue(r.nextDueOn, r.assetStatus)
 /** 계측값 중 가장 나쁜 등급 */
 export const worst = (r: Row) => inlineReadings(r.status, r.name).reduce((m, x) => x.level === 'crit' ? 'crit' : m === 'crit' ? m : x.level === 'warn' ? 'warn' : m, 'ok' as 'ok' | 'warn' | 'crit')

@@ -3,7 +3,7 @@ import { isAbn, overdue, rank, teamStats, type Row, type StatRow } from './monit
 
 const row = (p: Partial<Row>): Row => ({ globalId: 'g', ifcClass: 'IfcPump', name: 'WP-1', storey: 'B1', zone: null, elevation: 0, systems: [], status: null, assetId: null, assetTag: null, assetStatus: 'ACTIVE', lastResult: null, openWorkOrders: 0, ...p })
 
-describe('rank — "지금 처리할 것" 순서', () => {
+describe('rank — "조치 필요" 순서', () => {
   it('경보 0 < 장애 1 < 계측 위험·무전원 2 < 주의·작업지시 3 < 결함 4 < 점검 지연 5 < 정상 9', () => {
     expect(rank(row({ status: { Status: 'ALARM' } }))).toBe(0)
     expect(rank(row({ status: { Status: 'FAULT' } }))).toBe(1)
