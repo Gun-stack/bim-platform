@@ -125,6 +125,20 @@ flowchart LR
 
 ## 7. 배치 원칙
 
+### 시각 원칙 (2026-09-03, 다크 관제실)
+
+색 리터럴 653개·아이콘 81종을 규칙 없이 쌓은 결과가 "정보는 많은데 복잡하다"였다. 토큰은 `web/src/theme.ts` 한 표(사본 `index.css`, `theme.test.ts` 가 일치·대비 검사).
+
+1. **색은 뜻이다** — 상태(ok/warn/crit)와 팀만 색. 정상·중립은 무색(ink). 인터랙션은 accent 하나.
+2. **배지는 이상만** — 정상은 텍스트. 배지 = soft 배경 + 같은 색 글자(`ui.badge`). 채움은 주 버튼·층 경보 배지뿐, 채움 위 글자는 `bg.base`.
+3. **아이콘은 라벨을 대신할 때만** — 툴바·토글·트리 종류·닫기·접기. 텍스트 옆 장식 아이콘 금지. 행의 보조 동작(트렌드·3D)은 hover 에서만(`.row-act`).
+4. **타이포 5/2** — 11·12·13·15·18, 400·600.
+5. **모서리 6, 알약 999.** 그림자는 플로팅(툴바·메뉴·토스트·모달·독)만, 흐름 안 카드는 1px line.
+6. **한 줄 ≤3 사실**, 나머지는 `title`.
+7. **문구는 명사** — 버튼 라벨의 괄호 설명은 title 로. 내비는 "← 모델 목록" 글자.
+8. **팀 = 색 점 + 텍스트**, 팀 아이콘 없음.
+
+
 1. **질문이 화면을 고른다** — 어디(뷰어) · 지금(모니터링) · 할 일(시설관리).
 2. **요약 → 상세, 이상 → 정상** 순서. 관제 화면은 스크롤 없이 첫 줄에서 판단이 서야 한다.
 3. **이동은 전부 해시 딥링크** — 공유·북마크 가능, 씬 재로드 없음. 새 기능도 기존 `?sel=` 체계 재사용.
@@ -153,6 +167,7 @@ flowchart LR
 | 계측 트렌드 | `web/src/TrendModal.tsx` | 모니터링·뷰어 공용 |
 | **객체 맥락** | `web/src/context.ts`(`?sel=` 링크·최근·스냅샷 캐시) · `useObject.ts` · `ObjectSummary.tsx` · `ObjectDrawer.tsx` · `ObjectDock.tsx` · `viewer/scene.ts snapshot()` | `context.test.ts` |
 | 전역 경보 토스트 | `web/src/useAlerts.tsx` | 5초 폴링 + diff |
+| **디자인 토큰** | `web/src/theme.ts` (+ `index.css` 사본, `theme.test.ts`) | 배경 4·잉크 3·강조·상태 3+soft·팀 5·축·반지름·글자 크기·굵기·그림자. TSX 는 `T`, CSS 는 `var()` |
 | **상태 → 라벨·색** | `web/src/status.ts` | 모든 화면 공용 (`STATUS`, `statusLabel`, `statusHex`, `WO_STATUS`) |
 | **팀 ↔ 계통 매핑** | `web/src/teams.ts` | 조명제어반→전기팀 예외 포함 |
 | **계측값 사전·등급** | `web/src/readings.ts` | 집수정·오수 수위 반전 포함, `readings.test.ts` |

@@ -50,7 +50,7 @@ export default function MapPage() {
         if (placingRef.current) return
         const p = e.features![0].properties as Feature['properties'] & { id: string }
         new maplibregl.Popup({ closeButton: false, maxWidth: '280px' }).setLngLat(e.lngLat).setHTML(`
-          <div style="font:13px system-ui"><b>${p.name}</b><div style="color:#666;font-size:12px;margin:2px 0 6px">
+          <div style="font:13px system-ui"><b>${p.name}</b><div style="color:${T.ink[2]};font-size:12px;margin:2px 0 6px">
           ${p.manual ? '수동 배치' : p.georefSource}${p.crs ? ' · ' + p.crs : ''} · ${p.areaM2} m² · 요소 ${p.elementCount}</div>
           <a href="#/models/${p.id}" style="margin-right:8px">3D 뷰어</a><a href="#/models/${p.id}/fm">시설관리</a></div>`).addTo(m)
       })
@@ -77,7 +77,7 @@ export default function MapPage() {
         <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent, fontSize: 12 }}>← 모델 목록</a>
         <h3 style={{ margin: '6px 0 2px', display: 'flex', alignItems: 'center', gap: 6 }}>지도</h3>
         <div style={{ color: T.ink[3], fontSize: 12, marginBottom: 10 }}>풋프린트 {features.length} · 미배치 {models.filter(m => !placed.has(m.id)).length}</div>
-        {placing && <div style={{ background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: 8, padding: 10, marginBottom: 10 }}>
+        {placing && <div style={{ background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: T.radius, padding: 10, marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1 }}>{placing.name}</b><X size={14} style={{ cursor: 'pointer' }} onClick={() => { setPlacing(undefined); map.current!.getCanvas().style.cursor = '' }} /></div>
           <div style={{ color: T.warn, fontSize: 12, margin: '4px 0' }}>지도에서 건물 위치를 클릭하세요</div>
           <label style={{ fontSize: 12 }}>회전 <input type="number" value={placing.rotation} onChange={e => setPlacing({ ...placing, rotation: +e.target.value })} style={{ width: 60 }} />°</label>

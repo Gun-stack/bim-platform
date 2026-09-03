@@ -50,7 +50,7 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
   const uncolored = elements.length - legend.reduce((n, l) => n + l.gids.length, 0)
 
   return (
-    <div style={{ position: 'absolute', top: 8, left: 8, width: 260, background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxHeight: 'calc(100% - 70px)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'absolute', top: 8, left: 8, width: 260, background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxHeight: 'calc(100% - 70px)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: `1px solid ${T.bg.line}` }}>
         <b style={{ flex: 1 }}>속성별 색상</b>
         <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={onClose} />
@@ -69,7 +69,7 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
         {!values && <div style={{ color: T.ink[2], padding: 6 }}>불러오는 중…</div>}
         {legend.map(l => <LegendRow key={l.value} {...l} onSolo={() => onSolo(`${key} = ${l.value}`, l.gids)} />)}
         {values && uncolored > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', color: T.ink[2] }}>
-          <span style={{ width: 12, height: 12, borderRadius: 3, background: T.bg.line }} /> <span style={{ flex: 1 }}>값 없음</span> {uncolored}</div>}
+          <span style={{ width: 12, height: 12, borderRadius: T.radius, background: T.bg.line }} /> <span style={{ flex: 1 }}>값 없음</span> {uncolored}</div>}
       </div>
     </div>
   )
@@ -78,8 +78,8 @@ export default function ColorPanel({ modelId, elements, spatial, onChange, onSol
 function LegendRow({ value, color, gids, onSolo }: { value: string; color: number; gids: string[]; onSolo: () => void }) {
   const [hov, setHov] = useState(false)
   return <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)} onClick={onSolo} title="클릭: 이 값만 보기"
-    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', borderRadius: 4, background: hov ? T.accentSoft : 'transparent', cursor: 'pointer' }}>
-    <span style={{ width: 12, height: 12, borderRadius: 3, background: hex(color), flexShrink: 0 }} />
+    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', borderRadius: T.radius, background: hov ? T.accentSoft : 'transparent', cursor: 'pointer' }}>
+    <span style={{ width: 12, height: 12, borderRadius: T.radius, background: hex(color), flexShrink: 0 }} />
     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
     <span style={{ color: T.ink[2] }}>{gids.length}</span>
     <Focus size={12} style={{ color: hov ? T.accent : 'transparent' }} />

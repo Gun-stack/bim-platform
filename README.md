@@ -8,6 +8,8 @@ FMS·MEP 분야의 실무 경험을 바탕으로 업무 흐름과 기술 구현�
 
 ![데모: 모니터링 → 경보 포커스 → 계통 추적 → 정전 시나리오 → 작업지시 보드](images/demo.gif)
 
+> GIF 4개는 라이트 테마 시절 녹화본입니다. 화면은 2026-09-03 다크 관제실 테마로 바뀌었고(아래 PNG), GIF 는 재녹화 예정입니다.
+
 > 📐 화면 구조·기능 배치·화면 간 연관 관계는 [화면 설계서](docs/screen-design.md)에 정리했습니다.
 
 ## 화면으로 보는 흐름
@@ -129,7 +131,7 @@ project ─ model ─ element ─ asset ─┬─ inspection
 - **Backend:** Java 25, Spring Boot 4.1, Spring MVC, JdbcClient, Flyway
 - **Data / Storage:** PostgreSQL 16, PostGIS 3.4, MinIO
 - **IFC Worker:** Python 3.13, IfcOpenShell 0.8.5, psycopg, pyproj
-- **Frontend:** React 19, TypeScript, Vite 8, Three.js, MapLibre GL
+- **Frontend:** React 19, TypeScript, Vite 8, Three.js, MapLibre GL — 디자인 토큰 한 표(`theme.ts`)로 다크 관제실 테마, 색은 상태·팀에만
 - **Quality / Ops:** JUnit 5, Testcontainers, Python unittest, Docker Compose, nginx
 
 ## 규모 측정

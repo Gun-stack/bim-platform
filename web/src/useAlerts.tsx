@@ -34,7 +34,7 @@ export function AlertToast({ modelId, fresh, dismiss, onFocus }: { modelId: stri
   return (
     <div style={{ position: 'fixed', right: 16, bottom: 16, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 60 }}>
       {fresh.slice(-4).map(r => { const c = statusHex(r.status.Status); return (
-        <div key={r.globalId} className="fresh" style={{ background: T.bg.surface, borderLeft: '4px solid ' + c, borderRadius: 8, boxShadow: T.shadow, padding: '8px 12px', fontSize: 12, minWidth: 260, maxWidth: 340 }}>
+        <div key={r.globalId} className="fresh" style={{ background: T.bg.surface, borderLeft: '4px solid ' + c, borderRadius: T.radius, boxShadow: T.shadow, padding: '8px 12px', fontSize: 12, minWidth: 260, maxWidth: 340 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <b style={{ color: c }}>{statusLabel(r.status.Status)}</b>
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>

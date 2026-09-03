@@ -44,7 +44,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
           <button disabled={busy} onClick={() => trace('down')} style={btn}>{signal ? '수신기까지' : '하류 (말단까지)'}</button>
         </div>
       </>}
-      {route && <div style={{ marginTop: 8, padding: 8, background: T.bg.raised, borderRadius: 8 }}>
+      {route && <div style={{ marginTop: 8, padding: 8, background: T.bg.raised, borderRadius: T.radius }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <b style={{ flex: 1 }}>{route.direction === 'up' ? (signal ? '감지기 쪽' : '상류 경로') : (signal ? '수신기까지 경로' : '하류 범위')} · {route.nodes.length}개</b>
           <span title="경로만 보기" onClick={() => onSolo(`${route.direction === 'up' ? '상류' : '하류'} 경로`, route.nodes.map(n => n.globalId), 'route')} style={{ cursor: 'pointer', color: T.accent, display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
@@ -73,8 +73,8 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
           {team && <span title={`${team.name} 계통만 보기`} onClick={() => onSolo(team.name, ss.flatMap(s => (members.get(s.id) ?? []).map(m => m.globalId)), 'team:' + team.key)} style={{ marginLeft: 'auto', cursor: 'pointer', color: T.ink[2], display: 'grid', placeItems: 'center' }}><Focus size={12} /></span>}
         </div>
       {ss.map(s => { const c = systemColor(s); return (
-        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 6px 0 14px', borderRadius: 5 }}>
-          <span style={{ width: 12, height: 12, borderRadius: 3, background: hex(c), flexShrink: 0 }} />
+        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 6px 0 14px', borderRadius: T.radius }}>
+          <span style={{ width: 12, height: 12, borderRadius: T.radius, background: hex(c), flexShrink: 0 }} />
           <span style={{ flex: 1 }}>{s.name}</span>
           <span style={{ color: T.ink[2], fontSize: 11 }}>{s.memberCount} · 연결 {s.connectionCount}</span>
           <span title="이 계통만 보기" onClick={() => onSolo(`계통 ${s.name}`, (members.get(s.id) ?? []).map(m => m.globalId), 'sys:' + s.id)} style={{ cursor: 'pointer', color: T.ink[3], display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
@@ -106,7 +106,7 @@ export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setSt
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.ink[2], margin: '6px 0 4px' }}>
         <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기
         <span style={{ display: 'inline-flex', gap: 6, marginLeft: 4, color: T.ink[2], fontSize: 11 }}>{[[T.ok, '정상'], [T.crit, '경보'], [T.warn, '장애'], [T.ink[3], '점유·소등']].map(([c, l]) => <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: c }} />{l}</span>)}</span></label>
-      {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: 4, background: T.critSoft }}>
+      {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: T.radius, background: T.critSoft }}>
         <span style={{ width: 8, height: 8, borderRadius: 999, background: statusHex(r.status.Status), flexShrink: 0 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
         <span style={{ color: T.ink[2] }}>{r.spatialName}</span><b style={{ color: statusHex(r.status.Status) }}>{r.status.Status}</b></div>)}

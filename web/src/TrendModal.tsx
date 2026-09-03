@@ -21,7 +21,7 @@ export default function TrendModal({ modelId, globalId, name, onClose }: { model
   }, [pts])
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bg.surface, borderRadius: 12, padding: '14px 16px', width: 'min(500px, 92vw)', maxHeight: '86vh', overflow: 'auto', boxShadow: T.shadow }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bg.surface, borderRadius: T.radius, padding: '14px 16px', width: 'min(500px, 92vw)', maxHeight: '86vh', overflow: 'auto', boxShadow: T.shadow }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <b style={{ fontSize: 14 }}>{name}</b><span style={{ color: T.ink[2], fontSize: 12 }}>계측 트렌드</span>
           <button onClick={onClose} aria-label="닫기" style={{ marginLeft: 'auto', border: 0, background: 'none', cursor: 'pointer', color: T.ink[2], padding: 4 }}><X size={16} /></button>

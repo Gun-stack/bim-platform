@@ -116,7 +116,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         <Section title={`${t.name} 핵심 장비`} color={t.color} count={`${eq.length}대 · 이상 ${eq.filter(r => isAbn(r) || worst(r) !== 'ok').length}`} open={sec.key} onToggle={() => toggleSec('key')} pad={10}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
             {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: T.ink[1] } : statusUi(st), rs = inlineReadings(r.status, r.name), w = worst(r); return (
-              <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: T.ink[1], background: isAbn(r) ? (st === 'ALARM' ? T.critSoft : T.warnSoft) : w === 'crit' ? T.critSoft : w === 'warn' ? T.warnSoft : T.bg.surface, border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? T.crit : T.warn) : T.bg.line), borderLeft: '4px solid ' + (sc?.color ?? T.bg.line), borderRadius: 8, padding: '8px 10px' }}>
+              <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: T.ink[1], background: isAbn(r) ? (st === 'ALARM' ? T.critSoft : T.warnSoft) : w === 'crit' ? T.critSoft : w === 'warn' ? T.warnSoft : T.bg.surface, border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? T.crit : T.warn) : T.bg.line), borderLeft: '4px solid ' + (sc?.color ?? T.bg.line), borderRadius: T.radius, padding: '8px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 * fs }} title={r.name ?? undefined}>{r.name}</span><b style={{ color: !dead(r) && isQuiet(st) ? T.ink[2] : sc?.color ?? T.ink[3], fontSize: 12 * fs, whiteSpace: 'nowrap', fontWeight: !dead(r) && isQuiet(st) ? 400 : 600 }}>{sc?.label ?? '—'}</b></div>
                 <div style={{ color: T.ink[2], fontSize: 11 * fs, marginTop: 2 }}>{r.storey}{r.zone ? ` · ${r.zone.split('-').pop()}` : ''}{r.openWorkOrders ? <b style={{ color: r.woAssignee ? T.accent : T.warn, marginLeft: 6 }}>WO {r.woAssignee ?? '미배정'}</b> : ''}</div>
                 {rs.length > 0 && <div style={{ fontSize: 11 * fs, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'center' }}>{rs.slice(0, 4).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 600 }}>{x.label} <b style={{ fontWeight: x.level === 'ok' ? 400 : 600 }}>{x.text}</b></span>)}<span className="row-act" onClick={e => { e.preventDefault(); setTrend(r) }} title="계측 트렌드" style={{ color: T.accent, cursor: 'pointer', marginLeft: 'auto' }}>트렌드</span></div>}
@@ -136,7 +136,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
               {!kiosk && <a href={storeyClip(st)} title="뷰어에서 이 층 단면" style={{ color: T.ink[3], fontSize: 11 * fs, textDecoration: 'none' }}>단면</a>}
             </div>
             {visibleTeams.map(t => { const rs = cell(st, t); return (
-              <div key={st + t.key} style={{ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: 8, padding: 6, minHeight: 44 }}>
+              <div key={st + t.key} style={{ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, padding: 6, minHeight: 44 }}>
                 {rs.map(r => <RowView key={r.globalId} r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} />)}
                 {!rs.length && <div style={{ color: T.ink[3], fontSize: 12 * fs, padding: 4 }}>{mode === 'abnormal' ? '이상 없음' : '—'}</div>}
               </div>) })}
@@ -144,7 +144,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         </div></div>
 
         {/* 최근 이벤트 — 격자는 '지금'만 보여주므로 '언제 무슨 일이' 는 여기 */}
-        <div className="monitor-events" style={{ width: kiosk ? 400 : 300, flexShrink: 0,   /* 벽면에선 '최근 무슨 일'이 격자보다 자주 읽힌다 */ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: 10, padding: '8px 10px', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflow: 'auto' }}>
+        <div className="monitor-events" style={{ width: kiosk ? 400 : 300, flexShrink: 0,   /* 벽면에선 '최근 무슨 일'이 격자보다 자주 읽힌다 */ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, padding: '8px 10px', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflow: 'auto' }}>
           <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>최근 이벤트 <span style={{ color: T.ink[2], fontWeight: 400, fontSize: 11 * fs }}>{events.length}</span></div>
           {!events.length && <div style={{ color: T.ink[3], fontSize: 12 * fs }}>아직 이벤트가 없습니다</div>}
           {events.map((e, i) => { const abn = e.status === 'ALARM' || e.status === 'FAULT'; return (
@@ -164,7 +164,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         <Section title="경보 통계" count={sec.stats ? `${days}일 · 에피소드 ${total} · 재발 장비 ${stats.filter(r => r.alarms + r.faults >= 2).length}` : '발생 빈도 · 복구 시간 · 재발'} open={sec.stats} onToggle={() => toggleSec('stats')} pad={10}
           right={<select value={days} onChange={e => setDays(+e.target.value)} onClick={e => e.stopPropagation()} style={{ fontSize: 12 * fs }}>{[7, 30, 90].map(d => <option key={d} value={d}>최근 {d}일</option>)}</select>}>
           <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <table style={{ borderCollapse: 'collapse', fontSize: 12 * fs, background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: 8, minWidth: 520 }}><thead>
+            <table style={{ borderCollapse: 'collapse', fontSize: 12 * fs, background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, minWidth: 520 }}><thead>
               <tr style={{ color: T.ink[2], textAlign: 'right' }}><th style={{ ...th, textAlign: 'left' }}>팀</th><th style={th}>경보</th><th style={th}>장애</th><th style={th} title="정상→이상 전이부터 다시 정상이 기록될 때까지, 복구된 에피소드 평균">평균 복구</th><th style={th}>미복구</th><th style={th} title="기간 안에 2회 이상 발생한 장비">재발 장비</th></tr></thead><tbody>
               {ts.map(s => <tr key={s.team.key} style={{ textAlign: 'right', borderTop: `1px solid ${T.bg.raised}`, color: s.alarms + s.faults ? T.ink[1] : T.ink[3] }}>
                 <td style={{ ...td, textAlign: 'left', color: s.team.color, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: s.team.color, flexShrink: 0, display: 'inline-block' }} /> {s.team.name}</td>
@@ -196,7 +196,7 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: st
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
   return (
     <a data-gid={r.globalId} href={`#/models/${modelId}/monitor${selQ(r.globalId)}`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 객체 패널 · 3D 아이콘: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
-       style={{ display: 'block', padding: '3px 6px', borderRadius: 5, textDecoration: 'none', color: T.ink[1], fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? T.critSoft : T.warnSoft) : dead ? T.bg.raised : worst(r) === 'crit' ? T.critSoft : worst(r) === 'warn' ? T.warnSoft : 'transparent', opacity: dead ? 0.7 : 1 }}>
+       style={{ display: 'block', padding: '3px 6px', borderRadius: T.radius, textDecoration: 'none', color: T.ink[1], fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? T.critSoft : T.warnSoft) : dead ? T.bg.raised : worst(r) === 'crit' ? T.critSoft : worst(r) === 'warn' ? T.warnSoft : 'transparent', opacity: dead ? 0.7 : 1 }}>
       <span style={{ display: 'grid', gridTemplateColumns: '10px minmax(60px, 1fr) minmax(0, auto) auto', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? T.bg.line }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: T.ink[2], marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>

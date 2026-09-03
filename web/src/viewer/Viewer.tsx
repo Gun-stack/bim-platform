@@ -255,13 +255,13 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Panel minSize={200}>
         <div ref={canvas} style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
           {err && <p style={{ position: 'absolute', top: 8, left: 8, color: T.crit, background: T.bg.surface, padding: 6 }}>{err}</p>}
-          {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.ink[1], padding: '2px 6px', borderRadius: 3, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
+          {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.ink[1], padding: '2px 6px', borderRadius: T.radius, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
 
           {colorMode && <ColorPanel modelId={modelId} elements={elements} spatial={spatial} onChange={m => scene.current?.setColors(m)}
             onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
 
           {/* 경보/장애 포커스 배너 (구역 강조 + 위치 비콘) */}
-          {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', background: focusInfo.status === 'ALARM' ? T.critSoft : focusInfo.status === 'FAULT' ? T.warnSoft : T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxWidth: 460 }}>
+          {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', background: focusInfo.status === 'ALARM' ? T.critSoft : focusInfo.status === 'FAULT' ? T.warnSoft : T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 460 }}>
             <span style={{ width: 8, height: 8, borderRadius: 999, background: isAbnormal(focusInfo.status) ? statusHex(focusInfo.status) : T.accent, flexShrink: 0 }} />
             <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
             {focusInfo.status && <b style={{ color: statusHex(focusInfo.status, T.ok) }}>{statusLabel(focusInfo.status)}</b>}
@@ -270,7 +270,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined) }} /></div>}
 
           {/* 작업지시로 진입: 배너 */}
-          {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxWidth: 420 }}>
+          {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 420 }}>
             <StatusBadge s={wo.status} /><b>{wo.title}</b><span style={{ color: T.ink[2] }}>{wo.assetTag} · {wo.assignee ?? '미배정'}{wo.dueOn && ` · ~${day(wo.dueOn)}`}</span>
             <a href={`#/models/${modelId}/fm?wo=${wo.id}`} style={{ color: T.accent, marginLeft: 4 }}>보드</a>
             <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => setWo(undefined)} /></div>}
@@ -281,7 +281,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <X size={14} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setHidden({ ...hidden, solo: undefined })} /></div>}
 
           {/* 추적 배너: 3D 에 색만 칠하면 '몇 개·어디까지' 를 모른다 */}
-          {route && routeSummary && <div style={{ position: 'absolute', top: clip ? 128 : (focusInfo || wo) ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxWidth: 520 }}>
+          {route && routeSummary && <div style={{ position: 'absolute', top: clip ? 128 : (focusInfo || wo) ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 520 }}>
             <span style={{ width: 8, height: 8, borderRadius: 999, background: route.direction === 'up' ? T.accent : T.ok, flexShrink: 0 }} />
             <b>{routeSummary.origin}</b><span style={{ color: route.direction === 'up' ? T.accent : T.ok, fontWeight: 600 }}>{route.direction === 'up' ? '상류' : '하류'} {route.nodes.length}요소</span>
             {routeSummary.floors && <span style={{ color: T.ink[2] }}>{routeSummary.floors}</span>}<span style={{ color: T.ink[2], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{routeSummary.top}</span>
@@ -320,7 +320,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           )}
 
           {/* 하단 툴바 — 플로팅(드래그 이동·위치 기억) */}
-          <Floating id="toolbar" anchor={{ bottom: 8, left: '50%', transform: 'translateX(-50%)', gap: 2, padding: 4, borderRadius: 10 }}>
+          <Floating id="toolbar" anchor={{ bottom: 8, left: '50%', transform: 'translateX(-50%)', gap: 2, padding: 4, borderRadius: T.radius }}>
             <Tool icon={Home} label="홈" onClick={() => scene.current?.preset('home')} />
             <Tool icon={Maximize} label="선택 요소에 맞춤 (더블클릭)" onClick={() => scene.current?.fit()} />
             <Tool icon={Grid2x2} label="평면" onClick={() => scene.current?.preset('top')} />
@@ -341,8 +341,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {/* 그리드 설정: 평면(건축 z-up 기준 이름)·간격 — 그리드가 켜져 있을 때만 */}
           {opts.grid && <Floating id="grid" anchor={{ left: 8, bottom: 60, gap: 4, padding: '4px 8px', fontSize: 12 }}>
             {([['floor', '바닥 XY'], ['front', '정면 XZ'], ['side', '측면 YZ']] as const).map(([p, l]) =>
-              <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: 5, cursor: 'pointer', background: gridCfg.plane === p ? T.accent : 'transparent', color: gridCfg.plane === p ? T.bg.surface : T.ink[2], fontSize: 12 }}>{l}</button>)}
-            <input type="number" min={0.1} max={50} step={0.5} value={gridCfg.step} onChange={e => { const v = +e.target.value; if (Number.isFinite(v) && v >= 0.1 && v <= 50) setGridCfg({ ...gridCfg, step: v }) }} title="간격 (m)" style={{ width: 48, padding: '2px 4px', border: `1px solid ${T.bg.line}`, borderRadius: 5, fontSize: 12 }} /><span style={{ color: T.ink[2] }}>m</span>
+              <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: T.radius, cursor: 'pointer', background: gridCfg.plane === p ? T.accent : 'transparent', color: gridCfg.plane === p ? T.bg.surface : T.ink[2], fontSize: 12 }}>{l}</button>)}
+            <input type="number" min={0.1} max={50} step={0.5} value={gridCfg.step} onChange={e => { const v = +e.target.value; if (Number.isFinite(v) && v >= 0.1 && v <= 50) setGridCfg({ ...gridCfg, step: v }) }} title="간격 (m)" style={{ width: 48, padding: '2px 4px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, fontSize: 12 }} /><span style={{ color: T.ink[2] }}>m</span>
           </Floating>}
 
           <AlertToast modelId={modelId} fresh={freshAlerts} dismiss={dismissAlert} onFocus={g => focusOn(g)} />

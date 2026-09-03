@@ -74,7 +74,7 @@ function Models() {
 
       <label onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
              onDrop={e => { e.preventDefault(); setDrag(false); upload(e.dataTransfer.files) }}
-             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '28px 16px', border: '2px dashed ' + (drag ? T.accent : T.bg.line), borderRadius: 10,
+             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '28px 16px', border: '2px dashed ' + (drag ? T.accent : T.bg.line), borderRadius: T.radius,
                       background: drag ? T.accentSoft : T.bg.raised, color: T.ink[2], cursor: pid ? 'pointer' : 'default', transition: 'all .12s' }}>
         {busy ? <Loader2 size={26} className="spin" style={{ color: T.accent }} /> : <Upload size={26} style={{ color: T.accent }} />}
         <b>IFC 파일을 끌어다 놓거나 클릭해서 선택</b>
@@ -83,7 +83,7 @@ function Models() {
       </label>
       {err && <p style={{ color: T.crit, display: 'flex', gap: 6, alignItems: 'center' }}>{err}</p>}
 
-      <div style={{ marginTop: 20, border: `1px solid ${T.bg.line}`, borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ marginTop: 20, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 100px 70px 64px minmax(120px, 160px) 232px 28px', gap: 8, padding: '8px 14px', background: T.bg.raised, color: T.ink[2], fontSize: 12 }}>
           <span>모델</span><span>상태</span><span>스키마</span><span style={{ textAlign: 'right' }}>요소 수</span><span>진행</span><span /></div>
         {models.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>아직 모델이 없습니다. IFC 파일을 올리면 변환 후 3D 로 볼 수 있습니다 — <code>samples/</code> 에 예제 4개가 있습니다.</div>}
@@ -115,7 +115,7 @@ function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove
       <div>
         {m.status === 'FAILED'
           ? <code title={m.error} style={{ color: T.crit, fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.error?.trim().split('\n').at(-1)}</code>
-          : <div style={{ height: 6, background: T.bg.line, borderRadius: 3, overflow: 'hidden' }}><div style={{ width: `${m.progress}%`, height: '100%', background: m.status === 'READY' ? T.ok : T.accent, transition: 'width .3s' }} /></div>}
+          : <div style={{ height: 6, background: T.bg.line, borderRadius: T.radius, overflow: 'hidden' }}><div style={{ width: `${m.progress}%`, height: '100%', background: m.status === 'READY' ? T.ok : T.accent, transition: 'width .3s' }} /></div>}
       </div>
       <div style={{ textAlign: 'right' }}>
         {m.status === 'READY' && <span style={{ display: 'inline-flex', gap: 4, whiteSpace: 'nowrap' }}>

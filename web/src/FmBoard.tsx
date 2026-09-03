@@ -64,12 +64,12 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
           <div key={s} onClick={() => fold(s)} onDragOver={e => { e.preventDefault(); setDragOver(s) }} onDragLeave={() => setDragOver(undefined)}
                onDrop={e => { e.preventDefault(); setDragOver(undefined); setDragging(undefined); const w = wos.find(x => x.id === e.dataTransfer.getData('text/wo')); if (w) move(w, s) }}
                title={`${WO_STATUS[s]} ${items.length}건 — 클릭해서 펼치기 (끌어다 놓기도 됨)`}
-               style={{ background: dragOver === s ? T.accentSoft : T.bg.raised, borderRadius: 10, minHeight: 320, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '10px 0', outline: dragOver === s ? `2px dashed ${T.accent}` : 'none' }}>
+               style={{ background: dragOver === s ? T.accentSoft : T.bg.raised, borderRadius: T.radius, minHeight: 320, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '10px 0', outline: dragOver === s ? `2px dashed ${T.accent}` : 'none' }}>
             <ChevronRight size={14} style={{ color: T.ink[2] }} /><StatusBadge s={s} /><b style={{ color: T.ink[2], fontSize: 12 }}>{items.length}</b>
             <span style={{ writingMode: 'vertical-rl', color: T.ink[2], fontSize: 11, letterSpacing: 2 }}>{WO_STATUS[s]} 열 접힘</span></div>); return (
           <div key={s} onDragOver={e => { e.preventDefault(); setDragOver(s) }} onDragLeave={() => setDragOver(undefined)}
                onDrop={e => { e.preventDefault(); setDragOver(undefined); setDragging(undefined); const w = wos.find(x => x.id === e.dataTransfer.getData('text/wo')); if (w) move(w, s) }}
-               style={{ background: dragOver === s ? T.accentSoft : T.bg.raised, borderRadius: 10, padding: 10, minHeight: 320, outline: dragOver === s ? `2px dashed ${T.accent}` : 'none' }}>
+               style={{ background: dragOver === s ? T.accentSoft : T.bg.raised, borderRadius: T.radius, padding: 10, minHeight: 320, outline: dragOver === s ? `2px dashed ${T.accent}` : 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, minHeight: 20 }}><StatusBadge s={s} /><span style={{ color: T.ink[2] }}>{items.length}</span>
               {dragOver === s ? <span style={{ color: T.accent, fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>→ {WO_STATUS[s]}(으)로 이동</span>
                 : s !== 'DONE' && items.some(overdue) && <span style={{ color: T.crit, fontSize: 11, marginLeft: 'auto' }}>초과 {items.filter(overdue).length}</span>}
@@ -80,7 +80,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
           </div>) })}
       </div>
 
-      {toast && <div role="status" style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', background: toast.error ? T.crit : T.ink[1], color: T.ink[1], padding: '8px 14px', borderRadius: 8, fontSize: 12, display: 'flex', gap: 12, alignItems: 'center', boxShadow: T.shadow, zIndex: 50 }}>
+      {toast && <div role="status" style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', background: toast.error ? T.crit : T.ink[1], color: T.ink[1], padding: '8px 14px', borderRadius: T.radius, fontSize: 12, display: 'flex', gap: 12, alignItems: 'center', boxShadow: T.shadow, zIndex: 50 }}>
         <span>{toast.msg}</span>{toast.undo && <button onClick={() => { toast.undo!(); setToast(undefined) }} style={{ ...btn, background: 'transparent', color: T.accentSoft, border: `1px solid ${T.accentSoft}`, padding: '2px 8px' }}>되돌리기</button>}</div>}
       {open && <Drawer key={open.id} w={wos.find(x => x.id === open.id) ?? open} modelId={modelId} viewerUrl={viewerUrl(open)} onClose={() => setOpen(undefined)} reload={reload} move={move} />}
       {creating && <CreateModal assets={assets} onClose={() => setCreating(false)} reload={reload} />}
@@ -92,12 +92,12 @@ function Card({ w, dragging, busy, hilite, onOpen, viewerUrl, onDragStart, onDra
   const t = teamOf(w), pr = PRIO[w.priority ?? 'NORMAL'], Pi = pr.icon, od = overdue(w), nx = NEXT[w.status]
   return (
     <div draggable={!busy} onDragStart={e => { e.dataTransfer.setData('text/wo', w.id); e.dataTransfer.effectAllowed = 'move'; onDragStart() }} onDragEnd={onDragEnd} onClick={onOpen}
-         style={{ background: T.bg.surface, borderRadius: 8, padding: '8px 10px', marginBottom: 8, boxShadow: T.shadow, borderLeft: '4px solid ' + (t?.color ?? T.bg.line), cursor: busy ? 'progress' : 'grab',
+         style={{ background: T.bg.surface, borderRadius: T.radius, padding: '8px 10px', marginBottom: 8, boxShadow: T.shadow, borderLeft: '4px solid ' + (t?.color ?? T.bg.line), cursor: busy ? 'progress' : 'grab',
                   opacity: dragging ? 0.35 : busy ? 0.6 : w.status === 'DONE' ? 0.75 : 1, outline: dragging ? `2px dashed ${T.accent}` : hilite ? `2px solid ${T.accent}` : 'none', transition: 'opacity .15s' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {Pi && <Pi size={13} style={{ color: pr.color, flexShrink: 0 }} aria-label={pr.label} />}
         <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</span>
-        {t && <span style={{ fontSize: 10, color: t.color, border: '1px solid ' + t.color, borderRadius: 4, padding: '0 4px' }}>{t.short}</span>}
+        {t && <span style={{ fontSize: 10, color: t.color, border: '1px solid ' + t.color, borderRadius: T.radius, padding: '0 4px' }}>{t.short}</span>}
       </div>
       <div style={{ color: T.ink[2], fontSize: 12, margin: '3px 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.assetTag} · {w.storey}{w.zone ? ` ${w.zone.split('-').pop()}` : ''} · {w.elementName?.split(':')[0]}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: T.ink[2] }}>
@@ -119,7 +119,7 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40 }}>
       <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 18, overflow: 'auto', fontSize: 13 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><StatusBadge s={w.status} />{t && <span style={{ fontSize: 11, color: t.color, border: '1px solid ' + t.color, borderRadius: 4, padding: '0 5px' }}>{t.short}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><StatusBadge s={w.status} />{t && <span style={{ fontSize: 11, color: t.color, border: '1px solid ' + t.color, borderRadius: T.radius, padding: '0 5px' }}>{t.short}</span>}
           <span style={{ color: T.ink[2], fontSize: 11 }}>{w.id.slice(0, 8)}</span><X size={16} style={{ marginLeft: 'auto', cursor: 'pointer', color: T.ink[2] }} onClick={onClose} /></div>
         <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} style={{ ...inp, width: '100%', fontSize: 15, fontWeight: 600, marginBottom: 10 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>
@@ -150,7 +150,7 @@ function CreateModal({ assets, onClose, reload }: { assets: Asset[]; onClose: ()
   const submit = () => { setErr(undefined); post(`/assets/${f.assetId}/work-orders`, { title: f.title, assignee: f.assignee || null, dueOn: f.dueOn || null, priority: f.priority, description: f.description || null }).then(() => { onClose(); reload() }).catch(e => setErr(e.message)) }
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40, display: 'grid', placeItems: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 480, background: T.bg.surface, borderRadius: 12, padding: 18, fontSize: 13, boxShadow: T.shadow }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 480, background: T.bg.surface, borderRadius: T.radius, padding: 18, fontSize: 13, boxShadow: T.shadow }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}><b style={{ fontSize: 15 }}>새 작업지시</b><X size={16} style={{ marginLeft: 'auto', cursor: 'pointer', color: T.ink[2] }} onClick={onClose} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>
           <span style={lbl}>자산</span><div><input value={q} onChange={e => setQ(e.target.value)} placeholder="태그 · 이름 · 층 · 구역 · 분류 검색" autoFocus style={{ ...inp, width: '100%', marginBottom: 4 }} />

@@ -29,7 +29,7 @@ export function Floating({ id, anchor, children }: { id: string; anchor: React.C
   }
   const reset = () => { setPos(null); try { localStorage.removeItem('viewer.float.' + id) } catch { /* 저장 불가 환경 */ } }
   return (
-    <div ref={ref} onPointerDown={onDown} style={{ position: 'absolute', display: 'flex', alignItems: 'center', gap: 6, background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, ...anchor, ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto', transform: 'none' } : {}), touchAction: 'none' }}>
+    <div ref={ref} onPointerDown={onDown} style={{ position: 'absolute', display: 'flex', alignItems: 'center', gap: 6, background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, ...anchor, ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto', transform: 'none' } : {}), touchAction: 'none' }}>
       <span title="드래그로 이동 · 더블클릭 원위치" onDoubleClick={reset} style={{ display: 'grid', cursor: 'grab', color: T.bg.line, flexShrink: 0 }}><GripVertical size={13} /></span>
       {children}
     </div>
@@ -40,10 +40,10 @@ export function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { i
   const [hov, setHov] = useState(false)
   return <span style={{ position: 'relative', display: 'inline-block' }} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
     <button aria-label={label} onClick={onClick} disabled={disabled}
-      style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', border: 0, borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
+      style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', border: 0, borderRadius: T.radius, cursor: disabled ? 'default' : 'pointer',
                background: active ? T.accent : hov && !disabled ? T.accentSoft : 'transparent', color: active ? T.bg.surface : disabled ? T.bg.line : T.ink[1], transition: 'background .12s' }}>
       <Icon size={18} strokeWidth={1.8} /></button>
-    {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: T.ink[1], color: T.ink[1], padding: '4px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: T.shadow }}>
+    {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: T.ink[1], color: T.ink[1], padding: '4px 8px', borderRadius: T.radius, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: T.shadow }}>
       {label}{disabled && hint && <span style={{ color: T.ink[3] }}> · {hint}</span>}</span>}
   </span>
 }

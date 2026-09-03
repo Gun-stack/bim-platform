@@ -50,7 +50,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
         <Stat label="열린 작업지시" value={wos.filter(w => w.status !== 'DONE').length} sub={`완료 ${wos.filter(w => w.status === 'DONE').length}`} />
       </div>
       <Section title="작업지시 보드" count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}>
-      {abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: 8 }}>
+      {abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: T.radius }}>
         <span style={{ color: T.warn }}>상태판 이상 <b>{abnormal.length}</b>건 ({abnormal.slice(0, 3).map(r => r.name).join(', ')}{abnormal.length > 3 ? ' …' : ''}) — 열린 작업지시 {wos.filter(w => w.status !== 'DONE').length}건</span>
         <button onClick={() => { setSyncMsg(undefined); post<{ created: number; suppressed: number; checked: number }>(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: T.warn, color: T.bg.base, border: 0 }}>작업지시 동기화</button>
         {syncMsg && <span style={{ fontSize: 12, color: T.ink[2] }}>{syncMsg}</span>}</div>}
@@ -66,7 +66,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={btn}>자산 추가</button>
         </div>
         {add && <form onSubmit={e => { e.preventDefault(); setErr(undefined); post(`/models/${modelId}/assets`, add).then(() => { setAdd(null); reload() }).catch(e => setErr(e.message)) }}
-                      style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, background: T.bg.raised, borderRadius: 8, marginBottom: 8 }}>
+                      style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, background: T.bg.raised, borderRadius: T.radius, marginBottom: 8 }}>
           <input value={add.tag} onChange={e => setAdd({ ...add, tag: e.target.value })} placeholder="태그 * (예: CCTV-01)" required style={inp} />
           <input value={add.category} onChange={e => setAdd({ ...add, category: e.target.value })} placeholder="분류" style={inp} />
           <button type="submit" style={btnPrimary}>등록</button>
@@ -79,13 +79,13 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <button onClick={() => setAod(!aod)} title="점검 주기를 넘긴 자산만" style={{ ...btn, ...(aod ? { background: T.crit, color: T.bg.base, border: `1px solid ${T.crit}` } : { color: overdue ? T.crit : T.ink[2] }) }}>지연 {overdue}</button>
           <span style={{ color: T.ink[2], fontSize: 12 }}>{filteredAssets.length} / {assets.length}</span>
         </div>
-        <div style={{ border: `1px solid ${T.bg.line}`, borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ border: `1px solid ${T.bg.line}`, borderRadius: T.radius, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 120px 80px 130px', gap: 8, padding: '8px 14px', background: T.bg.raised, color: T.ink[2], fontSize: 12 }}>
           <span>태그</span><span>분류</span><span>층</span><span>연결 요소</span><span>상태</span><span>최근 점검</span><span>다음 점검</span><span>작업지시</span><span /></div>
         {filteredAssets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 120px 80px 130px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: `1px solid ${T.bg.line}` }}>
           <b>{a.tag}</b><span title={a.category ?? ''}>{ifcKo(a.category)}</span><span style={{ color: T.ink[2] }}>{a.storey ?? '—'}{a.zone ? <span style={{ color: T.ink[3] }}> {a.zone.split('-').pop()}</span> : ''}</span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: a.globalId ? T.ink[1] : T.ink[2] }} title={a.elementName ?? ''}>{a.globalId ? a.elementName : '(모델에 없음)'}</span>
-          <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? T.ok : T.crit }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '중지', RETIRED: '폐기' }[a.status]}</span>
+          <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? T.ink[2] : T.crit }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '중지', RETIRED: '폐기' }[a.status]}</span>
           <span style={{ fontSize: 12, color: a.lastResult === 'DEFECT' ? T.crit : T.ink[2] }}>{a.lastInspectedOn ? `${day(a.lastInspectedOn)} ${a.lastResult}` : '—'}</span>
           <span style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
             <input type="number" min={0} defaultValue={(a.attributes?.intervalMonths as number | undefined) ?? ''} placeholder="주기" title="점검 주기(개월) — 비우거나 0이면 해제"
@@ -107,5 +107,5 @@ export default function FmPage({ modelId }: { modelId: string }) {
 }
 
 const Stat = ({ label, value, sub }: { label: string; value: number; sub: string }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: `1px solid ${T.bg.line}`, borderRadius: 10, minWidth: 160 }}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, minWidth: 160 }}>
     <div><div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div><div style={{ fontSize: 12, color: T.ink[2] }}>{label} · {sub}</div></div></div>)

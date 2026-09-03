@@ -20,7 +20,7 @@ export default function StatusEditor({ modelId, e, reload }: { modelId: string; 
   const normal = ['ONLINE', 'RUNNING', 'STANDBY'].includes(cur) ? cur : 'NORMAL'   // 복구 시 그 장비의 "정상" 표현으로
   const fields = Object.entries(st).filter(([k]) => !['Status', 'UpdatedAt', 'AlarmAt'].includes(k))
   return (
-    <div style={{ margin: '0 0 10px', padding: 8, background: T.bg.raised, border: `1px solid ${T.bg.line}`, borderRadius: 8, fontSize: 12 }}>
+    <div style={{ margin: '0 0 10px', padding: 8, background: T.bg.raised, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, fontSize: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <b>운영 상태</b>
         {isQuiet(cur) ? <span style={{ color: T.ink[2] }}>{statusLabel(cur)}</span> : <span style={badge(statusHex(cur))}>{statusLabel(cur)}</span>}
@@ -50,5 +50,5 @@ function Field({ k, v, busy, onSave }: { k: string; v: unknown; busy: boolean; o
   if (typeof v === 'boolean') return <input type="checkbox" checked={v} disabled={busy} onChange={ev => onSave(ev.target.checked)} aria-label={k} />
   const commit = () => { const val = typeof v === 'number' ? Number(text) : text; if (val === v || (typeof v === 'number' && Number.isNaN(val))) { setText(String(v)); return } onSave(val) }
   return <input value={text} type={typeof v === 'number' ? 'number' : 'text'} step="any" disabled={busy} onChange={ev => setText(ev.target.value)} onBlur={commit} onKeyDown={ev => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur(); if (ev.key === 'Escape') setText(String(v ?? '')) }}
-    style={{ width: '100%', boxSizing: 'border-box', padding: '2px 6px', border: `1px solid ${T.bg.line}`, borderRadius: 4, fontSize: 12, background: T.bg.surface }} aria-label={k} />
+    style={{ width: '100%', boxSizing: 'border-box', padding: '2px 6px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, fontSize: 12, background: T.bg.surface }} aria-label={k} />
 }

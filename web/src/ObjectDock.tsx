@@ -26,7 +26,7 @@ export default function ObjectDock({ modelId, route }: { modelId: string; route:
     <div style={{ position: 'fixed', left: 16, bottom: 16, width: 280, zIndex: 45, background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, boxShadow: T.shadow, padding: '8px 10px', fontSize: 12, fontFamily: 'system-ui', boxSizing: 'border-box' }}>
       {sel && links && <>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {snap ? <img src={snap} alt="" width={56} height={35} style={{ borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} /> : <span style={{ width: 56, height: 35, borderRadius: 4, background: T.bg.line, display: 'grid', placeItems: 'center', color: T.ink[3], flexShrink: 0 }}><Box size={16} /></span>}
+          {snap ? <img src={snap} alt="" width={56} height={35} style={{ borderRadius: T.radius, objectFit: 'cover', flexShrink: 0 }} /> : <span style={{ width: 56, height: 35, borderRadius: T.radius, background: T.bg.line, display: 'grid', placeItems: 'center', color: T.ink[3], flexShrink: 0 }}><Box size={16} /></span>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={detail?.name ?? sel}>{detail?.name ?? '…'}</b>
               {st && !isQuiet(st) && <span style={badge(statusHex(st))}>{statusLabel(st)}</span>}

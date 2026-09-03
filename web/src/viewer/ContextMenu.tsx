@@ -17,7 +17,7 @@ export default function ContextMenu({ x, y, items, onClose }: { x: number; y: nu
   const left = Math.min(x, innerWidth - w - 8), top = Math.min(y, innerHeight - h - 8)
   return (
     <div ref={ref} onContextMenu={e => e.preventDefault()}
-         style={{ position: 'fixed', left, top, width: w, zIndex: 50, background: T.bg.surface, borderRadius: 8, padding: 6, boxShadow: T.shadow, fontSize: 13 }}>
+         style={{ position: 'fixed', left, top, width: w, zIndex: 50, background: T.bg.surface, borderRadius: T.radius, padding: 6, boxShadow: T.shadow, fontSize: 13 }}>
       {items.map((it, i) => it === 'sep'
         ? <div key={i} style={{ height: 1, background: T.bg.line, margin: '5px 4px' }} />
         : <Item key={i} {...it} onClose={onClose} />)}
@@ -28,7 +28,7 @@ export default function ContextMenu({ x, y, items, onClose }: { x: number; y: nu
 function Item({ icon: Icon, label, hint, disabled, onClick, onClose }: Exclude<MenuItem, 'sep'> & { onClose: () => void }) {
   return (
     <div onClick={() => { if (disabled) return; onClick?.(); onClose() }}
-         style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 8px', borderRadius: 5, cursor: disabled ? 'default' : 'pointer', color: disabled ? T.ink[3] : T.ink[1] }}
+         style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 8px', borderRadius: T.radius, cursor: disabled ? 'default' : 'pointer', color: disabled ? T.ink[3] : T.ink[1] }}
          onPointerEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.background = T.accentSoft }} onPointerLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
       <span style={{ width: 16, display: 'grid', placeItems: 'center' }}>{Icon && <Icon size={15} />}</span>
       <span style={{ flex: 1 }}>{label}</span>

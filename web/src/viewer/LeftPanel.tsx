@@ -154,15 +154,15 @@ function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick
   const Icon = row.icon
   return (
     <div onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)} onClick={onClick} onContextMenu={onContext}
-         style={{ display: 'flex', alignItems: 'center', gap: 4, height: 26, paddingLeft: 4 + depth * 14, paddingRight: 4, borderRadius: 5, userSelect: 'none',
+         style={{ display: 'flex', alignItems: 'center', gap: 4, height: 26, paddingLeft: 4 + depth * 14, paddingRight: 4, borderRadius: T.radius, userSelect: 'none',
                   background: selected ? T.accentSoft : hov ? T.accentSoft : 'transparent', opacity: row.hidden ? 0.45 : 1, fontWeight: row.solo ? 600 : 400, cursor: 'pointer' }}>
       <span onClick={e => { e.stopPropagation(); onOpen() }} style={{ width: 14, display: 'grid', placeItems: 'center', color: T.ink[2] }}>
         {row.children && (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}</span>
       <Icon size={14} style={{ color: T.ink[2], flexShrink: 0 }} />
       <span title={row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {row.label}{row.sub && <span style={{ color: T.ink[2], marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
-      {!!row.badge && <span title={`이상 ${row.badge}`} style={{ color: T.bg.base, fontSize: 10, fontWeight: 700, background: T.crit, borderRadius: 8, padding: '0 5px' }}>{row.badge}</span>}
-      {row.count > 0 && <span style={{ color: T.ink[2], fontSize: 11, background: T.bg.line, borderRadius: 8, padding: '0 6px' }}>{row.count}</span>}
+      {!!row.badge && <span title={`이상 ${row.badge}`} style={{ color: T.bg.base, fontSize: 10, fontWeight: 600, background: T.crit, borderRadius: T.radius, padding: '0 5px' }}>{row.badge}</span>}
+      {row.count > 0 && <span style={{ color: T.ink[2], fontSize: 11, background: T.bg.line, borderRadius: T.radius, padding: '0 6px' }}>{row.count}</span>}
       <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? T.accent : hov ? T.ink[3] : 'transparent' }}>
         <Focus size={14} /></span>
       <span onClick={e => { e.stopPropagation(); if (e.altKey) onSolo(row); else onToggle(row) }} title={row.hidden ? '표시' : '숨김 · Alt+클릭: 이것만 보기'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.hidden ? T.ink[3] : hov ? T.ink[2] : 'transparent' }}>
@@ -180,4 +180,4 @@ function Toggle({ icon: Icon, label, on, onClick, disabled }: { icon: LucideIcon
     {hov && <Tip>{label}</Tip>}
   </span>
 }
-const Tip = ({ children }: { children: ReactNode }) => <span style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 5, background: T.ink[1], color: T.ink[1], padding: '3px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none' }}>{children}</span>
+const Tip = ({ children }: { children: ReactNode }) => <span style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 5, background: T.ink[1], color: T.ink[1], padding: '3px 8px', borderRadius: T.radius, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none' }}>{children}</span>
