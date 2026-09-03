@@ -80,6 +80,10 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   } as Record<string, () => string>)[t.key]?.()
   const tot = { alarm: rows.filter(r => r.status?.Status === 'ALARM').length, fault: rows.filter(r => r.status?.Status === 'FAULT').length, wo: rows.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), dead: unpowered.size, noAsset: rows.filter(r => !r.assetId).length, unassigned: rows.filter(r => r.openWorkOrders && !r.woAssignee).length, reading: rows.filter(r => !isAbn(r) && worst(r) !== 'ok').length, due: rows.filter(overdue).length }
   const abnByStorey = (st: string) => rows.filter(r => r.storey === st && isAbn(r)).length
+  // 총계 바 숫자 클릭 → 그것들이 보이는 곳으로 (같은 화면은 펼치고 스크롤)
+  const todoRef = useRef<HTMLDivElement>(null)
+  const goTodo = () => { if (!sec.todo) toggleSec('todo'); requestAnimationFrame(() => todoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
+  const goEvents = () => { if (!sec.grid) toggleSec('grid'); requestAnimationFrame(() => document.querySelector('.monitor-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
   const storeyClip = (st: string) => { const i = storeyList.findIndex(e => e[0] === st); const z0 = storeyList[i][1], z1 = i > 0 ? storeyList[i - 1][1] : z0 + 3.5; return `#/models/${modelId}?clip=-999,999,-999,999,${(z0 - 0.3).toFixed(1)},${(z1 - 0.05).toFixed(1)}` }
   const fs = kiosk ? 1.25 : 1
 
@@ -98,12 +102,20 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 
       {/* 건물 전체 요약 — 관제 화면의 첫 줄은 총계 */}
       <div className={flash.size ? 'pulse' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 16px', marginBottom: 12, borderRadius: T.radius, background: tot.alarm ? T.critSoft : tot.fault ? T.warnSoft : T.bg.surface, border: '1px solid ' + (tot.alarm ? T.crit : tot.fault ? T.warn : T.bg.line), fontSize: 13 * fs }}>
-        <b style={{ fontSize: 15 * fs, color: tot.alarm ? T.crit : tot.fault ? T.warn : T.ink[1] }}>{tot.alarm ? `경보 ${tot.alarm}건` : tot.fault ? `장애 ${tot.fault}건` : '건물 정상'}</b>
-        <Stat label="경보" n={tot.alarm} color={T.crit} /><Stat label="장애" n={tot.fault} color={T.warn} /><Stat label="계측 주의" n={tot.reading} color={T.warn} />
-        <Stat label="작업지시" n={tot.wo} color={T.accent} sub={tot.unassigned ? `미배정 ${tot.unassigned}` : undefined} /><Stat label="점검 지연" n={tot.due} color={T.warn} />
-        {power === 'GENERATOR' && <b style={{ color: T.warn }} title="발전기 절체 중 — 뷰어 상태판에서 복전">정전 · 무전원 {tot.dead}</b>}
+        {tot.alarm || tot.fault
+          ? <button className="stat-link" onClick={goTodo} title="조치 필요 목록으로" style={{ fontWeight: 600, fontSize: 15 * fs, color: tot.alarm ? T.crit : T.warn }}>{tot.alarm ? `경보 ${tot.alarm}건` : `장애 ${tot.fault}건`}</button>
+          : <b style={{ fontSize: 15 * fs }}>건물 정상</b>}
+        <Stat label="경보" n={tot.alarm} color={T.crit} onClick={goTodo} title="조치 필요 목록으로" /><Stat label="장애" n={tot.fault} color={T.warn} onClick={goTodo} title="조치 필요 목록으로" /><Stat label="계측 주의" n={tot.reading} color={T.warn} onClick={goTodo} title="조치 필요 목록으로" />
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          <Stat label="작업지시" n={tot.wo} color={T.accent} href={kiosk ? undefined : `#/models/${modelId}/fm`} title="시설관리 칸반으로" />
+          {tot.unassigned > 0 && (kiosk ? <span style={{ color: T.ink[2], fontSize: '0.9em' }}>미배정 {tot.unassigned}</span>
+            : <a className="stat-link" href={`#/models/${modelId}/fm?assignee=none`} title="칸반에서 미배정 작업지시만" style={{ color: T.ink[2], fontSize: '0.9em' }}>미배정 {tot.unassigned}</a>)}
+        </span>
+        <Stat label="점검 지연" n={tot.due} color={T.warn} href={kiosk ? undefined : `#/models/${modelId}/fm?due=1`} title="자산 대장에서 지연 자산만" />
+        {power === 'GENERATOR' && (kiosk ? <b style={{ color: T.warn }} title="발전기 절체 중">정전 · 무전원 {tot.dead}</b>
+          : <a className="stat-link" href={`#/models/${modelId}`} title="발전기 절체 중 — 3D 뷰어 상태판에서 복전" style={{ color: T.warn, fontWeight: 600 }}>정전 · 무전원 {tot.dead}</a>)}
         {tot.noAsset > 0 && !kiosk && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(load)} style={{ ...btn, marginLeft: 'auto' }} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록">자산 일괄 등록 (미등록 {tot.noAsset})</button>}
-        <span style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto', color: T.ink[2], fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? hms(events[0].at) : '—'}</span>
+        <button className="stat-link" onClick={goEvents} title="최근 이벤트 목록으로" style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto', color: T.ink[2], fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? hms(events[0].at) : '—'}</button>
       </div>
 
       <Section title="분야 현황" count={team ? `${TEAMS.find(t => t.key === team)!.name}만 표시 — 클릭 해제` : undefined} open={sec.teams} onToggle={() => toggleSec('teams')} pad={10}>
@@ -123,12 +135,12 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       </Section>
 
       {/* 1) 조치 필요 — 층·팀 격자보다 먼저. 경보 → 장애 → 계측 위험/무전원 → 주의·작업지시 순 */}
-      {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (
+      {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (<div ref={todoRef}>
         <Section title="조치 필요" color={todo.some(isAbn) ? T.crit : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
           {todo.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '2px 14px' }}>
             {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: T.ink[3], fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} reload={load} /></div>)}
             {todo.length > 12 && <div style={{ color: T.ink[2], fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
-        </Section>) })()}
+        </Section></div>) })()}
 
       {/* 2) 핵심 장비 — 팀을 골랐을 때 그 팀의 원천 장비를 카드로 (격자 순서와 무관하게 늘 같은 자리) */}
       {team && (() => { const t = TEAMS.find(x => x.key === team)!; const keys = KEY_EQUIP[team] ?? []; const eq = keys.map(k => rows.find(r => r.name?.startsWith(k))).filter(Boolean) as Row[]; return eq.length ? (
@@ -205,9 +217,14 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   )
 }
 
-/** 총계 항목: 라벨 + 숫자. 0 은 흐리게, 0 이 아닐 때만 의미색 */
-const Stat = ({ label, n, color, sub }: { label: string; n: number; color: string; sub?: string }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><span style={{ color: T.ink[2] }}>{label}</span><b style={{ color: n === 0 ? T.ink[3] : color }}>{n}</b>{sub && <span style={{ color: T.ink[2], fontSize: '0.9em' }}>{sub}</span>}</span>)
+/** 총계 항목: 라벨 + 숫자. 0 은 흐리게·링크 없음, 0 이 아닐 때만 의미색 + 클릭(그것들이 보이는 곳으로) */
+const Stat = ({ label, n, color, href, onClick, title }: { label: string; n: number; color: string; href?: string; onClick?: () => void; title?: string }) => {
+  const inner = <><span style={{ color: T.ink[2] }}>{label}</span><b style={{ color: n === 0 ? T.ink[3] : color }}>{n}</b></>
+  const st = { display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', color: 'inherit' } as const
+  if (n > 0 && href) return <a className="stat-link" href={href} title={title} style={st}>{inner}</a>
+  if (n > 0 && onClick) return <button className="stat-link" onClick={onClick} title={title} style={{ ...st, fontSize: 'inherit' }}>{inner}</button>
+  return <span style={st}>{inner}</span>
+}
 
 function RowView({ r, modelId, dead, fresh, fs, onTrend, reload }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number; onTrend?: (t: { globalId: string; name: string | null }) => void; reload?: () => void }) {
   const hasNum = Object.entries(r.status ?? {}).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt')

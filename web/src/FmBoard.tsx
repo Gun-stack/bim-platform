@@ -44,7 +44,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
   }, [openWoId, server])
   const wos = useMemo(() => server.map(w => pending[w.id] ? { ...w, status: pending[w.id] } : w), [server, pending])
   const assignees = useMemo(() => [...new Set(wos.map(w => w.assignee).filter(Boolean) as string[])].sort(), [wos])
-  const visible = wos.filter(w => (!team || teamOf(w)?.key === team) && (!assignee || w.assignee === assignee) && (!onlyOverdue || overdue(w))
+  const visible = wos.filter(w => (!team || teamOf(w)?.key === team) && (!assignee || (assignee === 'none' ? !w.assignee : w.assignee === assignee)) && (!onlyOverdue || overdue(w))
     && (!q || [w.title, w.assetTag, w.elementName, w.assignee, w.description].some(x => x?.toLowerCase().includes(q.toLowerCase()))))
   const move = (w: WorkOrder, s: WorkOrder['status'], undo = true): Promise<unknown> => {
     if (w.status === s) return Promise.resolve()
@@ -71,7 +71,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative' }}>          <input value={q} onChange={e => setQ(e.target.value)} placeholder="제목 · 자산 · 담당" style={{ ...inp, width: 220 }} /></div>
         <div style={{ display: 'flex', gap: 4 }}>{TEAMS.map(t => <button key={t.key} onClick={() => setTeam(team === t.key ? undefined : t.key)} style={{ ...chip, borderColor: team === t.key ? t.color : T.bg.line, background: team === t.key ? t.color : T.ink[1], color: team === t.key ? T.bg.surface : T.ink[2] }}>{t.short}</button>)}</div>
-        <select value={assignee ?? ''} onChange={e => setAssignee(e.target.value || undefined)} style={inp}><option value="">담당자 전체</option>{assignees.map(a => <option key={a}>{a}</option>)}</select>
+        <select value={assignee ?? ''} onChange={e => setAssignee(e.target.value || undefined)} style={inp}><option value="">담당자 전체</option><option value="none">미배정</option>{assignees.map(a => <option key={a}>{a}</option>)}</select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: T.crit }}><input type="checkbox" checked={onlyOverdue} onChange={e => setOnlyOverdue(e.target.checked)} /> 기한 초과만</label>
         <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 }}>{visible.length} / {wos.length}</span>
         <button onClick={() => setCreating(true)} style={btnPrimary}>새 작업지시</button>

@@ -14,3 +14,8 @@ button, input, select, textarea { font-family: inherit }
 .maplibregl-ctrl-group button + button { border-top-color: var(--bg-line) }
 .maplibregl-ctrl button .maplibregl-ctrl-icon { filter: invert(.85) }
 .maplibregl-ctrl-attrib { background: rgba(18,20,23,.7); color: var(--ink-3) }
+
+/* 총계 바 숫자 링크 — hover 밑줄만, 색·굵기는 의미색 유지 (버튼형은 텍스트처럼 리셋) */
+.stat-link { text-decoration: none; cursor: pointer }
+button.stat-link { border: 0; background: none; padding: 0; font-family: inherit; text-align: left }
+.stat-link:hover { text-decoration: underline }

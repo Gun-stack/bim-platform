@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
 import { btn, btnPrimary, day, inp, inspectionOverdue, plusDays } from './ui'
 import { ifcKo } from './ifcNames'
 import FmBoard from './FmBoard'
-import { useHashQuery } from './useHashQuery'
+import { setHashParam, useHashQuery } from './useHashQuery'
 import { AlertToast, useAlerts } from './useAlerts'
 import ObjectDrawer from './ObjectDrawer'
 import { selQ } from './context'
@@ -14,6 +14,7 @@ import NavLinks from './NavLinks'
 
 /** #/models/{id}/fm — 자산 대장 + 작업지시 보드. 작업지시 → 뷰어 뷰포인트로 이동 */
 export default function FmPage({ modelId }: { modelId: string }) {
+  const hq = useHashQuery()
   const [model, setModel] = useState<Model>()
   const [assets, setAssets] = useState<Asset[]>([])
   const [wos, setWos] = useState<WorkOrder[]>([])
@@ -22,14 +23,18 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [err, setErr] = useState<string>()
   const [syncMsg, setSyncMsg] = useState<string>()
   const [aq, setAq] = useState(''); const [acat, setAcat] = useState(''); const [ast, setAst] = useState('')   // 자산 대장 필터
-  const [aod, setAod] = useState(false)   // 점검 지연만 보기
+  const [aod, setAodS] = useState(() => hq.has('due'))   // 점검 지연만 보기 — 모니터링 총계 '점검 지연' 딥링크(?due=1)로도 켜진다
+  const setAod = (v: boolean) => { setAodS(v); setHashParam('due', v ? '1' : undefined) }
   const [aup, setAup] = useState(false)   // 점검 예정(30일)만 보기 — 예방정비 계획용
+  const assetsRef = useRef<HTMLDivElement>(null)
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- 진입 시 1회: 지연 딥링크면 자산 대장으로 스크롤
+  useEffect(() => { if (hq.has('due')) requestAnimationFrame(() => assetsRef.current?.scrollIntoView({ block: 'start' })) }, [])
   const reload = useCallback(() => Promise.all([api<Asset[]>(`/models/${modelId}/assets`), api<WorkOrder[]>(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
   const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 5초 폴링 — 이상 배너 + 전역 경보 토스트
   useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
 
   // 딥링크: ?wo={id} → 보드 펼침 + 카드 하이라이트/Drawer, ?sel={gid} → 객체 패널(작업지시 목록 포함) + 자산 대장 필터
-  const hq = useHashQuery(), selGid = hq.get('sel')
+  const selGid = hq.get('sel')
   const woId = hq.get('wo') ?? undefined
   const selAsset = !woId && selGid ? assets.find(a => a.globalId === selGid) : undefined
   // oxlint-disable-next-line react-hooks/exhaustive-deps
@@ -63,7 +68,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
       <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} openWoId={woId} />
       </Section>
 
-      <Section title="자산 대장" count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}
+      <div ref={assetsRef} />
+      <Section title="자산 대장" count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset || aod} onToggle={() => toggle('assets')}
                right={<a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={btn}>COBie 내보내기</a>}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: T.ink[2], fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
