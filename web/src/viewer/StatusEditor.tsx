@@ -5,7 +5,7 @@ import type { ElementDetail } from '../api'
 import { patchStatus, statusPatchFor } from '../statusApi'
 import { isQuiet, statusHex, statusLabel } from '../status'
 import { READINGS, readings, LEVEL_COLOR } from '../readings'
-import { badge, btn } from '../ui'
+import { badge, btn, dateTime } from '../ui'
 import { T } from '../theme'
 
 /** 속성 패널 상단 "운영 상태": Status 버튼 + Pset_BimStatus 나머지 필드 인라인 편집(PATCH 는 jsonb 병합이라 키 하나씩 보내도 된다).
@@ -25,7 +25,7 @@ export default function StatusEditor({ modelId, e, reload }: { modelId: string; 
         <b>운영 상태</b>
         {isQuiet(cur) ? <span style={{ color: T.ink[2] }}>{statusLabel(cur)}</span> : <span style={badge(statusHex(cur))}>{statusLabel(cur)}</span>}
         {Object.entries(st).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt') && <button onClick={() => setTrend(true)} title="계측 트렌드 — 값이 언제부터 이랬는지" style={{ border: 0, background: 'none', cursor: 'pointer', color: T.accent, padding: 2, display: 'inline-flex' }}><TrendingUp size={13} /></button>}
-        {typeof st.UpdatedAt === 'string' && <span style={{ color: T.ink[2], fontSize: 11, marginLeft: 'auto' }}>{new Date(st.UpdatedAt).toLocaleString()}</span>}
+        {typeof st.UpdatedAt === 'string' && <span style={{ color: T.ink[2], fontSize: 11, marginLeft: 'auto' }}>{dateTime(st.UpdatedAt)}</span>}
       </div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         {e.ifcClass === 'IfcSensor' && <button disabled={busy || cur === 'ALARM'} onClick={() => send(statusPatchFor('ALARM'))} style={{ ...btn, color: T.crit }}>경보</button>}

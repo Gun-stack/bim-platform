@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useEffect } from 'react'
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUp, X } from 'lucide-react'
 import { post, type Asset, type Priority, type WorkOrder } from './api'
 import { StatusBadge } from './viewer/FmPanel'
-import { btn, btnPrimary, day, inp, useEsc } from './ui'
+import { btn, btnPrimary, dateTime, day, inp, useEsc, woOverdue } from './ui'
 import { WO_STATUS } from './status'
 import { TEAMS, teamOfSystems } from './teams'
 import { ifcKo } from './ifcNames'
@@ -15,7 +15,7 @@ const PRIO: Record<Priority, { label: string; color: string; icon?: typeof Arrow
 const COLS: WorkOrder['status'][] = ['OPEN', 'IN_PROGRESS', 'DONE']
 /** 카드 버튼용 다음 단계 (드래그 못 하는 키보드·터치 경로) */
 const NEXT: Record<WorkOrder['status'], { s: WorkOrder['status']; label: string }> = { OPEN: { s: 'IN_PROGRESS', label: '시작' }, IN_PROGRESS: { s: 'DONE', label: '완료' }, DONE: { s: 'OPEN', label: '다시 열기' } }
-const overdue = (w: WorkOrder) => !!w.dueOn && w.status !== 'DONE' && new Date(w.dueOn) < new Date(new Date().toDateString())
+const overdue = (w: WorkOrder) => woOverdue(w.dueOn, w.status)
 
 export default function FmBoard({ modelId, wos: server, assets, reload, openWoId }: { modelId: string; wos: WorkOrder[]; assets: Asset[]; reload: () => Promise<unknown>; openWoId?: string }) {
   const [q, setQ] = useState(''); const [team, setTeam] = useState<string>(); const [assignee, setAssignee] = useState<string>(); const [onlyOverdue, setOnlyOverdue] = useState(false)
@@ -100,7 +100,7 @@ function Card({ w, modelId, dragging, busy, hilite, lifted, onOpen, viewerUrl, o
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {Pi && <Pi size={13} style={{ color: pr.color, flexShrink: 0 }} aria-label={pr.label} />}
         <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</span>
-        {t && <span style={{ fontSize: 10, color: t.color, border: '1px solid ' + t.color, borderRadius: T.radius, padding: '0 4px' }}>{t.short}</span>}
+        {t && <span style={{ fontSize: T.fs.xs, color: t.color, border: '1px solid ' + t.color, borderRadius: T.radius, padding: '0 4px' }}>{t.short}</span>}
       </div>
       <div style={{ color: T.ink[2], fontSize: 12, margin: '3px 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.assetTag} · {w.storey}{w.zone ? ` ${w.zone.split('-').pop()}` : ''} · {w.elementName?.split(':')[0]}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: T.ink[2] }}>
@@ -127,14 +127,14 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
           <span style={{ color: T.ink[2], fontSize: 11 }}>{w.id.slice(0, 8)}</span><NavLinks modelId={modelId} gid={w.globalId} viewer={viewerUrl} style={{ fontSize: 12 }} /><X size={16} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={onClose} /></div>
         <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} style={{ ...inp, width: '100%', fontSize: 15, fontWeight: 600, marginBottom: 10 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>
-          <span style={lbl}>상태</span><div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>{COLS.map(s => <button key={s} onClick={() => move(w, s)} style={{ ...chip, fontWeight: w.status === s ? 700 : 400, borderColor: w.status === s ? T.accent : T.bg.line, background: w.status === s ? T.accentSoft : T.bg.surface }}>{WO_STATUS[s]}</button>)}<span style={{ fontSize: 10, color: T.ink[2] }}>즉시 저장</span></div>
+          <span style={lbl}>상태</span><div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>{COLS.map(s => <button key={s} onClick={() => move(w, s)} style={{ ...chip, fontWeight: w.status === s ? 700 : 400, borderColor: w.status === s ? T.accent : T.bg.line, background: w.status === s ? T.accentSoft : T.bg.surface }}>{WO_STATUS[s]}</button>)}<span style={{ fontSize: T.fs.xs, color: T.ink[2] }}>즉시 저장</span></div>
           <span style={lbl}>우선순위</span><select value={f.priority} onChange={e => setF({ ...f, priority: e.target.value as Priority })} style={inp}>{(Object.keys(PRIO) as Priority[]).map(p => <option key={p} value={p}>{PRIO[p].label}</option>)}</select>
           <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} placeholder="미배정" style={inp} />
           <span style={lbl}>기한</span><input type="date" value={f.dueOn} onChange={e => setF({ ...f, dueOn: e.target.value })} style={inp} />
           <span style={lbl}>자산</span><span><b>{w.assetTag}</b> <span style={{ color: T.ink[2] }}>{w.assetCategory}</span></span>
           <span style={lbl}>위치</span><span>{w.storey}{w.zone ? ` · ${w.zone}` : ''} · {w.elementName}</span>
           {w.inspectionNote && <><span style={lbl}>점검 메모</span><span style={{ color: T.crit }}>{w.inspectionNote}</span></>}
-          <span style={lbl}>생성 / 변경</span><span style={{ color: T.ink[2], fontSize: 12 }}>{new Date(w.createdAt).toLocaleString()} / {w.updatedAt ? new Date(w.updatedAt).toLocaleString() : '—'}</span>
+          <span style={lbl}>생성 / 변경</span><span style={{ color: T.ink[2], fontSize: 12 }}>{dateTime(w.createdAt)} / {w.updatedAt ? dateTime(w.updatedAt) : '—'}</span>
         </div>
         <div style={{ marginTop: 12 }}><div style={lbl}>설명</div>
           <textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={5} placeholder="작업 내용과 조치 사항" style={{ ...inp, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} /></div>

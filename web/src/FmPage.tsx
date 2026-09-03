@@ -43,28 +43,27 @@ export default function FmPage({ modelId }: { modelId: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <a href="#/" style={{ color: T.accent, textDecoration: 'none' }}>← 모델 목록</a>
         <h1 style={{ margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>시설관리</span></h1>
-        <a href={`#/models/${modelId}/monitor${selQ(selGid)}`} style={{ marginLeft: 'auto', ...btn }}>모니터링{abnormal.length > 0 && <b style={{ color: T.crit }}>{abnormal.length}</b>}</a><a href={`#/models/${modelId}${selQ(selGid)}`} style={btn}>3D 뷰어</a>
+        <a href={`#/models/${modelId}${selQ(selGid)}`} style={{ marginLeft: 'auto', ...btn }}>3D 뷰어</a><a href={`#/models/${modelId}/monitor${selQ(selGid)}`} style={btn}>모니터링{abnormal.length > 0 && <b style={{ color: T.crit }}>{abnormal.length}</b>}</a>
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
         <Stat label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />
         <Stat label="점검 완료" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} />
         <Stat label="열린 작업지시" value={wos.filter(w => w.status !== 'DONE').length} sub={`완료 ${wos.filter(w => w.status === 'DONE').length}`} />
       </div>
-      <Section title="작업지시 보드" count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}>
+      <Section title="작업지시 보드" count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}
+               right={wos.length > 0 && <a href={`/api/models/${modelId}/export/bcf`} title="작업지시를 BCF 2.1 topic·viewpoint 로 — Navisworks·BIMcollab 등에서 열람" style={btn}>BCF 내보내기</a>}>
       {abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: T.radius }}>
         <span style={{ color: T.warn }}>상태판 이상 <b>{abnormal.length}</b>건 ({abnormal.slice(0, 3).map(r => r.name).join(', ')}{abnormal.length > 3 ? ' …' : ''}) — 열린 작업지시 {wos.filter(w => w.status !== 'DONE').length}건</span>
         <button onClick={() => { setSyncMsg(undefined); post<{ created: number; suppressed: number; checked: number }>(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: T.warn, color: T.bg.base, border: 0 }}>작업지시 동기화</button>
         {syncMsg && <span style={{ fontSize: 12, color: T.ink[2] }}>{syncMsg}</span>}</div>}
-      {wos.length > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-        <a href={`/api/models/${modelId}/export/bcf`} title="작업지시를 BCF 2.1 topic·viewpoint 로 — Navisworks·BIMcollab 등에서 열람" style={btn}>BCF 내보내기</a></div>}
       <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} openWoId={woId} />
       </Section>
 
-      <Section title="자산 대장" count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}>
+      <Section title="자산 대장" count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}
+               right={<a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={btn}>COBie 내보내기</a>}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: T.ink[2], fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
-          <a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={{ ...btn, marginLeft: 'auto' }}>COBie 내보내기</a>
-          <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={btn}>자산 추가</button>
+          <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={{ ...btn, marginLeft: 'auto' }}>자산 추가</button>
         </div>
         {add && <form onSubmit={e => { e.preventDefault(); setErr(undefined); post(`/models/${modelId}/assets`, add).then(() => { setAdd(null); reload() }).catch(e => setErr(e.message)) }}
                       style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, background: T.bg.raised, borderRadius: T.radius, marginBottom: 8 }}>
@@ -86,7 +85,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
         {filteredAssets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 120px 80px 130px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: `1px solid ${T.bg.line}` }}>
           <b>{a.tag}</b><span title={a.category ?? ''}>{ifcKo(a.category)}</span><span style={{ color: T.ink[2] }}>{a.storey ?? '—'}{a.zone ? <span style={{ color: T.ink[3] }}> {a.zone.split('-').pop()}</span> : ''}</span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: a.globalId ? T.ink[1] : T.ink[2] }} title={a.elementName ?? ''}>{a.globalId ? a.elementName : '(모델에 없음)'}</span>
-          <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? T.ink[2] : T.crit }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '중지', RETIRED: '폐기' }[a.status]}</span>
+          <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? T.ink[2] : T.crit }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '사용 중지', RETIRED: '폐기' }[a.status]}</span>
           <span style={{ fontSize: 12, color: a.lastResult === 'DEFECT' ? T.crit : T.ink[2] }}>{a.lastInspectedOn ? `${day(a.lastInspectedOn)} ${a.lastResult === 'DEFECT' ? '결함' : '정상'}` : '—'}</span>
           <span style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
             <input type="number" min={0} defaultValue={(a.attributes?.intervalMonths as number | undefined) ?? ''} placeholder="주기" title="점검 주기(개월) — 비우거나 0이면 해제"

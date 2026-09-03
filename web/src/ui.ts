@@ -5,9 +5,16 @@ import { T } from './theme'
 
 /** API 의 date 는 ISO 타임스탬프 문자열로 온다 → YYYY-MM-DD */
 export const day = (s?: string | null) => s ? s.slice(0, 10) : ''
-export const today = () => new Date().toISOString().slice(0, 10)
-/** 점검 주기를 넘긴 자산 — ACTIVE 만 (폐기·중지 자산은 지연으로 안 센다). 모니터링·자산 대장이 같은 규칙 */
+/** 로컬 자정 기준 오늘 — toISOString(UTC)이면 KST 00~09시에 어제가 되어 지연 판정이 하루 어긋난다 */
+export const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+/** 시각 표기는 이 두 개만 — 화면마다 toLocale*() 직접 호출 금지 (로케일·12시제가 브라우저마다 갈린다) */
+export const hm = (s: string | number | Date) => new Date(s).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+export const hms = (s: string | number | Date) => new Date(s).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+export const dateTime = (s: string | number | Date) => new Date(s).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short', hour12: false })
+/** 점검 주기를 넘긴 자산 — ACTIVE 만 (폐기·사용 중지 자산은 지연으로 안 센다). 모니터링·자산 대장이 같은 규칙 */
 export const inspectionOverdue = (nextDueOn?: string | null, assetStatus?: string | null) => !!nextDueOn && nextDueOn < today() && assetStatus === 'ACTIVE'
+/** 기한을 넘긴 열린 작업지시 — 점검 지연과 같은 날짜 문자열 비교 규칙. 용어: 점검=지연, 작업지시=기한 초과 */
+export const woOverdue = (dueOn?: string | null, status?: string) => !!dueOn && status !== 'DONE' && day(dueOn) < today()
 
 /** Esc 로 닫기 (모달·Drawer·측정 모드) */
 export const useEsc = (fn: () => void) => useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === 'Escape') fn() }; addEventListener('keydown', h); return () => removeEventListener('keydown', h) }, [fn])

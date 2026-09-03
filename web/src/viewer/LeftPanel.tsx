@@ -112,7 +112,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
           <a href={`#/models/${model?.id}/monitor${selQ(sel1)}`} style={{ marginLeft: 'auto', textDecoration: 'none', color: T.accent }}>모니터링</a>
           <a href={`#/models/${model?.id}/fm${selQ(sel1)}`} style={{ marginLeft: 10, textDecoration: 'none', color: T.accent }}>시설관리 →</a>
         </div>
-        <div style={{ fontWeight: 600, fontSize: 14, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model?.name}>{model?.name ?? '…'}</div>
+        <div style={{ fontWeight: 600, fontSize: T.fs.lg, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model?.name}>{model?.name ?? '…'}</div>
         <div style={{ color: T.ink[3], fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · ${stats.fps} fps`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}{abnormal.size > 0 && <b style={{ color: T.crit, marginLeft: 6 }}>· 이상 {abnormal.size}</b>}</div>
       </div>
 
@@ -162,7 +162,7 @@ function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick
       <Icon size={14} style={{ color: T.ink[2], flexShrink: 0 }} />
       <span title={row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {row.label}{row.sub && <span style={{ color: T.ink[2], marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
-      {!!row.badge && <span title={`이상 ${row.badge}`} style={{ color: T.bg.base, fontSize: 10, fontWeight: 600, background: T.crit, borderRadius: T.radius, padding: '0 5px' }}>{row.badge}</span>}
+      {!!row.badge && <span title={`이상 ${row.badge}`} style={{ color: T.bg.base, fontSize: T.fs.xs, fontWeight: 600, background: T.crit, borderRadius: T.radius, padding: '0 5px' }}>{row.badge}</span>}
       {row.count > 0 && <span style={{ color: T.ink[2], fontSize: 11, background: T.bg.line, borderRadius: T.radius, padding: '0 6px' }}>{row.count}</span>}
       <span onClick={e => { e.stopPropagation(); onSolo(row) }} title={row.solo ? '이것만 보기 해제' : '이것만 보기 (Alt+눈 클릭)'} style={{ width: 20, display: 'grid', placeItems: 'center', color: row.solo ? T.accent : hov ? T.ink[3] : 'transparent' }}>
         <Focus size={14} /></span>
@@ -176,7 +176,7 @@ function Toggle({ icon: Icon, label, on, onClick, disabled }: { icon: LucideIcon
   const [hov, setHov] = useState(false)
   return <span style={{ position: 'relative' }} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
     <button onClick={onClick} disabled={disabled} aria-label={label}
-      style={{ width: 30, height: 30, display: 'grid', placeItems: 'center', border: '1px solid ' + (on ? T.accent : T.bg.line), borderRadius: 6, cursor: disabled ? 'default' : 'pointer', background: on ? T.accent : T.bg.surface, color: on ? T.bg.surface : disabled ? T.bg.line : T.ink[2] }}>
+      style={{ width: 30, height: 30, display: 'grid', placeItems: 'center', border: '1px solid ' + (on ? T.accent : T.bg.line), borderRadius: 6, cursor: disabled ? 'default' : 'pointer', background: on ? T.accent : T.bg.surface, color: on ? T.bg.base : disabled ? T.bg.line : T.ink[2] }}>
       <Icon size={15} /></button>
     {hov && <Tip>{label}</Tip>}
   </span>

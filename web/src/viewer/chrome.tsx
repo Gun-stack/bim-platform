@@ -41,7 +41,7 @@ export function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { i
   return <span style={{ position: 'relative', display: 'inline-block' }} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
     <button aria-label={label} onClick={onClick} disabled={disabled}
       style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', border: 0, borderRadius: T.radius, cursor: disabled ? 'default' : 'pointer',
-               background: active ? T.accent : hov && !disabled ? T.accentSoft : 'transparent', color: active ? T.bg.surface : disabled ? T.bg.line : T.ink[1], transition: 'background .12s' }}>
+               background: active ? T.accent : hov && !disabled ? T.accentSoft : 'transparent', color: active ? T.bg.base : disabled ? T.bg.line : T.ink[1], transition: 'background .12s' }}>
       <Icon size={18} strokeWidth={1.8} /></button>
     {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: T.ink[1], color: T.bg.base, padding: '4px 8px', borderRadius: T.radius, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: T.shadow }}>
       {label}{disabled && hint && <span style={{ opacity: 0.65 }}> · {hint}</span>}</span>}

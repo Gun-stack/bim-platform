@@ -9,7 +9,9 @@ import { T, num } from '../theme'
 
 /** 계통별 색 (ColorPanel 팔레트와 별개로 의미색 고정) */
 export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOMESTICCOLDWATER: 0x6a9ad9, WASTEWATER: 0x9c7b5a, FIREPROTECTION: 0xd46a62, SIGNAL: 0xa981d6, AIRCONDITIONING: 0x4fb3a6, CHILLEDWATER: 0x5aa7d6, VENTILATION: 0x93b552, DOMESTICHOTWATER: 0xd97a8c, GAS: 0xc9b24c, DATA: 0x9591dd, LIGHTING: 0xd9c65a,
-  비상전원: 0xe08a5a, 화재감지: 0xa981d6, 수송: 0xa39a91, 주차관제: 0x4fa39a }   // 팀 색(theme.ts)과 같은 계열의 낮은 채도 — 다크 배경 위 3D 채색용
+  비상전원: 0xb08a3a, 화재감지: 0xe09a94, 수송: 0xa39a91, 주차관제: 0x4fa39a }
+  // 규칙: 계통색은 소속 팀 색(theme.ts)의 명도 변형(화재감지=소방 연한 적, 비상전원=전기 어두운 금).
+  // 예외: 설비 배관은 현업 도색 관례가 우선 — 급수=청, 급탕=적, 가스=황, 오배수=갈, 환기=녹
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
 
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 선택 요소의 상류/하류 추적 */

@@ -341,7 +341,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {/* 그리드 설정: 평면(건축 z-up 기준 이름)·간격 — 그리드가 켜져 있을 때만 */}
           {opts.grid && <Floating id="grid" anchor={{ left: 8, bottom: 60, gap: 4, padding: '4px 8px', fontSize: 12 }}>
             {([['floor', '바닥 XY'], ['front', '정면 XZ'], ['side', '측면 YZ']] as const).map(([p, l]) =>
-              <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: T.radius, cursor: 'pointer', background: gridCfg.plane === p ? T.accent : 'transparent', color: gridCfg.plane === p ? T.bg.surface : T.ink[2], fontSize: 12 }}>{l}</button>)}
+              <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: T.radius, cursor: 'pointer', background: gridCfg.plane === p ? T.accent : 'transparent', color: gridCfg.plane === p ? T.bg.base : T.ink[2], fontSize: 12 }}>{l}</button>)}
             <input type="number" min={0.1} max={50} step={0.5} value={gridCfg.step} onChange={e => { const v = +e.target.value; if (Number.isFinite(v) && v >= 0.1 && v <= 50) setGridCfg({ ...gridCfg, step: v }) }} title="간격 (m)" style={{ width: 48, padding: '2px 4px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, fontSize: 12 }} /><span style={{ color: T.ink[2] }}>m</span>
           </Floating>}
 

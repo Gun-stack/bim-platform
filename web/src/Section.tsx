@@ -7,7 +7,7 @@ export function Section({ title, icon: Icon, count, open, onToggle, color, right
   return (
     <section style={{ border: `1px solid ${T.bg.line}`, borderRadius: T.radius, marginBottom: 12, background: T.bg.surface }}>
       <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', cursor: 'pointer', userSelect: 'none', borderBottom: open ? `1px solid ${T.bg.line}` : 'none' }}>
-        {Icon && <Icon size={15} style={{ color: color ?? T.accent }} />}<b style={{ fontSize: 14, color: color }}>{title}</b>{count != null && <span style={{ color: T.ink[2], fontSize: 12 }}>{count}</span>}
+        {Icon && <Icon size={15} style={{ color: color ?? T.accent }} />}<b style={{ fontSize: T.fs.lg, color: color }}>{title}</b>{count != null && <span style={{ color: T.ink[2], fontSize: T.fs.sm }}>{count}</span>}
         {right && <span onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto' }}>{right}</span>}
         <span style={{ marginLeft: right ? 8 : 'auto', color: T.ink[2], display: 'inline-flex' }}>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span></div>
       {open && <div style={{ padding: pad }}>{children}</div>}

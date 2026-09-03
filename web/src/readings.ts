@@ -7,8 +7,8 @@ export const READINGS: Record<string, Reading> = {
   LevelPercent: { label: '수위', unit: '%', order: 1, warn: v => v < 30, crit: v => v < 15 },
   FuelLevel: { label: '연료', unit: '%', order: 1, warn: v => v < 40, crit: v => v < 20 },
   COppm: { label: 'CO', unit: 'ppm', order: 1, warn: v => v >= 25, crit: v => v >= 50 },
-  Pressure: { label: '압력', unit: 'MPa', order: 1, warn: v => v < 0.3 },
-  PressureMPa: { label: '압력', unit: 'MPa', order: 1, warn: v => v < 3.5 },
+  Pressure: { label: '배관압', unit: 'MPa', order: 1, warn: v => v < 0.3 },        // 스프링클러 알람밸브 배관압
+  PressureMPa: { label: '충전압', unit: 'MPa', order: 1, warn: v => v < 3.5 },      // 가스계 소화약제 용기 충전압
   PressureBar: { label: '압력', unit: 'bar', order: 1, warn: v => v < 1.0 || v > 3.5 },
   OutletKPa: { label: '2차압', unit: 'kPa', order: 1, warn: v => v < 2.0 || v > 3.0 },
   OilTemp: { label: '유온', unit: '°C', order: 2, warn: v => v >= 70, crit: v => v >= 85 },

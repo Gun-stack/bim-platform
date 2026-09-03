@@ -15,7 +15,7 @@ export default function ObjectSummary({ modelId, detail, asset, openWos, onFm, n
   const teamsOf = (detail.systems ?? []).map(name => ({ name, team: TEAMS.find(t => t.systems.includes(name)) }))
   return (
     <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: T.radius, background: st === 'ALARM' ? T.critSoft : st === 'FAULT' ? T.warnSoft : T.bg.raised, border: '1px solid ' + (st === 'ALARM' ? T.crit : st === 'FAULT' ? T.warn : T.bg.line) }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.name ?? ''}>{detail.name}</b>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1, fontSize: T.fs.lg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.name ?? ''}>{detail.name}</b>
         {st && (isQuiet(st) ? <span style={{ color: T.ink[2], fontSize: T.fs.xs }}>{statusLabel(st)}</span> : <span style={badge(statusHex(st))}>{statusLabel(st)}</span>)}</div>
       <div style={{ color: T.ink[2], fontSize: 12, marginTop: 2 }}>{ifcKo(detail.ifcClass)} · {detail.spatialName ?? '위치 없음'}{teamsOf.length > 0 && <span style={{ marginLeft: 6, display: 'inline-flex', gap: 4 }}>{teamsOf.map(({ name, team }) => <span key={name} style={{ fontSize: T.fs.xs, color: team?.color ?? T.ink[2] }}>{name}</span>)}</span>}</div>
       {/* 좁은 패널(기본 340px)에서 단어 중간이 꺾이지 않게: 항목별 nowrap + 컨테이너 wrap */}

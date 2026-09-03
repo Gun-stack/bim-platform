@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, post, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Viewpoint } from '../api'
 import { WO_STATUS, type WoStatus } from '../status'
-import { btn, day, inp as inpBase } from '../ui'
+import { btn, btnPrimary, day, inp as inpBase } from '../ui'
 import { T } from '../theme'
 
 /** 우측 "자산" 탭. 선택 요소 ↔ asset 연결, 점검·작업지시. 자산 목록은 모델 단위로 한 번 받아 globalId 로 찾는다. */
@@ -80,7 +80,7 @@ function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Prom
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <b style={{ fontSize: 15 }}>{asset.tag}</b><span style={{ color: T.ink[2] }}>{asset.category}</span>
         <select value={asset.status} onChange={e => run(post(`/assets/${asset.id}`, { status: e.target.value }, 'PATCH'))} style={{ marginLeft: 'auto', fontSize: 12 }}>
-          <option value="ACTIVE">사용 중</option><option value="OUT_OF_SERVICE">고장/중지</option><option value="RETIRED">폐기</option></select>
+          <option value="ACTIVE">사용 중</option><option value="OUT_OF_SERVICE">사용 중지</option><option value="RETIRED">폐기</option></select>
       </div>
       {Object.keys(asset.attributes).length > 0 && <div style={{ fontSize: 12, color: T.ink[2], margin: '6px 0' }}>{Object.entries(asset.attributes).map(([k, v]) => <span key={k} style={{ marginRight: 8 }}>{k} <b>{String(v)}</b></span>)}</div>}
       <Err e={err} />
@@ -114,11 +114,11 @@ function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Prom
 }
 
 export function StatusBadge({ s }: { s: WoStatus }) {
-  const c = { OPEN: [T.crit, T.critSoft], IN_PROGRESS: [T.accent, T.accentSoft], DONE: [T.ok, T.okSoft] }[s]
+  // 대기(OPEN)는 중립 — 빨강은 경보·기한 초과의 몫 (급함은 우선순위 아이콘이 말한다)
+  const c = { OPEN: [T.ink[1], T.bg.line], IN_PROGRESS: [T.accent, T.accentSoft], DONE: [T.ok, T.okSoft] }[s]
   return <span style={{ padding: '1px 7px', borderRadius: 999, background: c[1], color: c[0], fontSize: 11, whiteSpace: 'nowrap' }}>{WO_STATUS[s]}</span>
 }
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => <label style={{ display: 'block', marginBottom: 8 }}><div style={{ fontSize: 11, color: T.ink[2], marginBottom: 2 }}>{label}</div>{children}</label>
 const Err = ({ e }: { e?: string }) => e ? <p style={{ color: T.crit, fontSize: 12 }}>{e}</p> : null
 const inp = { ...inpBase, width: '100%', boxSizing: 'border-box' as const }
-const btnPrimary = { ...btn, background: T.accent, color: T.bg.base, border: 0 }
 const h4 = { display: 'flex', alignItems: 'center', gap: 6, margin: '14px 0 6px', fontSize: 13 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { api } from './api'
 import { READINGS } from './readings'
-import { useEsc } from './ui'
+import { hm, useEsc } from './ui'
 import { T } from './theme'
 
 type Pt = { at: string; data: Record<string, unknown> }
@@ -23,7 +23,7 @@ export default function TrendModal({ modelId, globalId, name, onClose }: { model
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ background: T.bg.surface, borderRadius: T.radius, padding: '14px 16px', width: 'min(500px, 92vw)', maxHeight: '86vh', overflow: 'auto', boxShadow: T.shadow }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <b style={{ fontSize: 14 }}>{name}</b><span style={{ color: T.ink[2], fontSize: 12 }}>계측 트렌드</span>
+          <b style={{ fontSize: T.fs.lg }}>{name}</b><span style={{ color: T.ink[2], fontSize: T.fs.sm }}>계측 트렌드</span>
           <button onClick={onClose} aria-label="닫기" style={{ marginLeft: 'auto', border: 0, background: 'none', cursor: 'pointer', color: T.ink[2], padding: 4 }}><X size={16} /></button>
         </div>
         {pts === null ? <div style={{ color: T.ink[2], padding: 20, fontSize: 13 }}>불러오는 중…</div>
@@ -45,14 +45,13 @@ function Chart({ k, s }: { k: string; s: S }) {
   const hi = hover === null ? null : s[hover], cur = hi ?? s[s.length - 1]
   const lvl = (v: number) => r?.crit?.(v) ? T.crit : r?.warn?.(v) ? T.warn : T.ink[1]
   const fmt = (v: number) => `${Number.isInteger(v) ? v : v.toFixed(1)}${r?.unit ?? ''}`
-  const hhmm = (t: number) => new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
         <b style={{ color: T.ink[1] }}>{r?.label ?? k}</b>
         <b style={{ color: lvl(cur.v), fontSize: 13 }}>{fmt(cur.v)}</b>
-        <span style={{ color: T.ink[2] }}>{hi ? hhmm(hi.at) : '현재'}</span>
-        <span style={{ marginLeft: 'auto', color: T.ink[2] }}>{fmt(min)}~{fmt(max)} · {s.length}건 · {hhmm(t0)}–{hhmm(t1)}</span>
+        <span style={{ color: T.ink[2] }}>{hi ? hm(hi.at) : '현재'}</span>
+        <span style={{ marginLeft: 'auto', color: T.ink[2] }}>{fmt(min)}~{fmt(max)} · {s.length}건 · {hm(t0)}–{hm(t1)}</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${r?.label ?? k} 트렌드`} style={{ display: 'block', background: T.bg.base, borderRadius: 6, marginTop: 3, cursor: 'crosshair' }}
            onMouseMove={e => { const b = e.currentTarget.getBoundingClientRect(); const t = t0 + Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)) * (t1 - t0)
