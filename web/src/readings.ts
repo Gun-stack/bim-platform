@@ -1,4 +1,8 @@
+import { dateTime } from './ui'
 import { T } from './theme'
+
+/** 타임스탬프 값 → ko-KR 표기 (파싱 안 되면 원문) */
+const ts = (v: unknown) => { const d = new Date(String(v)); return Number.isNaN(+d) ? String(v) : dateTime(d) }
 
 /** Pset_BimStatus 계측값 사전 — 모니터 행·툴팁·속성 패널이 공유. order 가 작을수록 앞에(대표값). warn/crit 는 (값) => 이상 여부 */
 export type Reading = { label: string; unit?: string; order: number; warn?: (v: number) => boolean; crit?: (v: number) => boolean; fmt?: (v: unknown) => string }
@@ -42,7 +46,7 @@ export const READINGS: Record<string, Reading> = {
   Floor: { label: '층', order: 1 }, Direction: { label: '방향', order: 2, fmt: v => ({ UP: '상행', DOWN: '하행', IDLE: '정지' } as Record<string, string>)[String(v)] ?? String(v) },
   Open: { label: '개폐', order: 1, fmt: v => v ? '열림' : '닫힘' }, On: { label: '점등', order: 1, fmt: v => v ? '점등' : '소등' }, Charging: { label: '충전', order: 1, fmt: v => v ? '충전 중' : '대기' }, OnBattery: { label: '배터리 운전', order: 1, fmt: v => v ? '예' : '아니오', warn: v => !!v },
   Breaker: { label: '차단기', order: 1, fmt: v => ({ CLOSED: '투입', OPEN: '트립' } as Record<string, string>)[String(v)] ?? String(v) }, Source: { label: '전원', order: 1, fmt: v => ({ UTILITY: '한전', GENERATOR: '발전기' } as Record<string, string>)[String(v)] ?? String(v) },
-  Scene: { label: '씬', order: 3 }, Text: { label: '표시', order: 1 }, LastTest: { label: '점검', order: 4 }, AlarmAt: { label: '발생', order: 4 },
+  Scene: { label: '씬', order: 3 }, Text: { label: '표시', order: 1 }, LastTest: { label: '점검', order: 4 }, AlarmAt: { label: '발생', order: 4, fmt: ts }, AckAt: { label: '확인', order: 4, fmt: ts },
 }
 const SKIP = new Set(['Status', 'UpdatedAt'])
 export type Shown = { key: string; label: string; text: string; level: 'ok' | 'warn' | 'crit'; order: number }

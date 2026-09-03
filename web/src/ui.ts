@@ -5,8 +5,10 @@ import { T } from './theme'
 
 /** API 의 date 는 ISO 타임스탬프 문자열로 온다 → YYYY-MM-DD */
 export const day = (s?: string | null) => s ? s.slice(0, 10) : ''
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 /** 로컬 자정 기준 오늘 — toISOString(UTC)이면 KST 00~09시에 어제가 되어 지연 판정이 하루 어긋난다 */
-export const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+export const today = () => ymd(new Date())
+export const plusDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d) }
 /** 시각 표기는 이 두 개만 — 화면마다 toLocale*() 직접 호출 금지 (로케일·12시제가 브라우저마다 갈린다) */
 export const hm = (s: string | number | Date) => new Date(s).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 export const hms = (s: string | number | Date) => new Date(s).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })

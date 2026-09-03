@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUp, X } from 'lucide-react'
-import { post, type Asset, type Priority, type WorkOrder } from './api'
+import { api, post, type Asset, type Priority, type StatusRow, type WorkOrder } from './api'
 import { StatusBadge } from './viewer/FmPanel'
+import { patchStatus, statusPatchFor } from './statusApi'
 import { btn, btnPrimary, dateTime, day, inp, useEsc, woOverdue } from './ui'
-import { WO_STATUS } from './status'
+import { setHashParam, useHashQuery } from './useHashQuery'
+import { isAbnormal, statusLabel, WO_STATUS } from './status'
 import { TEAMS, teamOfSystems } from './teams'
 import { ifcKo } from './ifcNames'
 import { T } from './theme'
@@ -18,13 +20,20 @@ const NEXT: Record<WorkOrder['status'], { s: WorkOrder['status']; label: string 
 const overdue = (w: WorkOrder) => woOverdue(w.dueOn, w.status)
 
 export default function FmBoard({ modelId, wos: server, assets, reload, openWoId }: { modelId: string; wos: WorkOrder[]; assets: Asset[]; reload: () => Promise<unknown>; openWoId?: string }) {
-  const [q, setQ] = useState(''); const [team, setTeam] = useState<string>(); const [assignee, setAssignee] = useState<string>(); const [onlyOverdue, setOnlyOverdue] = useState(false)
+  // 필터는 해시 쿼리와 동기화 (§7-3) — 초기값만 읽고 변경은 replaceState
+  const hq = useHashQuery()
+  const [q, setQS] = useState(() => hq.get('q') ?? ''); const [team, setTeamS] = useState<string | undefined>(() => hq.get('team') ?? undefined)
+  const [assignee, setAssigneeS] = useState<string | undefined>(() => hq.get('assignee') ?? undefined); const [onlyOverdue, setOnlyOverdueS] = useState(hq.has('overdue'))
+  const setQ = (v: string) => { setQS(v); setHashParam('q', v) }
+  const setTeam = (v?: string) => { setTeamS(v); setHashParam('team', v) }
+  const setAssignee = (v?: string) => { setAssigneeS(v); setHashParam('assignee', v) }
+  const setOnlyOverdue = (v: boolean) => { setOnlyOverdueS(v); setHashParam('overdue', v ? '1' : undefined) }
   const [open, setOpen] = useState<WorkOrder>(); const [creating, setCreating] = useState(false); const [dragOver, setDragOver] = useState<string>(); const [dragging, setDragging] = useState<string>()
   const [pending, setPending] = useState<Record<string, WorkOrder['status']>>({})   // 낙관적 상태: 서버 응답 전 카드를 먼저 옮김
-  const [toast, setToast] = useState<{ msg: string; undo?: () => void; error?: boolean }>()
+  const [toast, setToast] = useState<{ msg: string; undo?: () => void; error?: boolean; act?: { label: string; fn: () => void } }>()
   const [folded, setFolded] = useState<Set<WorkOrder['status']>>(() => { try { return new Set(JSON.parse(localStorage.getItem('fm.foldedCols') ?? '["DONE"]')) } catch { return new Set<WorkOrder['status']>(['DONE']) } })   // 접힌 열 — 완료는 쌓이기만 하니 기본 접힘
   const fold = (s: WorkOrder['status']) => setFolded(f => { const n = new Set(f); if (n.has(s)) n.delete(s); else n.add(s); try { localStorage.setItem('fm.foldedCols', JSON.stringify([...n])) } catch { /* 저장 불가 환경 */ } return n })
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(undefined), toast.error ? 6000 : 4000); return () => clearTimeout(t) }, [toast])
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(undefined), toast.act ? 10000 : toast.error ? 6000 : 4000); return () => clearTimeout(t) }, [toast])
   const applied = useRef<string>(undefined)   // 딥링크 1회 적용 — 사용자가 Drawer 를 닫으면 다시 열지 않는다
   useEffect(() => {
     if (!openWoId || applied.current === openWoId) return
@@ -41,9 +50,18 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
     if (w.status === s) return Promise.resolve()
     const from = w.status; setPending(p => ({ ...p, [w.id]: s }))
     return post(`/work-orders/${w.id}`, { status: s }, 'PATCH').then(reload)
-      .then(() => undo && setToast({ msg: `"${w.title}" → ${WO_STATUS[s]}`, undo: () => move({ ...w, status: s }, from, false) }))
+      .then(() => { if (undo) return recoverHint(w, s).then(act => setToast({ msg: `"${w.title}" → ${WO_STATUS[s]}${act ? ` — 장비는 아직 ${act.st}` : ''}`, undo: () => move({ ...w, status: s }, from, false), act: act?.act })) })
       .catch(e => setToast({ msg: `이동 실패: ${e.message}`, error: true }))
       .finally(() => setPending(p => { const { [w.id]: _, ...rest } = p; return rest }))
+  }
+  /** 완료했는데 장비가 아직 경보·장애면 원클릭 복구 제안 — 자동 복구는 안 한다(실제 해제는 BMS/현장 확인의 몫) */
+  const recoverHint = (w: WorkOrder, s: WorkOrder['status']): Promise<{ st: string; act: { label: string; fn: () => void } } | undefined> => {
+    if (s !== 'DONE' || !w.globalId) return Promise.resolve(undefined)
+    return api<StatusRow[]>(`/models/${modelId}/status`).then(rows => {
+      const st = rows.find(r => r.globalId === w.globalId)?.status?.Status
+      if (!isAbnormal(st)) return undefined
+      return { st: statusLabel(st), act: { label: '정상 복구', fn: () => { patchStatus(modelId, w.globalId!, statusPatchFor('NORMAL')).then(reload).then(() => setToast({ msg: `${w.elementName ?? w.assetTag} 정상 복구됨` })) } } }
+    }).catch(() => undefined)
   }
   const viewerUrl = (w: WorkOrder) => { const p = new URLSearchParams({ wo: w.id }); if (w.viewpoint?.v) p.set('v', w.viewpoint.v.join(',')); const sel = w.viewpoint?.sel ?? (w.globalId ? [w.globalId] : undefined); if (sel) p.set('sel', sel.join(',')); if (w.viewpoint?.clip) p.set('clip', w.viewpoint.clip.join(',')); if (!w.viewpoint?.v) p.set('focus', '1'); return `#/models/${modelId}?${p}` }
 
@@ -82,7 +100,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
       </div>
 
       {toast && <div role="status" style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', background: toast.error ? T.crit : T.ink[1], color: T.bg.base, padding: '8px 14px', borderRadius: T.radius, fontSize: 12, display: 'flex', gap: 12, alignItems: 'center', boxShadow: T.shadow, zIndex: 50 }}>
-        <span>{toast.msg}</span>{toast.undo && <button onClick={() => { toast.undo!(); setToast(undefined) }} style={{ ...btn, background: 'transparent', color: T.bg.base, border: '1px solid currentcolor', padding: '2px 8px', fontWeight: 600 }}>되돌리기</button>}</div>}
+        <span>{toast.msg}</span>{toast.act && <button onClick={() => { toast.act!.fn(); setToast(undefined) }} style={{ ...btn, background: T.ok, color: T.bg.base, border: 0, padding: '2px 8px', fontWeight: 600 }}>{toast.act.label}</button>}{toast.undo && <button onClick={() => { toast.undo!(); setToast(undefined) }} style={{ ...btn, background: 'transparent', color: T.bg.base, border: '1px solid currentcolor', padding: '2px 8px', fontWeight: 600 }}>되돌리기</button>}</div>}
       {open && <Drawer key={open.id} w={wos.find(x => x.id === open.id) ?? open} modelId={modelId} viewerUrl={viewerUrl(open)} onClose={() => setOpen(undefined)} reload={reload} move={move} />}
       {creating && <CreateModal assets={assets} onClose={() => setCreating(false)} reload={reload} />}
     </div>

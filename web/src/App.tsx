@@ -17,7 +17,7 @@ const useHash = () => {
 }
 
 export default function App() {
-  const h = useHash(), m = h.match(/^#\/models\/([0-9a-f-]{36})(\/fm|\/monitor)?/), kiosk = h.includes('kiosk')
+  const h = useHash(), m = h.match(/^#\/models\/([0-9a-f-]{36})(\/fm|\/monitor)?/), kiosk = new URLSearchParams(h.split('?')[1] ?? '').has('kiosk')   // includes('kiosk') 는 ?sel= 값에 우연히 걸린다
   const page = h.startsWith('#/map') ? <MapPage /> : m ? (m[2] === '/fm' ? <FmPage modelId={m[1]} /> : m[2] === '/monitor' ? <MonitorPage modelId={m[1]} /> : <Viewer modelId={m[1]} />) : <Models />
   return <><Suspense fallback={<main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', color: T.ink[2] }}><Loader2 className="spin" /> 불러오는 중…</main>}>{page}</Suspense>
     {/* 맥락 독: 모델 화면 셋 공통, 벽면(kiosk) 제외 */}

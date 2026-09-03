@@ -52,7 +52,7 @@ export default function MapPage() {
         new maplibregl.Popup({ closeButton: false, maxWidth: '280px' }).setLngLat(e.lngLat).setHTML(`
           <div style="font:13px system-ui"><b>${p.name}</b><div style="color:${T.ink[2]};font-size:12px;margin:2px 0 6px">
           ${p.manual ? '수동 배치' : p.georefSource}${p.crs ? ' · ' + p.crs : ''} · ${p.areaM2} m² · 요소 ${p.elementCount}</div>
-          <a href="#/models/${p.id}" style="margin-right:8px">3D 뷰어</a><a href="#/models/${p.id}/fm">시설관리</a></div>`).addTo(m)
+          <a href="#/models/${p.id}" style="margin-right:8px">3D 뷰어</a><a href="#/models/${p.id}/monitor" style="margin-right:8px">모니터링</a><a href="#/models/${p.id}/fm">시설관리</a></div>`).addTo(m)
       })
       m.on('mouseenter', 'fp-fill', () => { if (!placingRef.current) m.getCanvas().style.cursor = 'pointer' })
       m.on('mouseleave', 'fp-fill', () => { if (!placingRef.current) m.getCanvas().style.cursor = '' })

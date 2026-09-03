@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
-import { btn, btnPrimary, day, inp, inspectionOverdue } from './ui'
+import { btn, btnPrimary, day, inp, inspectionOverdue, plusDays } from './ui'
 import { ifcKo } from './ifcNames'
 import FmBoard from './FmBoard'
 import { useHashQuery } from './useHashQuery'
@@ -23,6 +23,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [syncMsg, setSyncMsg] = useState<string>()
   const [aq, setAq] = useState(''); const [acat, setAcat] = useState(''); const [ast, setAst] = useState('')   // 자산 대장 필터
   const [aod, setAod] = useState(false)   // 점검 지연만 보기
+  const [aup, setAup] = useState(false)   // 점검 예정(30일)만 보기 — 예방정비 계획용
   const reload = useCallback(() => Promise.all([api<Asset[]>(`/models/${modelId}/assets`), api<WorkOrder[]>(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
   const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 5초 폴링 — 이상 배너 + 전역 경보 토스트
   useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
@@ -35,7 +36,10 @@ export default function FmPage({ modelId }: { modelId: string }) {
   useEffect(() => { if (selAsset) setAq(selAsset.tag) }, [selAsset?.id])
   const isOverdue = (a: Asset) => inspectionOverdue(a.nextDueOn, a.status)
   const overdue = assets.filter(isOverdue).length
-  const filteredAssets = assets.filter(a => (!acat || a.category === acat) && (!ast || a.storey === ast) && (!aod || isOverdue(a)) && (!aq || [a.tag, a.elementName].some(x => x?.toLowerCase().includes(aq.toLowerCase()))))
+  const isSoon = (a: Asset) => a.status === 'ACTIVE' && !!a.nextDueOn && day(a.nextDueOn) <= plusDays(30)   // 지연 포함 — "이번 달 점검할 것"
+  const soon = assets.filter(isSoon).length
+  const filtered = assets.filter(a => (!acat || a.category === acat) && (!ast || a.storey === ast) && (!aod || isOverdue(a)) && (!aup || isSoon(a)) && (!aq || [a.tag, a.elementName].some(x => x?.toLowerCase().includes(aq.toLowerCase()))))
+  const filteredAssets = aup ? [...filtered].sort((a, b) => day(a.nextDueOn!).localeCompare(day(b.nextDueOn!))) : filtered   // 예정 보기는 날짜순
 
 
   return (
@@ -77,6 +81,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <select value={acat} onChange={e => setAcat(e.target.value)} style={inp}><option value="">분류 전체</option>{[...new Set(assets.map(a => a.category).filter(Boolean) as string[])].sort((x, y) => ifcKo(x).localeCompare(ifcKo(y))).map(c => <option key={c} value={c}>{ifcKo(c)}</option>)}</select>
           <select value={ast} onChange={e => setAst(e.target.value)} style={inp}><option value="">층 전체</option>{[...new Set(assets.map(a => a.storey).filter(Boolean) as string[])].map(s => <option key={s}>{s}</option>)}</select>
           <button onClick={() => setAod(!aod)} title="점검 주기를 넘긴 자산만" style={{ ...btn, ...(aod ? { background: T.crit, color: T.bg.base, border: `1px solid ${T.crit}` } : { color: overdue ? T.crit : T.ink[2] }) }}>지연 {overdue}</button>
+          <button onClick={() => setAup(!aup)} title="다음 점검이 30일 안인 자산만 (지연 포함) — 날짜순 정렬" style={{ ...btn, ...(aup ? { background: T.accent, color: T.bg.base, border: `1px solid ${T.accent}` } : { color: T.ink[2] }) }}>예정 30일 {soon}</button>
           <span style={{ color: T.ink[2], fontSize: 12 }}>{filteredAssets.length} / {assets.length}</span>
         </div>
         <div style={{ border: `1px solid ${T.bg.line}`, borderRadius: T.radius, overflow: 'hidden' }}>
@@ -93,7 +98,9 @@ export default function FmPage({ modelId }: { modelId: string }) {
                    style={{ ...inp, width: 42, padding: '2px 4px', fontSize: 12 }} />
             {a.nextDueOn ? <span style={{ color: isOverdue(a) ? T.crit : T.ink[2], fontWeight: isOverdue(a) ? 600 : 400 }}>{day(a.nextDueOn)}{isOverdue(a) ? ' 지연' : ''}</span> : <span style={{ color: T.bg.line }}>—</span>}
           </span>
-          <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}` : '—'}</span>
+          <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}`
+            : isOverdue(a) ? <button onClick={() => post(`/assets/${a.id}/work-orders`, { title: `정기점검: ${a.elementName ?? a.tag}`, dueOn: plusDays(7), assignee: null }).then(reload)} title="점검이 지연된 자산 — 예방정비 작업지시 생성 (기한 7일)" style={{ ...btn, padding: '1px 7px', fontSize: 11 }}>작업지시</button>
+            : '—'}</span>
           <span style={{ display: 'flex', justifyContent: 'flex-end' }}><NavLinks modelId={modelId} gid={a.globalId} style={{ fontSize: 12 }} /></span>
         </div>)}
         {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 모니터링의 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}

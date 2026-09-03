@@ -4,26 +4,42 @@ import ObjectDrawer from './ObjectDrawer'
 import { objLinks, selQ } from './context'
 import { api, post, type Model } from './api'
 import { TEAMS, teamOfSystems } from './teams'
-import { day, btn, hm, hms } from './ui'
+import { day, btn, dateTime, hm, hms } from './ui'
+import { patchStatus } from './statusApi'
 import { isQuiet, statusUi, WO_STATUS, type WoStatus } from './status'
 import { KEY_EQUIP, isAbn, overdue, rank, teamStats, worst, type Ev, type Row, type StatRow } from './monitor'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
-import { useHashQuery } from './useHashQuery'
+import { setHashParam, useHashQuery } from './useHashQuery'
 import { T } from './theme'
 
 /** #/models/{id}/monitor — 건물 요약 → 팀 KPI → 팀 × 층 격자 + 최근 이벤트. 5초 자동 갱신. ?kiosk=1 은 관제실 벽면용 */
+type Mode = 'abnormal' | 'equipment' | 'all'
+
 export default function MonitorPage({ modelId }: { modelId: string }) {
-  const kiosk = useHashQuery().has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대·이상만
+  const hq = useHashQuery()
+  const kiosk = hq.has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대·이상만
+  const modeDefault: Mode = kiosk ? 'abnormal' : 'equipment'
   const [model, setModel] = useState<Model>()
   const [rows, setRows] = useState<Row[]>([]); const [power, setPower] = useState('UNKNOWN'); const [events, setEvents] = useState<Ev[]>([])
-  const [team, setTeam] = useState<string>(); const [storeyF, setStoreyF] = useState<string>(); const [mode, setMode] = useState<'abnormal' | 'equipment' | 'all'>(kiosk ? 'abnormal' : 'equipment'); const [tick, setTick] = useState(new Date())
+  // 필터는 해시 쿼리와 동기화 — "소방 이상만 B1" 화면을 링크로 공유·북마크 (§7-3). 초기값만 읽고 변경은 replaceState
+  const [team, setTeamS] = useState<string | undefined>(() => hq.get('team') ?? undefined)
+  const [storeyF, setStoreyFS] = useState<string | undefined>(() => hq.get('storey') ?? undefined)
+  const [mode, setModeS] = useState<Mode>(() => (['abnormal', 'equipment', 'all'] as const).find(m => m === hq.get('mode')) ?? modeDefault)
+  const [days, setDaysS] = useState(() => [7, 30, 90].find(d => d === +(hq.get('days') ?? 0)) ?? 30)
+  const setTeam = (v?: string) => { setTeamS(v); setHashParam('team', v) }
+  const setStoreyF = (v?: string) => { setStoreyFS(v); setHashParam('storey', v) }
+  const setMode = (v: Mode) => { setModeS(v); setHashParam('mode', v === modeDefault ? undefined : v) }
+  const setDays = (v: number) => { setDaysS(v); setHashParam('days', v === 30 ? undefined : String(v)) }
+  const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
   const [trend, setTrend] = useState<{ globalId: string; name: string | null } | null>(null)   // 계측 트렌드 모달
   const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true, stats: false })
-  const [days, setDays] = useState(30); const [stats, setStats] = useState<StatRow[]>([])   // 경보 통계 — 섹션이 열려 있을 때만 갱신
-  const [flash, setFlash] = useState<Set<string>>(new Set()); const [sound, setSound] = useState(false); const prevAbn = useRef<Set<string> | null>(null); const soundRef = useRef(false); useEffect(() => { soundRef.current = sound }, [sound])
+  const [stats, setStats] = useState<StatRow[]>([])   // 경보 통계 — 섹션이 열려 있을 때만 갱신
+  const [flash, setFlash] = useState<Set<string>>(new Set()); const prevAbn = useRef<Set<string> | null>(null)
+  const [sound, setSound] = useState(() => { try { return localStorage.getItem('monitor.sound') === '1' } catch { return false } })   // 관제실 상시 설정 — 세션 넘어 유지
+  const soundRef = useRef(false); useEffect(() => { soundRef.current = sound; try { localStorage.setItem('monitor.sound', sound ? '1' : '0') } catch { /* 저장 불가 환경 */ } }, [sound])
   const load = useCallback(() => Promise.all([api<{ power: string; rows: Row[] }>(`/models/${modelId}/monitor`), api<{ unpowered: string[] }>(`/models/${modelId}/power`).catch(() => ({ unpowered: [] as string[] })), api<Ev[]>(`/models/${modelId}/monitor/events`).catch(() => [] as Ev[])])
     .then(([d, pw, ev]) => {
       const abn = new Set<string>(d.rows.filter(isAbn).map(r => r.globalId))
@@ -34,7 +50,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   useEffect(() => { if (sec.stats) api<StatRow[]>(`/models/${modelId}/monitor/stats?days=${days}`).then(setStats).catch(() => {}) }, [modelId, days, sec.stats, tick])
 
   // ?sel={gid} 딥링크: 해당 행으로 스크롤 + 4초 플래시 (기존 .fresh 재사용). 현재 필터에 안 잡히는 행이면 '전체' 모드로
-  const sel = useHashQuery().get('sel')
+  const sel = hq.get('sel')
   const gotRows = rows.length > 0
   useEffect(() => {
     if (!sel || !gotRows) return
@@ -74,6 +90,9 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>설비 모니터링</span></h1>
         <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: T.ink[2], cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} /> 알림음</label>
         <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 * fs }}>갱신 {hms(tick)} · 5초</span>
+        {(() => { const q = new URLSearchParams(hq); if (kiosk) q.delete('kiosk'); else q.set('kiosk', '1'); const url = `#/models/${modelId}/monitor${q.size ? '?' + q.toString() : ''}`
+          return kiosk ? <a href={url} style={{ color: T.ink[3], fontSize: 12 * fs, textDecoration: 'none' }}>키오스크 해제</a>
+            : <a href={url} title="벽면 모드 — 내비 숨김 · 글자 확대 · 이상만" style={btn}>키오스크</a> })()}
         {!kiosk && <><a href={`#/models/${modelId}${selQ(sel)}`} style={btn}>3D 뷰어</a><a href={`#/models/${modelId}/fm${selQ(sel)}`} style={btn}>시설관리</a></>}
       </div>
 
@@ -107,7 +126,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (
         <Section title="지금 처리할 것" color={todo.some(isAbn) ? T.crit : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}{!todo.length && <span style={{ color: T.ok, marginLeft: 6 }}>이상·미처리 없음</span>}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
           {todo.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '2px 14px' }}>
-            {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: T.ink[3], fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} /></div>)}
+            {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: T.ink[3], fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} reload={load} /></div>)}
             {todo.length > 12 && <div style={{ color: T.ink[2], fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
         </Section>) })()}
 
@@ -137,7 +156,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             </div>
             {visibleTeams.map(t => { const rs = cell(st, t); return (
               <div key={st + t.key} style={{ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, padding: 6, minHeight: 44 }}>
-                {rs.map(r => <RowView key={r.globalId} r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} />)}
+                {rs.map(r => <RowView key={r.globalId} r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} reload={load} />)}
                 {!rs.length && <div style={{ color: T.ink[3], fontSize: 12 * fs, padding: 4 }}>{mode === 'abnormal' ? '이상 없음' : '—'}</div>}
               </div>) })}
           </div> })}
@@ -190,13 +209,14 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 const Stat = ({ label, n, color, sub }: { label: string; n: number; color: string; sub?: string }) => (
   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><span style={{ color: T.ink[2] }}>{label}</span><b style={{ color: n === 0 ? T.ink[3] : color }}>{n}</b>{sub && <span style={{ color: T.ink[2], fontSize: '0.9em' }}>{sub}</span>}</span>)
 
-function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number; onTrend?: (t: { globalId: string; name: string | null }) => void }) {
+function RowView({ r, modelId, dead, fresh, fs, onTrend, reload }: { r: Row; modelId: string; dead?: boolean; fresh?: boolean; fs: number; onTrend?: (t: { globalId: string; name: string | null }) => void; reload?: () => void }) {
   const hasNum = Object.entries(r.status ?? {}).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt')
   const s = r.status?.Status, st = dead ? { label: '무전원', color: T.ink[1] } : statusUi(s), quiet = !dead && isQuiet(s)   // 정상 계열은 무색 — 색은 이상에만
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
+  const ack = typeof r.status?.AckAt === 'string' ? r.status.AckAt : undefined   // 경보 확인 — 상태 전이 시 서버 패치가 지운다(statusPatchFor)
   return (
     <a data-gid={r.globalId} href={`#/models/${modelId}/monitor${selQ(r.globalId)}`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 객체 패널 · 3D 아이콘: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
-       style={{ display: 'block', padding: '3px 6px', borderRadius: T.radius, textDecoration: 'none', color: T.ink[1], fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? T.critSoft : T.warnSoft) : dead ? T.bg.raised : worst(r) === 'crit' ? T.critSoft : worst(r) === 'warn' ? T.warnSoft : 'transparent', opacity: dead ? 0.7 : 1 }}>
+       style={{ display: 'block', padding: '3px 6px', borderRadius: T.radius, textDecoration: 'none', color: T.ink[1], fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? T.critSoft : T.warnSoft) : dead ? T.bg.raised : worst(r) === 'crit' ? T.critSoft : worst(r) === 'warn' ? T.warnSoft : 'transparent', opacity: dead ? 0.7 : abnormal && ack ? 0.8 : 1 }}>
       <span style={{ display: 'grid', gridTemplateColumns: '10px minmax(60px, 1fr) minmax(0, auto) auto', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? T.bg.line }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: T.ink[2], marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
@@ -205,7 +225,11 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend }: { r: Row; modelId: st
             : r.assetTag ? r.assetTag : ''}
           {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: T.crit, marginLeft: 4 }}>결함</b> : ''}
           {overdue(r) ? <b style={{ color: T.warn, marginLeft: 4 }} title={`다음 점검 ${day(r.nextDueOn!)} 지남`}>점검 지연</b> : ''}</span>
-        <b style={{ color: quiet ? T.ink[2] : st?.color ?? T.ink[3], fontWeight: quiet ? 400 : 600, minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}{hasNum && onTrend && <span className="row-act" onClick={e => { e.preventDefault(); e.stopPropagation(); onTrend({ globalId: r.globalId, name: r.name }) }} title="계측 트렌드" style={{ color: T.accent, cursor: 'pointer', marginLeft: 6, fontWeight: 400 }}>트렌드</span>}<span className="row-act" onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = objLinks(modelId, r.globalId).viewer }} title="3D 위치 — 뷰어에서 구역 강조" style={{ color: T.accent, cursor: 'pointer', marginLeft: 6, fontWeight: 400 }}>3D</span></b>
+        <b style={{ color: quiet ? T.ink[2] : st?.color ?? T.ink[3], fontWeight: quiet ? 400 : 600, minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}
+          {abnormal && !dead && (ack
+            ? <span title={`경보 확인 ${dateTime(ack)}`} style={{ color: T.ink[2], marginLeft: 6, fontWeight: 400 }}>✓ {hm(ack)}</span>
+            : reload && <span onClick={e => { e.preventDefault(); e.stopPropagation(); patchStatus(modelId, r.globalId, { AckAt: new Date().toISOString() }).then(reload) }} title="경보 확인 — 누가 봤는지 시각을 남긴다 (상태가 바뀌면 자동 해제)" style={{ color: T.accent, cursor: 'pointer', marginLeft: 6, fontWeight: 600 }}>확인</span>)}
+          {hasNum && onTrend && <span className="row-act" onClick={e => { e.preventDefault(); e.stopPropagation(); onTrend({ globalId: r.globalId, name: r.name }) }} title="계측 트렌드" style={{ color: T.accent, cursor: 'pointer', marginLeft: 6, fontWeight: 400 }}>트렌드</span>}<span className="row-act" onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = objLinks(modelId, r.globalId).viewer }} title="3D 위치 — 뷰어에서 구역 강조" style={{ color: T.accent, cursor: 'pointer', marginLeft: 6, fontWeight: 400 }}>3D</span></b>
       </span>
       {rs.length > 0 && <span style={{ display: 'block', paddingLeft: 16, marginTop: 1, fontSize: 11 * fs, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {rs.slice(0, 3).map(x => <span key={x.key} style={{ color: LEVEL_COLOR[x.level], fontWeight: x.level === 'ok' ? 400 : 600, marginRight: 8 }}>{x.label} {x.text}</span>)}{rs.length > 3 && <span style={{ color: T.ink[3] }}>+{rs.length - 3}</span>}</span>}
