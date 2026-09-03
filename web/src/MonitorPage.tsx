@@ -107,7 +107,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           : <b style={{ fontSize: 15 * fs }}>건물 정상</b>}
         <Stat label="경보" n={tot.alarm} color={T.crit} onClick={goTodo} title="조치 필요 목록으로" /><Stat label="장애" n={tot.fault} color={T.warn} onClick={goTodo} title="조치 필요 목록으로" /><Stat label="계측 주의" n={tot.reading} color={T.warn} onClick={goTodo} title="조치 필요 목록으로" />
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-          <Stat label="작업지시" n={tot.wo} color={T.accent} href={kiosk ? undefined : `#/models/${modelId}/fm`} title="시설관리 칸반으로" />
+          <Stat label="작업지시" n={tot.wo} color={T.accent} href={kiosk ? undefined : `#/models/${modelId}/fm`} title="시설관리 작업지시 보드로" />
           {tot.unassigned > 0 && (kiosk ? <span style={{ color: T.ink[2], fontSize: '0.9em' }}>미배정 {tot.unassigned}</span>
             : <a className="stat-link" href={`#/models/${modelId}/fm?assignee=none`} title="작업지시 보드에서 미배정만" style={{ color: T.ink[2], fontSize: '0.9em' }}>미배정 {tot.unassigned}</a>)}
         </span>
@@ -182,7 +182,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             <a key={i} href={e.globalId ? e.kind === 'WORK_ORDER' ? `#/models/${modelId}/fm?sel=${encodeURIComponent(e.globalId)}` : `#/models/${modelId}?sel=${encodeURIComponent(e.globalId)}&focus=1` : undefined} style={{ display: 'grid', gridTemplateColumns: `${40 * fs}px 1fr`, gap: 6, padding: '4px 4px', borderTop: `1px solid ${T.bg.raised}`, textDecoration: 'none', color: T.ink[1], fontSize: 12 * fs }}>
               <span style={{ color: T.ink[2], fontSize: 11 * fs, whiteSpace: 'nowrap' }}>{e.at ? hm(e.at) : '—'}</span>
               <span style={{ minWidth: 0 }}>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.kind === 'WORK_ORDER' ? <><span style={{ color: T.accent }}>WO</span> {e.woTitle}</> : <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: statusUi(e.status)?.color ?? T.ink[3], marginRight: 4 }} />{e.name} → <b style={{ color: abn ? statusUi(e.status)!.color : T.ink[2] }}>{statusUi(e.status)?.label ?? e.status}</b></>}</div>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.kind === 'WORK_ORDER' ? <><span style={{ color: T.accent }}>작업지시</span> {e.woTitle}</> : <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: statusUi(e.status)?.color ?? T.ink[3], marginRight: 4 }} />{e.name} → <b style={{ color: abn ? statusUi(e.status)!.color : T.ink[2] }}>{statusUi(e.status)?.label ?? e.status}</b></>}</div>
                 <div style={{ color: T.ink[2], fontSize: 11 * fs }}>{e.storey ?? ''}{e.kind === 'WORK_ORDER' ? ` · 작업지시 ${WO_STATUS[e.woStatus as WoStatus] ?? e.woStatus}` : ''}</div>
               </span>
             </a>) })}

@@ -99,7 +99,7 @@ function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Prom
       {showWo && <div style={{ background: T.bg.raised, padding: 8, borderRadius: 6, marginBottom: 6 }}>
         <input value={wo.title} onChange={e => setWo({ ...wo, title: e.target.value })} placeholder="제목 *" style={{ ...inp, marginBottom: 4 }} />
         <div style={{ display: 'flex', gap: 4 }}>
-          <input value={wo.assignee} onChange={e => setWo({ ...wo, assignee: e.target.value })} placeholder="담당" style={{ ...inp, flex: 1 }} />
+          <input value={wo.assignee} onChange={e => setWo({ ...wo, assignee: e.target.value })} placeholder="담당자" style={{ ...inp, flex: 1 }} />
           <input type="date" value={wo.dueOn} onChange={e => setWo({ ...wo, dueOn: e.target.value })} style={inp} />
         </div>
         <div style={{ color: T.ink[2], fontSize: 11, margin: '4px 0' }}>요소에 맞춘 카메라·선택·단면이 뷰포인트로 저장됩니다{d?.inspections[0]?.result === 'DEFECT' && ' · 최근 결함 점검에 연결'}</div>

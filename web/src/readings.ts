@@ -28,7 +28,7 @@ export const READINGS: Record<string, Reading> = {
   FanSpeed: { label: '팬', unit: '%', order: 2, fmt: v => typeof v === 'number' ? `${v}%` : String(v) },
   DamperPercent: { label: '댐퍼', unit: '%', order: 2 },
   OpenPercent: { label: '개도', unit: '%', order: 1 },
-  ChargePercent: { label: '충전', unit: '%', order: 1, warn: v => v < 50, crit: v => v < 20 },
+  ChargePercent: { label: '충전율', unit: '%', order: 1, warn: v => v < 50, crit: v => v < 20 },   // Charging '충전'(충전 중/대기)과 구분
   BatteryLevel: { label: '배터리', unit: '%', order: 1, warn: v => v < 50, crit: v => v < 20 },
   OutputKW: { label: '출력', unit: 'kW', order: 1 },
   DemandKW: { label: '수요', unit: 'kW', order: 1 },
@@ -37,7 +37,7 @@ export const READINGS: Record<string, Reading> = {
   EarthOhm: { label: '접지', unit: 'Ω', order: 1, warn: v => v > 10 },
   RunHours: { label: '운전', unit: 'h', order: 3, fmt: v => Number(v).toLocaleString() },
   RunCount: { label: '운행', unit: '회', order: 3, fmt: v => Number(v).toLocaleString() },
-  Cycles: { label: '개폐', unit: '회', order: 3, fmt: v => Number(v).toLocaleString() },
+  Cycles: { label: '개폐횟수', unit: '회', order: 3, fmt: v => Number(v).toLocaleString() },   // 누적 개폐 회수 (Open '개폐'=열림/닫힘 상태와 구분)
   CashLevel: { label: '지폐', unit: '%', order: 1, warn: v => v > 90 },
   Occupied: { label: '점유', order: 1, fmt: v => typeof v === 'boolean' ? (v ? '점유' : '공차') : String(v) },
   Capacity: { label: '면', order: 2 }, TodayIn: { label: '입차', unit: '대', order: 3 }, TodayOut: { label: '출차', unit: '대', order: 3 },
