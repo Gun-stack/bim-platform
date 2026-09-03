@@ -124,7 +124,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 
       {/* 1) 조치 필요 — 층·팀 격자보다 먼저. 경보 → 장애 → 계측 위험/무전원 → 주의·작업지시 순 */}
       {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (
-        <Section title="조치 필요" color={todo.some(isAbn) ? T.crit : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}{!todo.length && <span style={{ color: T.ok, marginLeft: 6 }}>이상·미처리 없음</span>}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
+        <Section title="조치 필요" color={todo.some(isAbn) ? T.crit : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
           {todo.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '2px 14px' }}>
             {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: T.ink[3], fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} reload={load} /></div>)}
             {todo.length > 12 && <div style={{ color: T.ink[2], fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
