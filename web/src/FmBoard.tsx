@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
-import { AlertTriangle, ArrowDown, ArrowUp, Calendar, ChevronLeft, ChevronRight, ChevronsUp, ExternalLink, Plus, Search, User, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUp, X } from 'lucide-react'
 import { post, type Asset, type Priority, type WorkOrder } from './api'
 import { StatusBadge } from './viewer/FmPanel'
-import { btn, day, inp, useEsc } from './ui'
+import { btn, btnPrimary, day, inp, useEsc } from './ui'
 import { WO_STATUS } from './status'
 import { TEAMS, teamOfSystems } from './teams'
 import { ifcKo } from './ifcNames'
@@ -50,13 +50,12 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
     <div>
       {/* 필터 바 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative' }}><Search size={13} style={{ position: 'absolute', left: 8, top: 8, color: T.ink[2] }} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="제목 · 자산 · 담당" style={{ ...inp, paddingLeft: 26, width: 220 }} /></div>
+        <div style={{ position: 'relative' }}>          <input value={q} onChange={e => setQ(e.target.value)} placeholder="제목 · 자산 · 담당" style={{ ...inp, width: 220 }} /></div>
         <div style={{ display: 'flex', gap: 4 }}>{TEAMS.map(t => <button key={t.key} onClick={() => setTeam(team === t.key ? undefined : t.key)} style={{ ...chip, borderColor: team === t.key ? t.color : T.bg.line, background: team === t.key ? t.color : T.ink[1], color: team === t.key ? T.bg.surface : T.ink[2] }}>{t.short}</button>)}</div>
         <select value={assignee ?? ''} onChange={e => setAssignee(e.target.value || undefined)} style={inp}><option value="">담당자 전체</option>{assignees.map(a => <option key={a}>{a}</option>)}</select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: T.crit }}><input type="checkbox" checked={onlyOverdue} onChange={e => setOnlyOverdue(e.target.checked)} /> 기한 초과만</label>
         <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 }}>{visible.length} / {wos.length}</span>
-        <button onClick={() => setCreating(true)} style={{ ...btn, background: T.accent, color: T.bg.base, border: 0 }}><Plus size={13} /> 새 작업지시</button>
+        <button onClick={() => setCreating(true)} style={btnPrimary}>새 작업지시</button>
       </div>
 
       {/* 칸반 */}
@@ -73,7 +72,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
                style={{ background: dragOver === s ? T.accentSoft : T.bg.raised, borderRadius: 10, padding: 10, minHeight: 320, outline: dragOver === s ? `2px dashed ${T.accent}` : 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, minHeight: 20 }}><StatusBadge s={s} /><span style={{ color: T.ink[2] }}>{items.length}</span>
               {dragOver === s ? <span style={{ color: T.accent, fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>→ {WO_STATUS[s]}(으)로 이동</span>
-                : s !== 'DONE' && items.some(overdue) && <span style={{ color: T.crit, fontSize: 11, marginLeft: 'auto' }}><AlertTriangle size={11} style={{ verticalAlign: -1 }} /> 초과 {items.filter(overdue).length}</span>}
+                : s !== 'DONE' && items.some(overdue) && <span style={{ color: T.crit, fontSize: 11, marginLeft: 'auto' }}>초과 {items.filter(overdue).length}</span>}
               <span onClick={() => fold(s)} title="열 접기" style={{ marginLeft: dragOver === s || (s !== 'DONE' && items.some(overdue)) ? 6 : 'auto', cursor: 'pointer', color: T.ink[3], display: 'inline-flex' }}><ChevronLeft size={14} /></span></div>
             {items.map(w => <Card key={w.id} w={w} dragging={dragging === w.id} busy={w.id in pending} hilite={w.id === openWoId} onOpen={() => setOpen(w)} viewerUrl={viewerUrl(w)}
                                   onDragStart={() => setDragging(w.id)} onDragEnd={() => { setDragging(undefined); setDragOver(undefined) }} onNext={() => move(w, NEXT[w.status].s)} />)}
@@ -102,10 +101,10 @@ function Card({ w, dragging, busy, hilite, onOpen, viewerUrl, onDragStart, onDra
       </div>
       <div style={{ color: T.ink[2], fontSize: 12, margin: '3px 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.assetTag} · {w.storey}{w.zone ? ` ${w.zone.split('-').pop()}` : ''} · {w.elementName?.split(':')[0]}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: T.ink[2] }}>
-        <span><User size={11} style={{ verticalAlign: -2 }} /> {w.assignee ?? '미배정'}</span>
-        {w.dueOn && <span style={{ color: od ? T.crit : T.ink[2], fontWeight: od ? 700 : 400 }}><Calendar size={11} style={{ verticalAlign: -2 }} /> {day(w.dueOn)}{od ? ' 초과' : ''}</span>}
+        <span>{w.assignee ?? '미배정'}</span>
+        {w.dueOn && <span style={{ color: od ? T.crit : T.ink[2], fontWeight: od ? 600 : 400 }}>{day(w.dueOn)}{od ? ' 초과' : ''}</span>}
         <span style={{ flex: 1 }} />
-        <a href={viewerUrl} onClick={e => e.stopPropagation()} title="3D 위치" style={{ color: T.accent, display: 'inline-flex' }}><ExternalLink size={12} /></a>
+        <a href={viewerUrl} onClick={e => e.stopPropagation()} title="3D 위치" style={{ color: T.accent, textDecoration: 'none', fontSize: T.fs.xs }}>3D</a>
         <button disabled={busy} onClick={e => { e.stopPropagation(); onNext() }} style={{ ...btn, padding: '1px 7px', fontSize: 11 }}>{nx.label}</button>
       </div>
     </div>
@@ -129,14 +128,14 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
           <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} placeholder="미배정" style={inp} />
           <span style={lbl}>기한</span><input type="date" value={f.dueOn} onChange={e => setF({ ...f, dueOn: e.target.value })} style={inp} />
           <span style={lbl}>자산</span><span><b>{w.assetTag}</b> <span style={{ color: T.ink[2] }}>{w.assetCategory}</span></span>
-          <span style={lbl}>위치</span><span>{w.storey}{w.zone ? ` · ${w.zone}` : ''} · {w.elementName} <a href={viewerUrl} style={{ color: T.accent, marginLeft: 6 }}><ExternalLink size={12} style={{ verticalAlign: -2 }} /> 3D</a>{w.globalId && <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(w.globalId)}`} title="모니터링에서 현재 계측값" style={{ color: T.accent, marginLeft: 6 }}>모니터링</a>}</span>
+          <span style={lbl}>위치</span><span>{w.storey}{w.zone ? ` · ${w.zone}` : ''} · {w.elementName} <a href={viewerUrl} style={{ color: T.accent, marginLeft: 6 }}>3D</a>{w.globalId && <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(w.globalId)}`} title="모니터링에서 현재 계측값" style={{ color: T.accent, marginLeft: 6 }}>모니터링</a>}</span>
           {w.inspectionNote && <><span style={lbl}>점검 메모</span><span style={{ color: T.crit }}>{w.inspectionNote}</span></>}
           <span style={lbl}>생성 / 변경</span><span style={{ color: T.ink[2], fontSize: 12 }}>{new Date(w.createdAt).toLocaleString()} / {w.updatedAt ? new Date(w.updatedAt).toLocaleString() : '—'}</span>
         </div>
         <div style={{ marginTop: 12 }}><div style={lbl}>설명</div>
           <textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={5} placeholder="작업 내용과 조치 사항" style={{ ...inp, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} /></div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <button disabled={saving} onClick={save} style={{ ...btn, background: T.accent, color: T.bg.base, border: 0 }}>저장</button>
+          <button disabled={saving} onClick={save} style={btnPrimary}>저장</button>
           <a href={`#/models/${modelId}?sel=${encodeURIComponent(w.globalId ?? '')}&fm=1`} style={btn}>뷰어에서 자산·점검 보기</a>
         </div>
       </div>
@@ -164,7 +163,7 @@ function CreateModal({ assets, onClose, reload }: { assets: Asset[]; onClose: ()
           <span style={lbl}>설명</span><textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={3} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} />
         </div>
         {err && <div style={{ color: T.crit, marginTop: 8 }}>{err}</div>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}><button onClick={onClose} style={btn}>취소</button><button disabled={!f.title || !f.assetId} onClick={submit} style={{ ...btn, background: T.accent, color: T.bg.base, border: 0 }}>생성</button></div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}><button onClick={onClose} style={btn}>취소</button><button disabled={!f.title || !f.assetId} onClick={submit} style={btnPrimary}>생성</button></div>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { api, post, type Model } from './api'
-import { AlertCircle, Box, CheckCircle2, Loader2, MapPin, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { Loader2, Trash2, Upload } from 'lucide-react'
 import ObjectDock from './ObjectDock'
 import { T } from './theme'
 const Viewer = lazy(() => import('./viewer/Viewer'))
@@ -67,9 +67,9 @@ function Models() {
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 980, margin: '0 auto', padding: '32px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={22} /> bim-platform</h1>
+        <h1 style={{ margin: 0, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8 }}>bim-platform</h1>
         <span style={{ color: T.ink[2] }}>프로젝트 demo · 모델 {models.length}개{models.some(m => m.status === 'PROCESSING' || m.status === 'UPLOADED') ? ' · 변환 중' : ''}</span>
-        <a href="#/map" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: `1px solid ${T.bg.line}`, borderRadius: 6, textDecoration: 'none', color: T.ink[1], fontSize: 12 }}><MapPin size={13} /> 지도</a>
+        <a href="#/map" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: `1px solid ${T.bg.line}`, borderRadius: 6, textDecoration: 'none', color: T.ink[1], fontSize: 12 }}>지도</a>
       </div>
 
       <label onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
@@ -81,7 +81,7 @@ function Models() {
         <span style={{ color: T.ink[2], fontSize: 12 }}>IFC2x3 · IFC4 · IFC4x3 — 최대 500MB, 여러 개 가능</span>
         <input type="file" accept=".ifc" multiple disabled={!pid} onChange={e => e.target.files && upload(e.target.files)} style={{ display: 'none' }} />
       </label>
-      {err && <p style={{ color: T.crit, display: 'flex', gap: 6, alignItems: 'center' }}><AlertCircle size={14} /> {err}</p>}
+      {err && <p style={{ color: T.crit, display: 'flex', gap: 6, alignItems: 'center' }}>{err}</p>}
 
       <div style={{ marginTop: 20, border: `1px solid ${T.bg.line}`, borderRadius: 10, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 100px 70px 64px minmax(120px, 160px) 232px 28px', gap: 8, padding: '8px 14px', background: T.bg.raised, color: T.ink[2], fontSize: 12 }}>
@@ -93,15 +93,15 @@ function Models() {
   )
 }
 
-const STATUS: Record<Model['status'], { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
+const STATUS: Record<Model['status'], { label: string; color: string; bg: string; icon?: typeof Loader2 }> = {
   UPLOADED: { label: '대기', color: T.ink[2], bg: T.bg.line, icon: Loader2 },
   PROCESSING: { label: '변환 중', color: T.accent, bg: T.accentSoft, icon: Loader2 },
-  READY: { label: '변환 완료', color: T.ok, bg: T.okSoft, icon: CheckCircle2 },
-  FAILED: { label: '실패', color: T.crit, bg: T.critSoft, icon: AlertCircle },
+  READY: { label: '변환 완료', color: T.ok, bg: T.okSoft },
+  FAILED: { label: '실패', color: T.crit, bg: T.critSoft },
 }
 
 function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove: () => void }) {
-  const st = STATUS[m.status], Icon = st.icon, running = m.status === 'UPLOADED' || m.status === 'PROCESSING'
+  const st = STATUS[m.status], running = m.status === 'UPLOADED' || m.status === 'PROCESSING'
   return (
     <div className="model-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 100px 70px 64px minmax(120px, 160px) 232px 28px', gap: 8, alignItems: 'center', padding: '10px 14px', borderTop: `1px solid ${T.bg.line}` }}>
       <div style={{ overflow: 'hidden' }}>
@@ -109,7 +109,7 @@ function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove
         <div style={{ color: T.ink[2], fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.id.slice(0, 8)} · {m.createdAt ? new Date(m.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}</div>
       </div>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: st.bg, color: st.color, fontSize: 12, width: 'fit-content' }}>
-        <Icon size={12} className={running ? 'spin' : undefined} /> {st.label}</span>
+        {running && <Loader2 size={12} className="spin" />} {st.label}</span>
       <span>{m.ifcSchema ?? '—'}</span>
       <span style={{ textAlign: 'right' }}>{m.elementCount?.toLocaleString() ?? '—'}</span>
       <div>
@@ -122,7 +122,7 @@ function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove
           <a href={`#/models/${m.id}/monitor`} title="모니터링" style={{ padding: '5px 8px', border: `1px solid ${T.bg.line}`, borderRadius: 6, textDecoration: 'none', fontSize: 12, color: T.ink[1] }}>모니터링</a>
           <a href={`#/models/${m.id}/fm`} title="시설관리" style={{ padding: '5px 8px', border: `1px solid ${T.bg.line}`, borderRadius: 6, textDecoration: 'none', fontSize: 12, color: T.ink[1] }}>시설관리</a>
           <a href={`#/models/${m.id}`} style={{ padding: '5px 10px', background: T.accent, color: T.bg.base, borderRadius: 6, textDecoration: 'none', fontSize: 12 }}>3D 뷰어</a></span>}
-        {m.status === 'FAILED' && <button onClick={onRetry} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: `1px solid ${T.bg.line}`, borderRadius: 6, background: T.bg.surface, cursor: 'pointer', fontSize: 12 }}><RotateCcw size={12} /> 재시도</button>}
+        {m.status === 'FAILED' && <button onClick={onRetry} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: `1px solid ${T.bg.line}`, borderRadius: 6, background: T.bg.surface, cursor: 'pointer', fontSize: 12 }}>재시도</button>}
       </div>
       {m.status !== 'PROCESSING' && <button onClick={onRemove} title="모델 삭제" className="row-trash" style={{ padding: 6, border: 0, borderRadius: 6, background: 'transparent', cursor: 'pointer', color: T.ink[2], display: 'inline-flex' }}><Trash2 size={14} /></button>}
     </div>

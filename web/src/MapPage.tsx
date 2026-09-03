@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 // nginx 가 index.html 을 돌려주고 워커가 죽는다(GeoJSON 소스가 영원히 로드 안 됨). 워커 파일을 자산으로 내보내 URL 을 알려준다.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'   // ?worker: 의존성(maplibre-gl.mjs)까지 묶은 독립 워커 번들
 maplibregl.setWorkerUrl(new URL(workerUrl, location.href).href)   // Blob 워커 안의 import() 는 절대 URL 이어야 한다
-import { ArrowLeft, Box, Crosshair, MapPin, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { api, post, type Model } from './api'
 import { btn } from './ui'
 import { T } from './theme'
@@ -74,24 +74,24 @@ export default function MapPage() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', height: '100vh', fontFamily: 'system-ui', fontSize: 13 }}>
       <aside style={{ overflow: 'auto', borderRight: `1px solid ${T.bg.line}`, background: T.bg.raised, padding: 12 }}>
-        <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent, fontSize: 12 }}><ArrowLeft size={13} /> 모델 목록</a>
-        <h3 style={{ margin: '6px 0 2px', display: 'flex', alignItems: 'center', gap: 6 }}><MapPin size={16} /> 지도</h3>
+        <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent, fontSize: 12 }}>← 모델 목록</a>
+        <h3 style={{ margin: '6px 0 2px', display: 'flex', alignItems: 'center', gap: 6 }}>지도</h3>
         <div style={{ color: T.ink[3], fontSize: 12, marginBottom: 10 }}>풋프린트 {features.length} · 미배치 {models.filter(m => !placed.has(m.id)).length}</div>
         {placing && <div style={{ background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: 8, padding: 10, marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Crosshair size={14} color="#b45309" /><b style={{ flex: 1 }}>{placing.name}</b><X size={14} style={{ cursor: 'pointer' }} onClick={() => { setPlacing(undefined); map.current!.getCanvas().style.cursor = '' }} /></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1 }}>{placing.name}</b><X size={14} style={{ cursor: 'pointer' }} onClick={() => { setPlacing(undefined); map.current!.getCanvas().style.cursor = '' }} /></div>
           <div style={{ color: T.warn, fontSize: 12, margin: '4px 0' }}>지도에서 건물 위치를 클릭하세요</div>
           <label style={{ fontSize: 12 }}>회전 <input type="number" value={placing.rotation} onChange={e => setPlacing({ ...placing, rotation: +e.target.value })} style={{ width: 60 }} />°</label>
         </div>}
         {err && <p style={{ color: T.crit, fontSize: 12 }}>{err}</p>}
         {models.map(m => { const f = features.find(f => f.id === m.id); return (
           <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 6px', borderTop: `1px solid ${T.bg.line}` }}>
-            <Box size={14} style={{ color: f ? (f.properties.manual ? T.warn : T.accent) : T.ink[3], flexShrink: 0 }} />
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: f ? (f.properties.manual ? T.warn : T.accent) : T.ink[3], flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>{m.name}</div>
               <div style={{ color: T.ink[2], fontSize: 11 }}>{f ? `${f.properties.manual ? '수동 배치' : f.properties.georefSource}${f.properties.crs ? ' · ' + f.properties.crs : ''} · ${f.properties.areaM2} m²` : '지리참조 없음 — 배치 → 지도 클릭'}</div>
             </div>
             {f ? <button onClick={() => flyTo(f)} style={btn}>이동</button> : <button onClick={() => startPlacing(m)} style={{ ...btn, borderColor: T.warn, color: T.warn }}>배치</button>}
-            {f && <button onClick={() => startPlacing(m)} title="다시 배치" style={btn}><MapPin size={12} /></button>}
+            {f && <button onClick={() => startPlacing(m)} title="다시 배치" style={btn}>재배치</button>}
           </div>) })}
       </aside>
       <div ref={el} />

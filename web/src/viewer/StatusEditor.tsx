@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, Siren, TrendingUp, WifiOff } from 'lucide-react'
+import { TrendingUp } from 'lucide-react'
 import TrendModal from '../TrendModal'
 import type { ElementDetail } from '../api'
 import { patchStatus, statusPatchFor } from '../statusApi'
-import { statusHex, statusLabel } from '../status'
+import { isQuiet, statusHex, statusLabel } from '../status'
 import { READINGS, readings, LEVEL_COLOR } from '../readings'
-import { btn } from '../ui'
+import { badge, btn } from '../ui'
 import { T } from '../theme'
 
 /** 속성 패널 상단 "운영 상태": Status 버튼 + Pset_BimStatus 나머지 필드 인라인 편집(PATCH 는 jsonb 병합이라 키 하나씩 보내도 된다).
@@ -23,15 +23,15 @@ export default function StatusEditor({ modelId, e, reload }: { modelId: string; 
     <div style={{ margin: '0 0 10px', padding: 8, background: T.bg.raised, border: `1px solid ${T.bg.line}`, borderRadius: 8, fontSize: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <b>운영 상태</b>
-        <span style={{ padding: '1px 8px', borderRadius: 999, color: T.ink[1], background: statusHex(cur, T.ink[3]), fontWeight: 600 }}>{statusLabel(cur)}</span>
+        {isQuiet(cur) ? <span style={{ color: T.ink[2] }}>{statusLabel(cur)}</span> : <span style={badge(statusHex(cur))}>{statusLabel(cur)}</span>}
         {Object.entries(st).some(([k, v]) => typeof v === 'number' && k !== 'UpdatedAt') && <button onClick={() => setTrend(true)} title="계측 트렌드 — 값이 언제부터 이랬는지" style={{ border: 0, background: 'none', cursor: 'pointer', color: T.accent, padding: 2, display: 'inline-flex' }}><TrendingUp size={13} /></button>}
         {typeof st.UpdatedAt === 'string' && <span style={{ color: T.ink[2], fontSize: 11, marginLeft: 'auto' }}>{new Date(st.UpdatedAt).toLocaleString()}</span>}
       </div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        {e.ifcClass === 'IfcSensor' && <button disabled={busy || cur === 'ALARM'} onClick={() => send(statusPatchFor('ALARM'))} style={{ ...btn, color: T.crit }}><Siren size={12} /> 경보</button>}
-        <button disabled={busy || cur === 'FAULT'} onClick={() => send(statusPatchFor('FAULT'))} style={{ ...btn, color: T.warn }}><AlertTriangle size={12} /> 장애</button>
-        <button disabled={busy || cur === 'OFFLINE'} onClick={() => send(statusPatchFor('OFFLINE'))} style={{ ...btn, color: T.ink[3] }}><WifiOff size={12} /> 오프라인</button>
-        <button disabled={busy || cur === normal} onClick={() => send(statusPatchFor(normal))} style={{ ...btn, color: T.ok }}><CheckCircle2 size={12} /> {statusLabel(normal)} 복구</button>
+        {e.ifcClass === 'IfcSensor' && <button disabled={busy || cur === 'ALARM'} onClick={() => send(statusPatchFor('ALARM'))} style={{ ...btn, color: T.crit }}>경보</button>}
+        <button disabled={busy || cur === 'FAULT'} onClick={() => send(statusPatchFor('FAULT'))} style={{ ...btn, color: T.warn }}>장애</button>
+        <button disabled={busy || cur === 'OFFLINE'} onClick={() => send(statusPatchFor('OFFLINE'))} style={{ ...btn, color: T.ink[3] }}>오프라인</button>
+        <button disabled={busy || cur === normal} onClick={() => send(statusPatchFor(normal))} style={{ ...btn, color: T.ok }}>{statusLabel(normal)} 복구</button>
       </div>
       {fields.length > 0 && <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}><tbody>
         {fields.map(([k, v]) => <tr key={k} style={{ borderTop: `1px solid ${T.bg.line}` }}>

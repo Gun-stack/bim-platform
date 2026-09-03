@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Box, ClipboardList, Download, ExternalLink, Plus, Tag, Wrench } from 'lucide-react'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { api, post, type Asset, type Model, type WorkOrder } from './api'
-import { btn, day, inp, inspectionOverdue } from './ui'
+import { btn, btnPrimary, day, inp, inspectionOverdue } from './ui'
 import { ifcKo } from './ifcNames'
 import FmBoard from './FmBoard'
 import { useHashQuery } from './useHashQuery'
@@ -41,36 +40,36 @@ export default function FmPage({ modelId }: { modelId: string }) {
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 1100, margin: '0 auto', padding: '24px 20px', paddingRight: selGid ? 460 : 20 }}>   {/* 객체 패널(440px) 자리 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <a href="#/" style={{ color: T.accent, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowLeft size={14} /> 모델 목록</a>
-        <h1 style={{ margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><Box size={18} /> {model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>시설관리</span></h1>
-        <a href={`#/models/${modelId}/monitor${selQ(selGid)}`} style={{ marginLeft: 'auto', ...btn }}>모니터링{abnormal.length > 0 && <b style={{ color: T.crit }}>{abnormal.length}</b>}</a><a href={`#/models/${modelId}${selQ(selGid)}`} style={btn}><ExternalLink size={13} /> 3D 뷰어</a>
+        <a href="#/" style={{ color: T.accent, textDecoration: 'none' }}>← 모델 목록</a>
+        <h1 style={{ margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>시설관리</span></h1>
+        <a href={`#/models/${modelId}/monitor${selQ(selGid)}`} style={{ marginLeft: 'auto', ...btn }}>모니터링{abnormal.length > 0 && <b style={{ color: T.crit }}>{abnormal.length}</b>}</a><a href={`#/models/${modelId}${selQ(selGid)}`} style={btn}>3D 뷰어</a>
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
-        <Stat icon={Tag} label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />
-        <Stat icon={ClipboardList} label="점검 완료" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} />
-        <Stat icon={Wrench} label="열린 작업지시" value={wos.filter(w => w.status !== 'DONE').length} sub={`완료 ${wos.filter(w => w.status === 'DONE').length}`} />
+        <Stat label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />
+        <Stat label="점검 완료" value={assets.filter(a => a.lastInspectedOn).length} sub={`미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} />
+        <Stat label="열린 작업지시" value={wos.filter(w => w.status !== 'DONE').length} sub={`완료 ${wos.filter(w => w.status === 'DONE').length}`} />
       </div>
-      <Section title="작업지시 보드" icon={Wrench} count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}>
+      <Section title="작업지시 보드" count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}>
       {abnormal.length > wos.filter(w => w.status !== 'DONE').length && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10, background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: 8 }}>
         <span style={{ color: T.warn }}>상태판 이상 <b>{abnormal.length}</b>건 ({abnormal.slice(0, 3).map(r => r.name).join(', ')}{abnormal.length > 3 ? ' …' : ''}) — 열린 작업지시 {wos.filter(w => w.status !== 'DONE').length}건</span>
         <button onClick={() => { setSyncMsg(undefined); post<{ created: number; suppressed: number; checked: number }>(`/models/${modelId}/status/sync`, {}).then(r => { setSyncMsg(`생성 ${r.created} · 상위 억제 ${r.suppressed} · 검사 ${r.checked}`); reload() }).catch(e => setSyncMsg(e.message)) }} style={{ ...btn, marginLeft: 'auto', background: T.warn, color: T.bg.base, border: 0 }}>작업지시 동기화</button>
         {syncMsg && <span style={{ fontSize: 12, color: T.ink[2] }}>{syncMsg}</span>}</div>}
       {wos.length > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-        <a href={`/api/models/${modelId}/export/bcf`} title="작업지시를 BCF 2.1 topic·viewpoint 로 — Navisworks·BIMcollab 등에서 열람" style={btn}><Download size={12} /> BCF 내보내기</a></div>}
+        <a href={`/api/models/${modelId}/export/bcf`} title="작업지시를 BCF 2.1 topic·viewpoint 로 — Navisworks·BIMcollab 등에서 열람" style={btn}>BCF 내보내기</a></div>}
       <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} openWoId={woId} />
       </Section>
 
-      <Section title="자산 대장" icon={Tag} count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}>
+      <Section title="자산 대장" count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset} onToggle={() => toggle('assets')}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: T.ink[2], fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
-          <a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={{ ...btn, marginLeft: 'auto' }}><Download size={12} /> COBie 내보내기</a>
-          <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={btn}><Plus size={12} /> 자산 추가</button>
+          <a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={{ ...btn, marginLeft: 'auto' }}>COBie 내보내기</a>
+          <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={btn}>자산 추가</button>
         </div>
         {add && <form onSubmit={e => { e.preventDefault(); setErr(undefined); post(`/models/${modelId}/assets`, add).then(() => { setAdd(null); reload() }).catch(e => setErr(e.message)) }}
                       style={{ display: 'flex', gap: 6, alignItems: 'center', padding: 10, background: T.bg.raised, borderRadius: 8, marginBottom: 8 }}>
           <input value={add.tag} onChange={e => setAdd({ ...add, tag: e.target.value })} placeholder="태그 * (예: CCTV-01)" required style={inp} />
           <input value={add.category} onChange={e => setAdd({ ...add, category: e.target.value })} placeholder="분류" style={inp} />
-          <button type="submit" style={{ ...btn, background: T.accent, color: T.bg.base, border: 0 }}>등록</button>
+          <button type="submit" style={btnPrimary}>등록</button>
           {err && <span style={{ color: T.crit, fontSize: 12 }}>{err}</span>}
         </form>}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
@@ -95,7 +94,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
             {a.nextDueOn ? <span style={{ color: isOverdue(a) ? T.crit : T.ink[2], fontWeight: isOverdue(a) ? 600 : 400 }}>{day(a.nextDueOn)}{isOverdue(a) ? ' 지연' : ''}</span> : <span style={{ color: T.bg.line }}>—</span>}
           </span>
           <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}` : '—'}</span>
-          <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{a.globalId && <><a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(a.globalId)}`} title="모니터링에서 현재 계측값" style={btn}>모니터링</a> <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}><ExternalLink size={12} /> 3D</a></>}</span>
+          <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{a.globalId && <><a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(a.globalId)}`} title="모니터링에서 현재 계측값" style={btn}>모니터링</a> <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}>3D</a></>}</span>
         </div>)}
         {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 모니터링의 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>조건에 맞는 자산이 없습니다.</div>}
@@ -107,6 +106,6 @@ export default function FmPage({ modelId }: { modelId: string }) {
   )
 }
 
-const Stat = ({ icon: Icon, label, value, sub }: { icon: typeof Tag; label: string; value: number; sub: string }) => (
+const Stat = ({ label, value, sub }: { label: string; value: number; sub: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: `1px solid ${T.bg.line}`, borderRadius: 10, minWidth: 160 }}>
-    <Icon size={18} style={{ color: T.accent }} /><div><div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div><div style={{ fontSize: 12, color: T.ink[2] }}>{label} · {sub}</div></div></div>)
+    <div><div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div><div style={{ fontSize: 12, color: T.ink[2] }}>{label} · {sub}</div></div></div>)

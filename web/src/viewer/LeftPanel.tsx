@@ -1,7 +1,7 @@
 /* oxlint-disable react/only-export-components, react-hooks/exhaustive-deps */
 import { useMemo, useState, type ReactNode } from 'react'
 import type React from 'react'
-import { ArrowLeft, Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Grid3x3, Layers, LayoutGrid, MapPin, Search, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
+import { Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Grid3x3, Layers, LayoutGrid, MapPin, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
 import { ifcKo } from '../ifcNames'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
@@ -108,7 +108,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     <aside style={{ height: '100%', display: 'flex', flexDirection: 'column', fontSize: 13, background: T.bg.raised }}>
       <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${T.bg.line}` }}>
         <div style={{ display: 'flex', fontSize: 12 }}>
-          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent }}><ArrowLeft size={13} /> 모델 목록</a>
+          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent }}>← 모델 목록</a>
           <a href={`#/models/${model?.id}/monitor${selQ(sel1)}`} style={{ marginLeft: 'auto', textDecoration: 'none', color: T.accent }}>모니터링</a>
           <a href={`#/models/${model?.id}/fm${selQ(sel1)}`} style={{ marginLeft: 10, textDecoration: 'none', color: T.accent }}>시설관리 →</a>
         </div>
@@ -128,8 +128,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
       </div>
 
       <div style={{ position: 'relative', margin: '8px 12px 4px' }}>
-        <Search size={14} style={{ position: 'absolute', left: 8, top: 8, color: T.ink[2] }} />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="이름 · 종류 · ID 검색" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px 6px 28px', border: `1px solid ${T.bg.line}`, borderRadius: 6, fontSize: 13 }} />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="이름 · 종류 · ID 검색" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: `1px solid ${T.bg.line}`, borderRadius: 6, fontSize: 13 }} />
       </div>
 
       {!q && <div style={{ display: 'flex', margin: '0 12px', borderBottom: `1px solid ${T.bg.line}` }}>

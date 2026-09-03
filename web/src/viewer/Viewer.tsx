@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { MapPinned, Check, Copy, Magnet, Route as RouteIcon, Eye, Palette, Ruler, Trash2, X, XCircle, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors } from 'lucide-react'
+import { Check, Magnet, Eye, Palette, Ruler, Trash2, X, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors } from 'lucide-react'
 import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type System, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
@@ -208,8 +208,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
       { icon: EyeOff, label: '숨김', disabled: none, onClick: hideSelected },
       { icon: Eye, label: '숨긴 것 모두 표시', disabled: !anyHidden, onClick: () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); setFocus('none') } },
       'sep',
-      { icon: Copy, label: n === 1 ? 'GlobalId 복사' : `GlobalId ${n}개 복사`, disabled: none, onClick: () => navigator.clipboard?.writeText(selection.join('\n')) },
-      { icon: XCircle, label: '선택 해제', hint: 'Esc', disabled: none, onClick: () => scene.current?.select([]) },
+      { label: n === 1 ? 'GlobalId 복사' : `GlobalId ${n}개 복사`, disabled: none, onClick: () => navigator.clipboard?.writeText(selection.join('\n')) },
+      { label: '선택 해제', hint: 'Esc', disabled: none, onClick: () => scene.current?.select([]) },
     ]
   }
   const onContext = (e: React.MouseEvent, gids: string[]) => {
@@ -262,7 +262,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
           {/* 경보/장애 포커스 배너 (구역 강조 + 위치 비콘) */}
           {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', background: focusInfo.status === 'ALARM' ? T.critSoft : focusInfo.status === 'FAULT' ? T.warnSoft : T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxWidth: 460 }}>
-            <MapPinned size={14} style={{ color: isAbnormal(focusInfo.status) ? statusHex(focusInfo.status) : T.accent }} />
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: isAbnormal(focusInfo.status) ? statusHex(focusInfo.status) : T.accent, flexShrink: 0 }} />
             <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
             {focusInfo.status && <b style={{ color: statusHex(focusInfo.status, T.ok) }}>{statusLabel(focusInfo.status)}</b>}
             <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(focusInfo.gid)}`} title="모니터링에서 이 장비" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>모니터링</a>
@@ -282,7 +282,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
           {/* 추적 배너: 3D 에 색만 칠하면 '몇 개·어디까지' 를 모른다 */}
           {route && routeSummary && <div style={{ position: 'absolute', top: clip ? 128 : (focusInfo || wo) ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: 8, boxShadow: T.shadow, fontSize: 12, maxWidth: 520 }}>
-            <RouteIcon size={14} style={{ color: route.direction === 'up' ? T.accent : T.ok }} />
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: route.direction === 'up' ? T.accent : T.ok, flexShrink: 0 }} />
             <b>{routeSummary.origin}</b><span style={{ color: route.direction === 'up' ? T.accent : T.ok, fontWeight: 600 }}>{route.direction === 'up' ? '상류' : '하류'} {route.nodes.length}요소</span>
             {routeSummary.floors && <span style={{ color: T.ink[2] }}>{routeSummary.floors}</span>}<span style={{ color: T.ink[2], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{routeSummary.top}</span>
             <span title="경로만 보기" onClick={() => setHidden({ ...hidden, solo: hidden.solo?.key === 'route' ? undefined : { key: 'route', label: '추적 경로', gids: new Set(route.nodes.map(n => n.globalId)) } })} style={{ cursor: 'pointer', color: T.accent, display: 'grid' }}><Focus size={13} /></span>

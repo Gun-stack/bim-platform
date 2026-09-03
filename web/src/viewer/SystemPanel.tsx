@@ -1,6 +1,6 @@
 /* oxlint-disable react/only-export-components */
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowDownToLine, ArrowUpToLine, BatteryCharging, Bell, Cable, ChevronDown, ChevronUp, Droplets, Fan, Flame, Focus, Lightbulb, Network, PlugZap, Siren, Snowflake, Thermometer, Waves, Wind, X, ArrowUpDown, Car, type LucideIcon } from 'lucide-react'
+import { ChevronDown, ChevronUp, Focus, X } from 'lucide-react'
 import { TEAMS } from '../teams'
 import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
 import { hex, isAbnormal, statusHex } from '../status'
@@ -11,7 +11,6 @@ import { T, num } from '../theme'
 export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOMESTICCOLDWATER: 0x6a9ad9, WASTEWATER: 0x9c7b5a, FIREPROTECTION: 0xd46a62, SIGNAL: 0xa981d6, AIRCONDITIONING: 0x4fb3a6, CHILLEDWATER: 0x5aa7d6, VENTILATION: 0x93b552, DOMESTICHOTWATER: 0xd97a8c, GAS: 0xc9b24c, DATA: 0x9591dd, LIGHTING: 0xd9c65a,
   비상전원: 0xe08a5a, 화재감지: 0xa981d6, 수송: 0xa39a91, 주차관제: 0x4fa39a }   // 팀 색(theme.ts)과 같은 계열의 낮은 채도 — 다크 배경 위 3D 채색용
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
-const SYSTEM_ICON: Record<string, LucideIcon> = { ELECTRICAL: Cable, DOMESTICCOLDWATER: Droplets, WASTEWATER: Waves, FIREPROTECTION: Flame, SIGNAL: Bell, AIRCONDITIONING: Wind, CHILLEDWATER: Snowflake, VENTILATION: Fan, DOMESTICHOTWATER: Thermometer, GAS: Flame, DATA: Network, LIGHTING: Lightbulb, 비상전원: BatteryCharging, 화재감지: Bell, 수송: ArrowUpDown, 주차관제: Car }
 
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 선택 요소의 상류/하류 추적 */
 export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode }: {
@@ -41,8 +40,8 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
         {systems.length > 0 && <div style={{ fontSize: 12, color: T.ink[2], padding: '0 6px 6px' }}>선택 요소 계통: {inSystems.length ? inSystems.map(s => s.name).join(', ') : '없음 — 전체 연결에서 추적'}</div>}
         <div style={{ display: 'flex', gap: 6, padding: '0 6px' }}>
           {/* 신호 계통(화재감지)은 흐름이 감지기 → 수신기 라 라벨을 바꾼다 */}
-          <button disabled={busy} onClick={() => trace('up')} style={btn}><ArrowUpToLine size={13} /> {signal ? '감지기 쪽' : '상류 (원천까지)'}</button>
-          <button disabled={busy} onClick={() => trace('down')} style={btn}><ArrowDownToLine size={13} /> {signal ? '수신기까지' : '하류 (말단까지)'}</button>
+          <button disabled={busy} onClick={() => trace('up')} style={btn}>{signal ? '감지기 쪽' : '상류 (원천까지)'}</button>
+          <button disabled={busy} onClick={() => trace('down')} style={btn}>{signal ? '수신기까지' : '하류 (말단까지)'}</button>
         </div>
       </>}
       {route && <div style={{ marginTop: 8, padding: 8, background: T.bg.raised, borderRadius: 8 }}>
@@ -73,10 +72,9 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
           {team && <span style={{ width: 8, height: 8, borderRadius: 999, background: team.color, flexShrink: 0, display: 'inline-block' }} />}{team?.name ?? '기타'}<span style={{ fontWeight: 400, color: T.ink[3] }}>{ss.reduce((n, s) => n + (s.memberCount ?? 0), 0)}</span>
           {team && <span title={`${team.name} 계통만 보기`} onClick={() => onSolo(team.name, ss.flatMap(s => (members.get(s.id) ?? []).map(m => m.globalId)), 'team:' + team.key)} style={{ marginLeft: 'auto', cursor: 'pointer', color: T.ink[2], display: 'grid', placeItems: 'center' }}><Focus size={12} /></span>}
         </div>
-      {ss.map(s => { const Icon = SYSTEM_ICON[s.name] ?? SYSTEM_ICON[s.predefinedType ?? ''] ?? Cable, c = systemColor(s); return (
+      {ss.map(s => { const c = systemColor(s); return (
         <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 6px 0 14px', borderRadius: 5 }}>
           <span style={{ width: 12, height: 12, borderRadius: 3, background: hex(c), flexShrink: 0 }} />
-          <Icon size={14} style={{ color: hex(c) }} />
           <span style={{ flex: 1 }}>{s.name}</span>
           <span style={{ color: T.ink[2], fontSize: 11 }}>{s.memberCount} · 연결 {s.connectionCount}</span>
           <span title="이 계통만 보기" onClick={() => onSolo(`계통 ${s.name}`, (members.get(s.id) ?? []).map(m => m.globalId), 'sys:' + s.id)} style={{ cursor: 'pointer', color: T.ink[3], display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
@@ -99,8 +97,7 @@ export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setSt
   return (
     <div style={{ padding: '6px 10px', background: abnormal.length ? T.critSoft : T.okSoft, borderBottom: `1px solid ${T.bg.line}` }}>
       <div onClick={() => setCollapsed(!collapsed)} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-        <Siren size={14} style={{ color: abnormal.length ? T.crit : T.ok }} />
-        <b style={{ flex: 1 }}>상태판</b>
+                <b style={{ flex: 1 }}>상태판</b>
         <span style={{ fontSize: 12, fontWeight: 600, color: abnormal.length ? T.crit : T.ok }}>{abnormal.length ? `이상 ${abnormal.length}` : '전부 정상'}</span>
         {power?.source === 'GENERATOR' && <span style={{ fontSize: 11, color: T.warn }}>· 정전</span>}
         {collapsed ? <ChevronDown size={14} style={{ color: T.ink[2] }} /> : <ChevronUp size={14} style={{ color: T.ink[2] }} />}
@@ -110,11 +107,11 @@ export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setSt
         <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기
         <span style={{ display: 'inline-flex', gap: 6, marginLeft: 4, color: T.ink[2], fontSize: 11 }}>{[[T.ok, '정상'], [T.crit, '경보'], [T.warn, '장애'], [T.ink[3], '점유·소등']].map(([c, l]) => <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: c }} />{l}</span>)}</span></label>
       {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: 4, background: T.critSoft }}>
-        <AlertTriangle size={12} style={{ color: statusHex(r.status.Status) }} />
+        <span style={{ width: 8, height: 8, borderRadius: 999, background: statusHex(r.status.Status), flexShrink: 0 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
         <span style={{ color: T.ink[2] }}>{r.spatialName}</span><b style={{ color: statusHex(r.status.Status) }}>{r.status.Status}</b></div>)}
-      <button disabled={busy} onClick={togglePower} style={{ ...btn, marginTop: 8, width: '100%', background: power ? T.warnSoft : T.bg.surface, borderColor: power ? T.warn : T.bg.line, color: power ? T.warn : T.ink[1] }}>
-        <PlugZap size={13} /> {power ? `정전 중 — 비상발전 운전 (무전원 ${power.unpowered.length}) · 클릭하면 복전` : '정전 시나리오 (발전기 절체)'}</button>
+      <button disabled={busy} onClick={togglePower} title={power ? '발전기에서 한전으로 되돌린다' : '한전 정전 — ATS 가 발전기로 절체, 비상 계통만 전원 유지'} style={{ ...btn, marginTop: 8, width: '100%', background: power ? T.warnSoft : T.bg.surface, borderColor: power ? T.warn : T.bg.line, color: power ? T.warn : T.ink[1] }}>
+        {power ? `복전 (무전원 ${power.unpowered.length})` : '정전 시나리오'}</button>
       </>}
     </div>
   )
