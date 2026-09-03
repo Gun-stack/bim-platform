@@ -10,6 +10,7 @@ import { AlertToast, useAlerts } from './useAlerts'
 import ObjectDrawer from './ObjectDrawer'
 import { selQ } from './context'
 import { T } from './theme'
+import NavLinks from './NavLinks'
 
 /** #/models/{id}/fm — 자산 대장 + 작업지시 보드. 작업지시 → 뷰어 뷰포인트로 이동 */
 export default function FmPage({ modelId }: { modelId: string }) {
@@ -94,7 +95,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
             {a.nextDueOn ? <span style={{ color: isOverdue(a) ? T.crit : T.ink[2], fontWeight: isOverdue(a) ? 600 : 400 }}>{day(a.nextDueOn)}{isOverdue(a) ? ' 지연' : ''}</span> : <span style={{ color: T.bg.line }}>—</span>}
           </span>
           <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}` : '—'}</span>
-          <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{a.globalId && <><a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(a.globalId)}`} title="모니터링에서 현재 계측값" style={btn}>모니터링</a> <a href={`#/models/${modelId}?sel=${encodeURIComponent(a.globalId)}&fm=1`} style={btn}>3D</a></>}</span>
+          <span style={{ display: 'flex', justifyContent: 'flex-end' }}><NavLinks modelId={modelId} gid={a.globalId} style={{ fontSize: 12 }} /></span>
         </div>)}
         {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 모니터링의 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>조건에 맞는 자산이 없습니다.</div>}

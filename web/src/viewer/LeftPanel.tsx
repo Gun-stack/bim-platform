@@ -137,8 +137,9 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
           {{ spatial: '공간', class: '종류', system: '계통' }[t]}</button>)}
       </div>}
 
-      {tab === 'system' && !q ? <div style={{ flex: 1, overflow: 'auto' }}>{systemPanel}</div> :
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px 80px' }} onClick={e => { if (e.target === e.currentTarget) { onSelect([], 'set') } }}>   {/* 하단 여백: 좌하단 맥락 독 위로 스크롤 */}
+      {/* 하단 여백 120: 좌하단 맥락 독(선택 + 최근 칩 5개 줄바꿈 시 ~110px) 위로 끝까지 스크롤되게 */}
+      {tab === 'system' && !q ? <div style={{ flex: 1, overflow: 'auto', paddingBottom: 120 }}>{systemPanel}</div> :
+      <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px 120px' }} onClick={e => { if (e.target === e.currentTarget) { onSelect([], 'set') } }}>
         {q ? (found.length ? found.map(e => { const r = elRow(e); return <TreeRow key={r.key} row={r} depth={0} open={false} selected={rowSelected(r)} onToggle={toggle} onSolo={solo} onOpen={() => {}} onClick={ev => { clickRow(r, ev); if (!ev.metaKey && !ev.ctrlKey && !ev.shiftKey) setTimeout(onFit, 0) }} onContext={ev => onContext(ev, r.gids())} /> })
                           : <div style={{ color: T.ink[2], padding: 8 }}>결과 없음</div>)
            : flat.map(f => <TreeRow key={f.row.key} row={f.row} depth={f.depth} open={f.open} selected={rowSelected(f.row)} onToggle={toggle} onSolo={solo} onOpen={() => toggleOpen(f.row, f.depth)} onClick={ev => clickRow(f.row, ev)} onContext={ev => onContext(ev, f.row.gids())} />)}

@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { api, type StatusRow } from './api'
 import { isAbnormal, statusHex, statusLabel } from './status'
 import { T } from './theme'
+import NavLinks from './NavLinks'
 
 const isAbn = (r: StatusRow) => isAbnormal(r.status.Status)
 
@@ -30,7 +31,6 @@ export function useAlerts(modelId: string) {
 /** 우하단 경보 토스트 스택: 이름·위치 + 3D/모니터링/칸반 카드 링크. 뷰어에서는 onFocus 로 같은 화면 포커스 */
 export function AlertToast({ modelId, fresh, dismiss, onFocus }: { modelId: string; fresh: StatusRow[]; dismiss: (r: StatusRow) => void; onFocus?: (gid: string) => void }) {
   if (!fresh.length) return null
-  const link = { color: T.accent, cursor: 'pointer', textDecoration: 'none' } as const
   return (
     <div style={{ position: 'fixed', right: 16, bottom: 16, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 60 }}>
       {fresh.slice(-4).map(r => { const c = statusHex(r.status.Status); return (
@@ -41,12 +41,8 @@ export function AlertToast({ modelId, fresh, dismiss, onFocus }: { modelId: stri
             <X size={14} onClick={() => dismiss(r)} style={{ cursor: 'pointer', color: T.ink[2], flexShrink: 0 }} />
           </div>
           {r.spatialName && <div style={{ color: T.ink[2], marginTop: 2 }}>{r.spatialName}</div>}
-          <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-            {onFocus
-              ? <a onClick={() => { onFocus(r.globalId); dismiss(r) }} style={link}>3D 위치</a>
-              : <a href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} style={link}>3D 위치</a>}
-            <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(r.globalId)}`} style={link}>모니터링</a>
-            <a href={`#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}`} style={link}>카드</a>
+          <div style={{ display: 'flex', marginTop: 4 }}>
+            <NavLinks modelId={modelId} gid={r.globalId} onViewer={onFocus ? () => { onFocus(r.globalId); dismiss(r) } : undefined} style={{ fontSize: 12 }} />
           </div>
         </div>) })}
     </div>

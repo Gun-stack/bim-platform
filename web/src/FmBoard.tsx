@@ -7,6 +7,7 @@ import { WO_STATUS } from './status'
 import { TEAMS, teamOfSystems } from './teams'
 import { ifcKo } from './ifcNames'
 import { T } from './theme'
+import NavLinks from './NavLinks'
 
 const teamOf = (w: WorkOrder) => teamOfSystems(w.systems, w.elementName)
 const PRIO: Record<Priority, { label: string; color: string; icon?: typeof ArrowUp }> = {
@@ -74,7 +75,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
               {dragOver === s ? <span style={{ color: T.accent, fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>→ {WO_STATUS[s]}(으)로 이동</span>
                 : s !== 'DONE' && items.some(overdue) && <span style={{ color: T.crit, fontSize: 11, marginLeft: 'auto' }}>초과 {items.filter(overdue).length}</span>}
               <span onClick={() => fold(s)} title="열 접기" style={{ marginLeft: dragOver === s || (s !== 'DONE' && items.some(overdue)) ? 6 : 'auto', cursor: 'pointer', color: T.ink[3], display: 'inline-flex' }}><ChevronLeft size={14} /></span></div>
-            {items.map(w => <Card key={w.id} w={w} dragging={dragging === w.id} busy={w.id in pending} hilite={w.id === openWoId} onOpen={() => setOpen(w)} viewerUrl={viewerUrl(w)}
+            {items.map(w => <Card key={w.id} w={w} modelId={modelId} dragging={dragging === w.id} busy={w.id in pending} hilite={w.id === openWoId} lifted={open?.id === w.id} onOpen={() => setOpen(w)} viewerUrl={viewerUrl(w)}
                                   onDragStart={() => setDragging(w.id)} onDragEnd={() => { setDragging(undefined); setDragOver(undefined) }} onNext={() => move(w, NEXT[w.status].s)} />)}
             {!items.length && <div style={{ color: T.ink[3], textAlign: 'center', padding: 24, fontSize: 12 }}>카드를 여기로 끌어다 놓으세요</div>}
           </div>) })}
@@ -88,12 +89,14 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
   )
 }
 
-function Card({ w, dragging, busy, hilite, onOpen, viewerUrl, onDragStart, onDragEnd, onNext }: { w: WorkOrder; dragging: boolean; busy: boolean; hilite?: boolean; onOpen: () => void; viewerUrl: string; onDragStart: () => void; onDragEnd: () => void; onNext: () => void }) {
+function Card({ w, modelId, dragging, busy, hilite, lifted, onOpen, viewerUrl, onDragStart, onDragEnd, onNext }: { w: WorkOrder; modelId: string; dragging: boolean; busy: boolean; hilite?: boolean; lifted?: boolean; onOpen: () => void; viewerUrl: string; onDragStart: () => void; onDragEnd: () => void; onNext: () => void }) {
   const t = teamOf(w), pr = PRIO[w.priority ?? 'NORMAL'], Pi = pr.icon, od = overdue(w), nx = NEXT[w.status]
   return (
     <div draggable={!busy} onDragStart={e => { e.dataTransfer.setData('text/wo', w.id); e.dataTransfer.effectAllowed = 'move'; onDragStart() }} onDragEnd={onDragEnd} onClick={onOpen}
          style={{ background: T.bg.surface, borderRadius: T.radius, padding: '8px 10px', marginBottom: 8, boxShadow: T.shadow, borderLeft: '4px solid ' + (t?.color ?? T.bg.line), cursor: busy ? 'progress' : 'grab',
-                  opacity: dragging ? 0.35 : busy ? 0.6 : w.status === 'DONE' ? 0.75 : 1, outline: dragging ? `2px dashed ${T.accent}` : hilite ? `2px solid ${T.accent}` : 'none', transition: 'opacity .15s' }}>
+                  opacity: dragging ? 0.35 : busy ? 0.6 : w.status === 'DONE' && !lifted ? 0.75 : 1, outline: dragging ? `2px dashed ${T.accent}` : hilite || lifted ? `2px solid ${T.accent}` : 'none', transition: 'opacity .15s',
+                  // 드로어가 열린 카드: 어두운 막(zIndex 40) 위로 띄워 "이 카드"가 그대로 보이게
+                  ...(lifted ? { position: 'relative' as const, zIndex: 41, boxShadow: `0 0 0 4px ${T.accentSoft}, ${T.shadow}` } : {}) }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {Pi && <Pi size={13} style={{ color: pr.color, flexShrink: 0 }} aria-label={pr.label} />}
         <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</span>
@@ -104,7 +107,7 @@ function Card({ w, dragging, busy, hilite, onOpen, viewerUrl, onDragStart, onDra
         <span>{w.assignee ?? '미배정'}</span>
         {w.dueOn && <span style={{ color: od ? T.crit : T.ink[2], fontWeight: od ? 600 : 400 }}>{day(w.dueOn)}{od ? ' 초과' : ''}</span>}
         <span style={{ flex: 1 }} />
-        <a href={viewerUrl} onClick={e => e.stopPropagation()} title="3D 위치" style={{ color: T.accent, textDecoration: 'none', fontSize: T.fs.xs }}>3D</a>
+        <NavLinks modelId={modelId} gid={w.globalId} viewer={viewerUrl} style={{ marginLeft: 0 }} />
         <button disabled={busy} onClick={e => { e.stopPropagation(); onNext() }} style={{ ...btn, padding: '1px 7px', fontSize: 11 }}>{nx.label}</button>
       </div>
     </div>
@@ -117,10 +120,11 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
   const save = () => { setSaving(true); post(`/work-orders/${w.id}`, { title: f.title, assignee: f.assignee || null, dueOn: f.dueOn || null, priority: f.priority, description: f.description }, 'PATCH').then(reload).finally(() => setSaving(false)) }
   const t = teamOf(w)
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40 }}>
-      <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 18, overflow: 'auto', fontSize: 13 }}>
+    <>{/* 막(40) < 열린 카드(41, Card lifted) < 패널(42): 카드는 막 위로 뜨되 패널은 못 덮는다 */}
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40 }} />
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 18, overflow: 'auto', fontSize: 13, zIndex: 42, boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><StatusBadge s={w.status} />{t && <span style={{ fontSize: 11, color: t.color, border: '1px solid ' + t.color, borderRadius: T.radius, padding: '0 5px' }}>{t.short}</span>}
-          <span style={{ color: T.ink[2], fontSize: 11 }}>{w.id.slice(0, 8)}</span><X size={16} style={{ marginLeft: 'auto', cursor: 'pointer', color: T.ink[2] }} onClick={onClose} /></div>
+          <span style={{ color: T.ink[2], fontSize: 11 }}>{w.id.slice(0, 8)}</span><NavLinks modelId={modelId} gid={w.globalId} viewer={viewerUrl} style={{ fontSize: 12 }} /><X size={16} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={onClose} /></div>
         <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} style={{ ...inp, width: '100%', fontSize: 15, fontWeight: 600, marginBottom: 10 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>
           <span style={lbl}>상태</span><div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>{COLS.map(s => <button key={s} onClick={() => move(w, s)} style={{ ...chip, fontWeight: w.status === s ? 700 : 400, borderColor: w.status === s ? T.accent : T.bg.line, background: w.status === s ? T.accentSoft : T.bg.surface }}>{WO_STATUS[s]}</button>)}<span style={{ fontSize: 10, color: T.ink[2] }}>즉시 저장</span></div>
@@ -128,7 +132,7 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
           <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} placeholder="미배정" style={inp} />
           <span style={lbl}>기한</span><input type="date" value={f.dueOn} onChange={e => setF({ ...f, dueOn: e.target.value })} style={inp} />
           <span style={lbl}>자산</span><span><b>{w.assetTag}</b> <span style={{ color: T.ink[2] }}>{w.assetCategory}</span></span>
-          <span style={lbl}>위치</span><span>{w.storey}{w.zone ? ` · ${w.zone}` : ''} · {w.elementName} <a href={viewerUrl} style={{ color: T.accent, marginLeft: 6 }}>3D</a>{w.globalId && <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(w.globalId)}`} title="모니터링에서 현재 계측값" style={{ color: T.accent, marginLeft: 6 }}>모니터링</a>}</span>
+          <span style={lbl}>위치</span><span>{w.storey}{w.zone ? ` · ${w.zone}` : ''} · {w.elementName}</span>
           {w.inspectionNote && <><span style={lbl}>점검 메모</span><span style={{ color: T.crit }}>{w.inspectionNote}</span></>}
           <span style={lbl}>생성 / 변경</span><span style={{ color: T.ink[2], fontSize: 12 }}>{new Date(w.createdAt).toLocaleString()} / {w.updatedAt ? new Date(w.updatedAt).toLocaleString() : '—'}</span>
         </div>
@@ -136,10 +140,9 @@ function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder
           <textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={5} placeholder="작업 내용과 조치 사항" style={{ ...inp, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} /></div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <button disabled={saving} onClick={save} style={btnPrimary}>저장</button>
-          <a href={`#/models/${modelId}?sel=${encodeURIComponent(w.globalId ?? '')}&fm=1`} style={btn}>뷰어에서 자산·점검 보기</a>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

@@ -1,0 +1,279 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "BIM Operations Platform 운영 흐름",
+    "output": "flow.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "conversion",
+        "label": "업로드 → 변환 → 준비",
+        "focus": [
+          "upload",
+          "enqueue",
+          "convert",
+          "ready"
+        ],
+        "note": "IFC 를 올리면 api 가 MinIO 에 저장하고 잡을 큐에 넣는다. 워커가 lease 를 잡아 GLB·요소·계통을 적재하면 SSE 로 READY 가 올라온다."
+      },
+      {
+        "id": "operate",
+        "label": "화면에서 운영",
+        "focus": [
+          "ready",
+          "explore",
+          "alert"
+        ],
+        "note": "3D 뷰어·모니터링·시설관리가 한 객체 선택(?sel=)을 공유한다. 계통 추적·정전 시나리오·경보 포커스가 여기서 돈다."
+      },
+      {
+        "id": "workorder",
+        "label": "경보 → 작업지시",
+        "focus": [
+          "alert",
+          "work_order",
+          "board"
+        ],
+        "note": "감지기 경보·장비 장애는 자산이면 작업지시가 자동 생성되어 칸반 보드에 쌓인다. 카드의 뷰포인트로 3D 로 되돌아간다."
+      },
+      {
+        "id": "failure",
+        "label": "변환 실패와 재시도",
+        "focus": [
+          "convert",
+          "failed",
+          "enqueue"
+        ],
+        "note": "워커 예외는 FAILED 로 기록되고 목록의 재시도 버튼이 같은 잡을 다시 큐에 넣는다."
+      }
+    ],
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "화면"
+        },
+        "backend": {
+          "label": "api · 워커"
+        },
+        "database": {
+          "label": "운영 데이터"
+        },
+        "security": {
+          "label": "실패 · 자동 생성"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "user",
+      "label": "사용자 · 브라우저"
+    },
+    {
+      "id": "api",
+      "label": "api · Spring Boot · PostGIS"
+    },
+    {
+      "id": "worker",
+      "label": "ifc-worker · IfcOpenShell"
+    }
+  ],
+  "phases": [
+    {
+      "id": "ingest",
+      "label": "적재",
+      "fromCol": 0,
+      "toCol": 2
+    },
+    {
+      "id": "operate",
+      "label": "운영",
+      "fromCol": 3,
+      "toCol": 5,
+      "variant": "emphasis"
+    }
+  ],
+  "mainPath": [
+    "upload",
+    "enqueue",
+    "convert",
+    "ready",
+    "explore",
+    "alert",
+    "work_order",
+    "board"
+  ],
+  "nodes": [
+    {
+      "id": "upload",
+      "lane": "user",
+      "col": 0,
+      "type": "frontend",
+      "label": "IFC 업로드",
+      "sublabel": "드래그 · 최대 500MB",
+      "width": 150
+    },
+    {
+      "id": "enqueue",
+      "lane": "api",
+      "col": 1,
+      "type": "backend",
+      "label": "잡 등록",
+      "sublabel": "source.ifc → MinIO",
+      "tag": "conversion_job",
+      "width": 150
+    },
+    {
+      "id": "convert",
+      "lane": "worker",
+      "col": 2,
+      "type": "backend",
+      "label": "IFC → GLB 변환",
+      "sublabel": "요소 · 계통 · 연결",
+      "tag": "lease · heartbeat",
+      "width": 150
+    },
+    {
+      "id": "ready",
+      "lane": "api",
+      "col": 3,
+      "type": "backend",
+      "label": "READY",
+      "sublabel": "SSE 진행률",
+      "width": 150
+    },
+    {
+      "id": "explore",
+      "lane": "user",
+      "col": 4,
+      "type": "frontend",
+      "label": "3D 뷰어",
+      "sublabel": "모니터링 · 계통 추적",
+      "width": 150
+    },
+    {
+      "id": "alert",
+      "lane": "api",
+      "col": 4,
+      "type": "database",
+      "label": "경보 · 장애",
+      "sublabel": "op_event 이력",
+      "tag": "운영 상태",
+      "width": 150
+    },
+    {
+      "id": "work_order",
+      "lane": "api",
+      "col": 5,
+      "type": "security",
+      "label": "작업지시 생성",
+      "sublabel": "자동 · 재발 재오픈",
+      "width": 150
+    },
+    {
+      "id": "board",
+      "lane": "user",
+      "col": 5,
+      "type": "frontend",
+      "label": "시설관리 보드",
+      "sublabel": "칸반 · 뷰포인트",
+      "width": 150
+    },
+    {
+      "id": "failed",
+      "lane": "worker",
+      "col": 3,
+      "type": "security",
+      "label": "FAILED",
+      "sublabel": "예외 메시지 기록",
+      "width": 150
+    }
+  ],
+  "edges": [
+    {
+      "from": "upload",
+      "to": "enqueue",
+      "label": "POST /models"
+    },
+    {
+      "from": "enqueue",
+      "to": "convert",
+      "label": "poll · SKIP LOCKED",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "convert",
+      "to": "ready",
+      "label": "GLB · 요소 적재"
+    },
+    {
+      "from": "ready",
+      "to": "explore",
+      "label": "SSE status"
+    },
+    {
+      "from": "explore",
+      "to": "alert",
+      "label": "운영 상태 변경"
+    },
+    {
+      "from": "alert",
+      "to": "work_order",
+      "label": "자산이면"
+    },
+    {
+      "from": "work_order",
+      "to": "board"
+    },
+    {
+      "from": "convert",
+      "to": "failed",
+      "label": "예외",
+      "role": "error",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "from": "failed",
+      "to": "enqueue",
+      "label": "재시도",
+      "role": "return",
+      "variant": "dashed",
+      "route": "bottom-channel",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "적재",
+      "items": [
+        "api 가 IFC 를 MinIO 에 올리고 PostgreSQL 잡 큐에 넣는다 (브로커 없음)",
+        "워커가 lease · heartbeat 로 잡을 잡고 GLB 와 요소 · Pset · 계통 · 포트 연결을 적재",
+        "진행률은 SSE 로 목록 화면에 올라온다"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "운영",
+      "items": [
+        "뷰어 · 모니터링 · 시설관리가 같은 객체 선택(?sel=)과 맥락 독을 공유",
+        "계통 그래프(재귀 CTE)로 상류 · 하류 추적과 정전 영향 범위 계산",
+        "경보 · 장애 · 계측값은 op_event 이력으로 남아 트렌드와 통계가 된다"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "실패와 복구",
+      "items": [
+        "워커 예외는 FAILED 와 메시지로 기록, 목록에서 재시도",
+        "경보가 자산의 작업지시가 되고 10분 재발이면 다시 연다",
+        "작업지시 카드의 뷰포인트가 3D 위치로 되돌려 준다"
+      ]
+    }
+  ]
+}

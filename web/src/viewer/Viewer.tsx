@@ -9,6 +9,7 @@ import { STATUS, isAbnormal, statusHex, statusLabel } from '../status'
 import ObjectSummary from '../ObjectSummary'
 import { ifcKo } from '../ifcNames'
 import { notify, saveSnap } from '../context'
+import NavLinks from '../NavLinks'
 import { day, useEsc } from '../ui'
 import FmPanel, { StatusBadge } from './FmPanel'
 import StatusEditor from './StatusEditor'
@@ -253,7 +254,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Separator style={sep} />
 
       <Panel minSize={200}>
-        <div ref={canvas} style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
+        <div ref={canvas} id="viewer-canvas" style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>   {/* id: 맥락 독이 기본 위치(캔버스 우측 상단)를 재려고 찾는다 */}
           {err && <p style={{ position: 'absolute', top: 8, left: 8, color: T.crit, background: T.bg.surface, padding: 6 }}>{err}</p>}
           {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.ink[1], padding: '2px 6px', borderRadius: T.radius, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
 
@@ -265,8 +266,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <span style={{ width: 8, height: 8, borderRadius: 999, background: isAbnormal(focusInfo.status) ? statusHex(focusInfo.status) : T.accent, flexShrink: 0 }} />
             <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
             {focusInfo.status && <b style={{ color: statusHex(focusInfo.status, T.ok) }}>{statusLabel(focusInfo.status)}</b>}
-            <a href={`#/models/${modelId}/monitor?sel=${encodeURIComponent(focusInfo.gid)}`} title="모니터링에서 이 장비" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>모니터링</a>
-            {(assetByGid.get(focusInfo.gid)?.openWorkOrders ?? 0) > 0 && <a href={`#/models/${modelId}/fm?sel=${encodeURIComponent(focusInfo.gid)}`} title="칸반 보드에서 이 자산의 카드" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>칸반</a>}
+            <NavLinks modelId={modelId} gid={focusInfo.gid} style={{ fontSize: 12 }} />
             <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined) }} /></div>}
 
           {/* 작업지시로 진입: 배너 */}
@@ -350,7 +350,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       </Panel>
       <Separator style={sep} />
 
-      <Panel defaultSize={340} minSize={200} collapsible collapsedSize={0}>
+      <Panel defaultSize={340} minSize={200} collapsible collapsedSize={0} onResize={() => notify()}>   {/* 우측 패널 폭이 바뀌면 캔버스 우측 상단도 움직임 → 맥락 독 재배치 */}
         <aside style={{ overflow: 'auto', height: '100%', padding: 12, boxSizing: 'border-box' }}>
           {selection.length === 1 && detail && 'properties' in detail && <ObjectSummary modelId={modelId} detail={detail} asset={selAsset} openWos={assetDetail?.workOrders.filter(w => w.status !== 'DONE')} onFm={() => setTab('fm')} />}
           <div style={{ display: 'flex', borderBottom: `1px solid ${T.bg.line}`, marginBottom: 10 }}>

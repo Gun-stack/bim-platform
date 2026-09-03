@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "BIM Operations Platform 아키텍처",
+    "output": "architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "request-path",
+        "label": "화면 요청 경로",
+        "focus": [
+          "browser",
+          "web",
+          "api",
+          "postgis"
+        ],
+        "note": "브라우저 → nginx /api 프록시 → Spring Boot → PostGIS. SSE 로 변환 진행률이 올라온다."
+      },
+      {
+        "id": "conversion",
+        "label": "IFC 변환 파이프라인",
+        "focus": [
+          "api",
+          "postgis",
+          "minio",
+          "worker"
+        ],
+        "note": "api 가 IFC 를 MinIO 에 올리고 잡을 큐에 넣으면 워커가 lease 를 잡아 GLB·요소·계통을 적재한다."
+      },
+      {
+        "id": "glb-delivery",
+        "label": "GLB 전달",
+        "focus": [
+          "browser",
+          "web",
+          "minio"
+        ],
+        "note": "GLB 만 nginx /files/bim/glb/ 로 공개 프록시. source.ifc 는 프록시 경로 자체가 없다."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "브라우저",
+      "sublabel": "React 19 · Three.js",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        130,
+        64
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "web (nginx)",
+      "sublabel": "SPA + 프록시 :5173",
+      "pos": [
+        250,
+        300
+      ],
+      "size": [
+        140,
+        64
+      ],
+      "tag": "Basic 인증 옵션"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "api",
+      "sublabel": "Spring Boot 4 · Java 25",
+      "pos": [
+        470,
+        300
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "postgis",
+      "type": "database",
+      "label": "PostgreSQL 16",
+      "sublabel": "PostGIS · 잡 큐",
+      "pos": [
+        740,
+        180
+      ],
+      "size": [
+        140,
+        64
+      ],
+      "tag": "SKIP LOCKED 큐"
+    },
+    {
+      "id": "minio",
+      "type": "database",
+      "label": "MinIO",
+      "sublabel": "S3 · 버킷 bim",
+      "pos": [
+        740,
+        420
+      ],
+      "size": [
+        140,
+        64
+      ],
+      "tag": "glb 만 공개"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "ifc-worker",
+      "sublabel": "Python · IfcOpenShell",
+      "pos": [
+        960,
+        300
+      ],
+      "size": [
+        150,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Docker Compose — 외부 노출은 web :5173 뿐, 나머지는 127.0.0.1 바인딩",
+      "wraps": [
+        "web",
+        "api",
+        "postgis",
+        "minio",
+        "worker"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-web",
+      "from": "browser",
+      "to": "web",
+      "label": "HTTP · REST/SSE",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "web-api",
+      "from": "web",
+      "to": "api",
+      "label": "/api/ 프록시 · 20 req/s",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "api-postgis",
+      "from": "api",
+      "to": "postgis",
+      "label": "JdbcClient SQL · 잡 enqueue",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "api-minio",
+      "from": "api",
+      "to": "minio",
+      "label": "source.ifc 업로드 (S3)",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "worker-postgis",
+      "from": "worker",
+      "to": "postgis",
+      "label": "poll · lease · heartbeat / 요소·계통 적재",
+      "fromSide": "top",
+      "toSide": "right"
+    },
+    {
+      "id": "worker-minio",
+      "from": "worker",
+      "to": "minio",
+      "label": "ifc 다운로드 · GLB 업로드",
+      "fromSide": "bottom",
+      "toSide": "right"
+    },
+    {
+      "id": "web-minio-glb",
+      "from": "web",
+      "to": "minio",
+      "label": "/files/bim/glb/ 프록시",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "화면",
+      "items": [
+        "React 19 SPA, Three.js 3D 뷰어 + MapLibre 지도",
+        "nginx 가 정적 파일과 /api, /files/bim/glb 프록시를 담당",
+        "SSE 로 변환 진행률 수신"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "API · 워커",
+      "items": [
+        "Spring Boot 4 / Java 25, JdbcClient 트랜잭션 API",
+        "Python IfcOpenShell 워커가 IFC → GLB 변환·요소·Pset·계통·연결 적재",
+        "브로커 없는 PostgreSQL 잡 큐 (lease owner · heartbeat · 재시도)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "보안 경계",
+      "items": [
+        "외부 포트는 web 5173 하나, DB·MinIO·API 는 127.0.0.1 바인딩",
+        "MinIO 는 glb 프리픽스만 익명 읽기, source.ifc 는 프록시 경로 없음",
+        "Basic 인증은 환경변수로 선택"
+      ]
+    }
+  ]
+}

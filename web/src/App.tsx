@@ -23,6 +23,8 @@ export default function App() {
     {m && !kiosk && <ObjectDock modelId={m[1]} route={(m[2] ?? '') as '' | '/monitor' | '/fm'} />}</>
 }
 
+const hdrLink = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: `1px solid ${T.bg.line}`, borderRadius: 6, textDecoration: 'none', color: T.ink[1], fontSize: 12 } as const
+
 function Models() {
   const [pid, setPid] = useState<string>()
   const [models, setModels] = useState<Model[]>([])
@@ -69,7 +71,12 @@ function Models() {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8 }}>bim-platform</h1>
         <span style={{ color: T.ink[2] }}>프로젝트 demo · 모델 {models.length}개{models.some(m => m.status === 'PROCESSING' || m.status === 'UPLOADED') ? ' · 변환 중' : ''}</span>
-        <a href="#/map" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: `1px solid ${T.bg.line}`, borderRadius: 6, textDecoration: 'none', color: T.ink[1], fontSize: 12 }}>지도</a>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+          {/* Archify 로 만든 탐색형 다이어그램(web/public/*.html, 원본 docs/*.archify.json). 새 탭으로 */}
+          <a href="/flow.html" target="_blank" rel="noopener" title="업로드 → 변환 → 운영 → 작업지시 흐름" style={hdrLink}>운영 흐름</a>
+          <a href="/architecture.html" target="_blank" rel="noopener" title="컨테이너 구성과 요청 경로" style={hdrLink}>아키텍처</a>
+          <a href="#/map" style={hdrLink}>지도</a>
+        </span>
       </div>
 
       <label onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}

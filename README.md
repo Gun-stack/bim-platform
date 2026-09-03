@@ -91,6 +91,10 @@ flowchart LR
 
 Docker Compose는 `web`, `api`, `ifc-worker`, `postgis`, `minio`를 실행합니다. 브라우저는 SSE로 변환 진행률을 받고, GLB의 IFC GlobalId 노드를 API의 요소 데이터와 연결합니다.
 
+> 🗺️ 탐색형 다이어그램([Archify](https://github.com/tt-a1i/archify)로 생성, 모델 목록 화면 상단 링크로도 열림):
+> - 운영 흐름 [web/public/flow.html](web/public/flow.html) — 업로드→변환→운영→작업지시 4개 뷰, 원본 [docs/flow.archify.json](docs/flow.archify.json)
+> - 아키텍처 [web/public/architecture.html](web/public/architecture.html) — 요청 경로·변환 파이프라인·GLB 전달 3개 뷰, 원본 [docs/architecture.archify.json](docs/architecture.archify.json)
+
 ```text
 project ─ model ─ element ─ asset ─┬─ inspection
              │                     └─ work_order (viewpoint)
