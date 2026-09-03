@@ -25,9 +25,9 @@ export class NavCube {
     this.camera.position.set(0, 0, 5)
     // X 빨강, Y 초록(위), Z 파랑 — glb 는 Y-up. 라벨은 건축 관례(정면 = +Z 에서 봄)
     const axes: [THREE.Vector3, number, string, string][] = [
-      [new THREE.Vector3(1, 0, 0), num(T.axis.x), 'Right', 'Left'],
-      [new THREE.Vector3(0, 1, 0), num(T.axis.y), 'Top', 'Bottom'],
-      [new THREE.Vector3(0, 0, 1), num(T.axis.z), 'Front', 'Back']]
+      [new THREE.Vector3(1, 0, 0), num(T.axis.x), '우측면', '좌측면'],
+      [new THREE.Vector3(0, 1, 0), num(T.axis.y), '평면', '저면'],
+      [new THREE.Vector3(0, 0, 1), num(T.axis.z), '정면', '배면']]
     const ball = new THREE.SphereGeometry(0.22, 16, 12)
     for (const [dir, color, pos, neg] of axes) {
       const line = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 8), new THREE.MeshBasicMaterial({ color }))
@@ -42,7 +42,7 @@ export class NavCube {
       }
     }
     const home = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), new THREE.MeshBasicMaterial({ color: num(T.ink[3]) }))
-    home.userData = { label: 'Home' }
+    home.userData = { label: '홈' }
     this.root.add(home); this.balls.push(home)
     this.scene.add(this.root)
 

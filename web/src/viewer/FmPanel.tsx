@@ -88,11 +88,11 @@ function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Prom
       <h4 style={h4}>점검 {d && <span style={{ color: T.ink[2], fontWeight: 400 }}>{d.inspections.length}</span>}</h4>
       <div style={{ display: 'flex', gap: 4 }}>
         <input value={note} onChange={e => setNote(e.target.value)} placeholder="메모 (선택)" style={{ ...inp, flex: 1 }} />
-        <button onClick={() => inspect('OK')} style={{ ...btn, color: T.ok }} title="이상 없음">OK</button>
+        <button onClick={() => inspect('OK')} style={{ ...btn, color: T.ok }} title="이상 없음">정상</button>
         <button onClick={() => inspect('DEFECT')} style={{ ...btn, color: T.crit }} title="결함">결함</button>
       </div>
       {d?.inspections.slice(0, 5).map(i => <div key={i.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '3px 0', borderTop: `1px solid ${T.bg.line}` }}>
-        <span style={{ color: T.ink[2], width: 76 }}>{day(i.inspectedOn)}</span><b style={{ color: i.result === 'OK' ? T.ok : T.crit, width: 48 }}>{i.result}</b><span style={{ color: T.ink[2] }}>{i.note}</span></div>)}
+        <span style={{ color: T.ink[2], width: 76 }}>{day(i.inspectedOn)}</span><b style={{ color: i.result === 'OK' ? T.ok : T.crit, width: 48 }}>{i.result === 'OK' ? '정상' : '결함'}</b><span style={{ color: T.ink[2] }}>{i.note}</span></div>)}
 
       <h4 style={h4}>작업지시 {d && <span style={{ color: T.ink[2], fontWeight: 400 }}>{d.workOrders.length}</span>}
         <button onClick={() => setShowWo(!showWo)} style={{ ...btn, marginLeft: 'auto' }}>새 작업지시</button></h4>

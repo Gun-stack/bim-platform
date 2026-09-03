@@ -181,4 +181,4 @@ function Toggle({ icon: Icon, label, on, onClick, disabled }: { icon: LucideIcon
     {hov && <Tip>{label}</Tip>}
   </span>
 }
-const Tip = ({ children }: { children: ReactNode }) => <span style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 5, background: T.ink[1], color: T.ink[1], padding: '3px 8px', borderRadius: T.radius, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none' }}>{children}</span>
+const Tip = ({ children }: { children: ReactNode }) => <span style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 5, background: T.ink[1], color: T.bg.base, padding: '3px 8px', borderRadius: T.radius, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none' }}>{children}</span>

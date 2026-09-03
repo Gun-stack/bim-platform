@@ -81,8 +81,8 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
           </div>) })}
       </div>
 
-      {toast && <div role="status" style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', background: toast.error ? T.crit : T.ink[1], color: T.ink[1], padding: '8px 14px', borderRadius: T.radius, fontSize: 12, display: 'flex', gap: 12, alignItems: 'center', boxShadow: T.shadow, zIndex: 50 }}>
-        <span>{toast.msg}</span>{toast.undo && <button onClick={() => { toast.undo!(); setToast(undefined) }} style={{ ...btn, background: 'transparent', color: T.accentSoft, border: `1px solid ${T.accentSoft}`, padding: '2px 8px' }}>되돌리기</button>}</div>}
+      {toast && <div role="status" style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', background: toast.error ? T.crit : T.ink[1], color: T.bg.base, padding: '8px 14px', borderRadius: T.radius, fontSize: 12, display: 'flex', gap: 12, alignItems: 'center', boxShadow: T.shadow, zIndex: 50 }}>
+        <span>{toast.msg}</span>{toast.undo && <button onClick={() => { toast.undo!(); setToast(undefined) }} style={{ ...btn, background: 'transparent', color: T.bg.base, border: '1px solid currentcolor', padding: '2px 8px', fontWeight: 600 }}>되돌리기</button>}</div>}
       {open && <Drawer key={open.id} w={wos.find(x => x.id === open.id) ?? open} modelId={modelId} viewerUrl={viewerUrl(open)} onClose={() => setOpen(undefined)} reload={reload} move={move} />}
       {creating && <CreateModal assets={assets} onClose={() => setCreating(false)} reload={reload} />}
     </div>

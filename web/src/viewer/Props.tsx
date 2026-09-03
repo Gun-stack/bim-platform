@@ -1,4 +1,5 @@
 import type { ElementDetail, ElementRow } from '../api'
+import { ifcKo } from '../ifcNames'
 import { T } from '../theme'
 
 /** 우측 속성 탭의 표: 단일 요소 Pset 표와 다중 선택 공통 속성. 뷰어 상태와 무관한 순수 표시 */
@@ -6,8 +7,8 @@ import { T } from '../theme'
 export function Props({ e }: { e: ElementDetail }) {
   return (
     <>
-      <b>{e.ifcClass}</b> <span>{e.name}</span>
-      <div style={{ color: T.ink[2], margin: '4px 0 8px' }}>{e.spatialClass} {e.spatialName} · <code>{e.globalId}</code></div>
+      <b>{ifcKo(e.ifcClass)}</b> <span>{e.name}</span>
+      <div style={{ color: T.ink[2], margin: '4px 0 8px' }}>{e.ifcClass} · {e.spatialClass} {e.spatialName} · <code>{e.globalId}</code></div>
       {Object.entries(e.properties).filter(([pset]) => pset !== 'Pset_BimStatus').map(([pset, props]) => (
         <details key={pset} open={pset.startsWith('Pset_')}>
           <summary>{pset}</summary>
@@ -40,7 +41,7 @@ export function MultiProps({ selection, byGid, details }: { selection: string[];
     <>
       <b>{selection.length}개 선택</b>
       <table style={{ width: '100%', borderCollapse: 'collapse', margin: '6px 0 10px' }}><tbody>
-        {[...classes].sort((a, b) => b[1] - a[1]).map(([c, n]) => <tr key={c} style={{ borderTop: `1px solid ${T.bg.line}` }}><td style={{ padding: '2px 4px' }}>{c}</td><td align="right" style={{ padding: '2px 4px', color: T.ink[2] }}>{n}</td></tr>)}
+        {[...classes].sort((a, b) => b[1] - a[1]).map(([c, n]) => <tr key={c} style={{ borderTop: `1px solid ${T.bg.line}` }}><td title={c} style={{ padding: '2px 4px' }}>{ifcKo(c)}</td><td align="right" style={{ padding: '2px 4px', color: T.ink[2] }}>{n}</td></tr>)}
       </tbody></table>
       {details.length > 0 && <>
         <div style={{ color: T.ink[2], fontSize: 12, marginBottom: 4 }}>공통 속성 {details.length < selection.length && `(앞 ${details.length}개 기준)`}</div>

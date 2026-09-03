@@ -4,6 +4,7 @@ import StatusEditor from './viewer/StatusEditor'
 import FmPanel from './viewer/FmPanel'
 import { useObject } from './useObject'
 import NavLinks from './NavLinks'
+import { ifcKo } from './ifcNames'
 import { useEsc } from './ui'
 import { T } from './theme'
 
@@ -17,7 +18,7 @@ export default function ObjectDrawer({ modelId, gid, tick, reload, onClose }: { 
   return (
     <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 14, overflow: 'auto', fontSize: 13, zIndex: 40, boxSizing: 'border-box', fontFamily: 'system-ui' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <b>객체</b><span style={{ color: T.ink[2], fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={gid}>{gid}</span>
+        <b>객체</b><span style={{ color: T.ink[2], fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={gid}>{d ? `${ifcKo(d.ifcClass)}${d.spatialName ? ' · ' + d.spatialName : ''}` : ''}</span>
         <NavLinks modelId={modelId} gid={gid} style={{ fontSize: 12 }} />
         <X size={16} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={onClose} />
       </div>

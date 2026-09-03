@@ -87,7 +87,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <b>{a.tag}</b><span title={a.category ?? ''}>{ifcKo(a.category)}</span><span style={{ color: T.ink[2] }}>{a.storey ?? '—'}{a.zone ? <span style={{ color: T.ink[3] }}> {a.zone.split('-').pop()}</span> : ''}</span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: a.globalId ? T.ink[1] : T.ink[2] }} title={a.elementName ?? ''}>{a.globalId ? a.elementName : '(모델에 없음)'}</span>
           <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? T.ink[2] : T.crit }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '중지', RETIRED: '폐기' }[a.status]}</span>
-          <span style={{ fontSize: 12, color: a.lastResult === 'DEFECT' ? T.crit : T.ink[2] }}>{a.lastInspectedOn ? `${day(a.lastInspectedOn)} ${a.lastResult}` : '—'}</span>
+          <span style={{ fontSize: 12, color: a.lastResult === 'DEFECT' ? T.crit : T.ink[2] }}>{a.lastInspectedOn ? `${day(a.lastInspectedOn)} ${a.lastResult === 'DEFECT' ? '결함' : '정상'}` : '—'}</span>
           <span style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
             <input type="number" min={0} defaultValue={(a.attributes?.intervalMonths as number | undefined) ?? ''} placeholder="주기" title="점검 주기(개월) — 비우거나 0이면 해제"
                    onBlur={e => { const v = e.target.value === '' ? 0 : +e.target.value; if (v !== ((a.attributes?.intervalMonths as number | undefined) ?? 0)) post(`/assets/${a.id}`, { intervalMonths: v }, 'PATCH').then(reload) }}

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Focus, X } from 'lucide-react'
 import { TEAMS } from '../teams'
 import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
-import { hex, isAbnormal, statusHex } from '../status'
+import { hex, isAbnormal, statusHex, statusLabel } from '../status'
 import { btn as btnBase } from '../ui'
 import { T, num } from '../theme'
 
@@ -109,7 +109,7 @@ export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setSt
       {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: T.radius, background: T.critSoft }}>
         <span style={{ width: 8, height: 8, borderRadius: 999, background: statusHex(r.status.Status), flexShrink: 0 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-        <span style={{ color: T.ink[2] }}>{r.spatialName}</span><b style={{ color: statusHex(r.status.Status) }}>{r.status.Status}</b></div>)}
+        <span style={{ color: T.ink[2] }}>{r.spatialName}</span><b style={{ color: statusHex(r.status.Status) }}>{statusLabel(r.status.Status)}</b></div>)}
       <button disabled={busy} onClick={togglePower} title={power ? '발전기에서 한전으로 되돌린다' : '한전 정전 — ATS 가 발전기로 절체, 비상 계통만 전원 유지'} style={{ ...btn, marginTop: 8, width: '100%', background: power ? T.warnSoft : T.bg.surface, borderColor: power ? T.warn : T.bg.line, color: power ? T.warn : T.ink[1] }}>
         {power ? `복전 (무전원 ${power.unpowered.length})` : '정전 시나리오'}</button>
       </>}

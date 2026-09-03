@@ -121,7 +121,7 @@ function Row({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove
       <span style={{ textAlign: 'right' }}>{m.elementCount?.toLocaleString() ?? '—'}</span>
       <div>
         {m.status === 'FAILED'
-          ? <code title={m.error} style={{ color: T.crit, fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.error?.trim().split('\n').at(-1)}</code>
+          ? <span title={m.error} style={{ color: T.crit, fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>변환 실패 · {m.error?.trim().split('\n').at(-1)}</span>
           : <div style={{ height: 6, background: T.bg.line, borderRadius: T.radius, overflow: 'hidden' }}><div style={{ width: `${m.progress}%`, height: '100%', background: m.status === 'READY' ? T.ok : T.accent, transition: 'width .3s' }} /></div>}
       </div>
       <div style={{ textAlign: 'right' }}>

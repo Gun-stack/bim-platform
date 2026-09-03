@@ -126,7 +126,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       requestAnimationFrame(() => {
         pending = false
         const gid = s.hover(e.clientX, e.clientY), el = gid ? byGid.get(gid) : undefined
-        setHover(gid ? { x: e.clientX, y: e.clientY, text: el ? `${el.ifcClass} ${el.name ?? ''}` : spaceGids.has(gid) ? 'IfcSpace' : 'IfcOpeningElement' } : undefined)
+        setHover(gid ? { x: e.clientX, y: e.clientY, text: el ? `${ifcKo(el.ifcClass)} ${el.name ?? ''}` : spaceGids.has(gid) ? '공간(구역)' : '개구부' } : undefined)
       })
     }
     el.addEventListener('pointermove', onMove)
@@ -256,7 +256,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Panel minSize={200}>
         <div ref={canvas} id="viewer-canvas" style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>   {/* id: 맥락 독이 기본 위치(캔버스 우측 상단)를 재려고 찾는다 */}
           {err && <p style={{ position: 'absolute', top: 8, left: 8, color: T.crit, background: T.bg.surface, padding: 6 }}>{err}</p>}
-          {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.ink[1], padding: '2px 6px', borderRadius: T.radius, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
+          {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.bg.base, padding: '2px 6px', borderRadius: T.radius, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
 
           {colorMode && <ColorPanel modelId={modelId} elements={elements} spatial={spatial} onChange={m => scene.current?.setColors(m)}
             onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
