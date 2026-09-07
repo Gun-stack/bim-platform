@@ -62,7 +62,7 @@ FMS·MEP 분야의 실무 경험을 바탕으로 업무 흐름과 기술 구현�
 
 ![실무 IFC — Duplex Plumbing 모니터링](images/12-plumbing-monitor.png)
 
-**9. 가상 건물.** 위 화면의 건물은 IfcOpenShell API로 직접 생성한 36×16 m 업무동입니다 — 실무 관행대로 B2 변전·발전기·기계·수조실, B1 주차장·방재·통신·주차관제실, 옥탑 보일러실, 계단실 2개소, 17% 차량 램프, 슬래브 개구부. 14계통 474요소 521연결에 운영 상태가 들어 있어 위 시나리오를 바로 돌려볼 수 있습니다.
+**9. 가상 건물.** 위 화면의 건물은 IfcOpenShell API로 직접 생성한 36×16 m 업무동(지상 10층·지하 2층·옥탑)과 주차타워(3층)입니다 — 실무 관행대로 B2 변전·발전기·기계·수조실, B1 주차장·방재·통신·주차관제실, 옥탑 보일러실, 계단실 2개소, 17% 차량 램프, 슬래브 개구부. 14계통 1,613요소 2,005연결에 운영 상태가 들어 있어 위 시나리오를 바로 돌려볼 수 있습니다. `gen_mep.py` 는 `--floors/--annex/--density` 로 층수·부속동·말단 밀도를 바꿀 수 있고, 대형 인자(20층·후생동·격자 2.5 m)는 3D Tiles 기준선으로 쓴다.
 
 | B2 주차장·주차관제실 | 에스컬레이터·슬래브 개구부 |
 |---|---|
@@ -147,7 +147,10 @@ project ─ model ─ element ─ asset ─┬─ inspection
 | Schependomlaan (건축, IFC2x3) | 47 MB | 3,635 | 12.6 s | 16.6 MB | 3.4 s | 4,671 |
 | Clinic HVAC (설비, IFC2x3) | 27 MB | 3,704 | ~20 s | 36.1 MB | 3.4 s | 3,968 → **3** (병합 9 s) |
 | Clinic Electrical (전기, IFC2x3) | 6 MB | 2,118 | 8.3 s | 26 MB | 3.4 s | 5,055 |
-| 가상 건물 (IFC4) | 2 MB | 474 | 3 s | 3.3 MB | 2.9 s | 564 → 30 |
+| 가상 건물 (IFC4, 기본) | 2.3 MB | 1,613 | 0.9 s | 12.8 MB | 1.0~1.7 s | 1,808 → 30 |
+| 가상 건물 대형 (IFC4, --floors 20 --annex 2 --density high) | 7.2 MB | 5,269 | 2.6 s | 48.9 MB | 2.0~3.8 s | 5,609 → 30 |
+
+생성 시간(`gen_mep.py`, 워커 컨테이너 내부) 34.2 s. 측정 환경: MacBook Pro M4 Pro / macOS 26.6.1 / Chrome 152 헤드리스(`--use-angle=swiftshader`) — 소프트웨어 렌더라 로드 시간·draw calls 만 비교값으로 쓰고 fps 는 제외.
 
 먼저 막히는 곳 셋과 조치:
 
@@ -174,9 +177,9 @@ docker compose up -d --build --wait
 샘플 안내는 [`samples/README.md`](samples/README.md)에서 확인할 수 있습니다.
 
 ```bash
-docker compose cp samples/gen/gen_mep.py ifc-worker:/tmp/
-docker compose exec ifc-worker sh -c 'cd /tmp && python gen_mep.py mep-building.ifc'
-docker compose cp ifc-worker:/tmp/mep-building.ifc samples/
+docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen
+docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py mep-building.ifc'
+docker compose cp ifc-worker:/tmp/gen/mep-building.ifc samples/
 python3 samples/gen/bms_sim.py <modelId>
 ```
 </details>

@@ -21,7 +21,24 @@ curl -sL -o example-project-location.ifc "https://media.githubusercontent.com/me
 
 ## mep-building.ifc (생성)
 
-`gen/gen_mep.py` 가 IfcOpenShell API 로 만든 가상 건물. 지리참조 없음, 상대좌표. 재생성: `docker compose cp samples/gen/gen_mep.py ifc-worker:/tmp/ && docker compose exec ifc-worker sh -c 'cd /tmp && python gen_mep.py mep-building.ifc' && docker compose cp ifc-worker:/tmp/mep-building.ifc samples/` (호스트 python 에 IfcOpenShell 이 없어 워커 컨테이너에서 실행). 현재 14계통 404요소 470연결(B2 주차장·램프·에스컬레이터·슬래브 개구부 포함). 내용은 루트 README "가상 건물에 대해" 참고.
+`gen/gen_mep.py` 가 IfcOpenShell API 로 만든 가상 건물. 지리참조 없음, 상대좌표. 호스트 python 에 IfcOpenShell 이 없어 워커 컨테이너에서 실행한다(`gen/` 디렉터리째 복사 — `mep_plan.py` 를 import 한다).
+
+```bash
+docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen
+docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py mep-building.ifc'                                   # 기본: 지상 10층 + 주차타워, 격자 4 m
+docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py large.ifc --floors 20 --annex 2 --density high'    # 대형: 3D Tiles·규모 측정용
+docker compose cp ifc-worker:/tmp/gen/mep-building.ifc samples/
+```
+
+| 인자 | 기본 | 의미 |
+|---|---|---|
+| `--floors N` | 10 | 지상 층수(3 이상). 지하 2층·옥탑은 고정 |
+| `--annex K` | 1 | 0 없음 / 1 주차타워(P1F~P3F) / 2 +후생동(W1F~W2F) |
+| `--density` | `mid` | `low` 고정 좌표 / `mid` 격자 4 m / `high` 격자 2.5 m + 콘센트 |
+
+생성 끝에 두 줄을 찍는다 — `ifc:` 원시 IFC 개수(개구부 포함), `db:` 워커 적재 기준(개구부 제외 요소·IfcSystem 포함 계통·연결). 검증은 `db:` 줄과 DB 를 비교한다. 기본 인자 실측: 14계통 **1,613요소 2,005연결**. 자기 검사(연결 없는 계통 요소·소속 없는 요소·이름 중복)는 AssertionError 로 멈춘다.
+
+테스트: 호스트 `python3 -m unittest samples/gen/test_mep_plan.py`(배치 로직), 컨테이너 `docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'`(생성·연결).
 
 `gen/bms_sim.py <modelId>` — 상태 API 시뮬레이터. `--interval 3 --ticks 0` 기본(무한), `--seed` 로 재현.
 
