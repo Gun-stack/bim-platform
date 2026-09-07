@@ -235,7 +235,7 @@ git commit -m "samples: 가상 건물 배치 사양 mep_plan.py — floor_spec·
 
 ```python
 """gen_mep.py 통합 검사 — ifcopenshell 필요(워커 컨테이너). 실행:
-docker compose cp samples/gen ifc-worker:/tmp/gen && docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'"""
+docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen && docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'"""
 import os, subprocess, sys, tempfile, unittest
 
 try:
@@ -299,7 +299,7 @@ if __name__ == "__main__":
 Run:
 ```bash
 cd /Users/hubilon_map/orca/projects/bim-platform
-docker compose cp samples/gen ifc-worker:/tmp/gen && docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'
+docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen && docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'
 ```
 Expected: `test_bad_args` FAIL(현재는 인자를 무시하고 0 으로 끝남), `test_main_building_default` FAIL(`4F` 없음).
 
@@ -531,7 +531,7 @@ set_status(PCS, {"Capacity": len(spot_occ), "Occupied": sum(spot_occ)}); set_sta
 Run:
 ```bash
 cd /Users/hubilon_map/orca/projects/bim-platform
-docker compose cp samples/gen ifc-worker:/tmp/gen && docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v && python gen_mep.py /tmp/gen/a0.ifc --annex 0'
+docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen && docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v && python gen_mep.py /tmp/gen/a0.ifc --annex 0'
 ```
 Expected: `Ran 3 tests … OK`, 이어 `ifc: …` / `db: …` 두 줄. AssertionError 가 나면 메시지의 요소 이름으로 연결·소속 누락을 고친다(검사를 완화하지 않는다). `--annex 1` 기본값은 아직 부속동 함수가 없으므로 이 단계에선 `--annex 0` 만 쓴다.
 
@@ -925,7 +925,7 @@ set -e
 cd /Users/hubilon_map/orca/projects/bim-platform
 SC=/private/tmp/claude-501/-Users-hubilon-map-orca-projects-bim-platform/7e3e2202-5cd9-4fd6-bd1a-45021d9937b6/scratchpad
 API=http://localhost:8080/api
-docker compose cp samples/gen ifc-worker:/tmp/gen
+docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen
 docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py mep-building.ifc | tee gen-default.txt && python gen_mep.py a0.ifc --annex 0 >/dev/null && python gen_mep.py a2.ifc --annex 2 >/dev/null && /usr/bin/time -p python gen_mep.py large.ifc --floors 20 --annex 2 --density high 2>&1 | tee gen-large.txt && ls -l *.ifc'
 docker compose cp ifc-worker:/tmp/gen/mep-building.ifc samples/mep-building.ifc
 docker compose cp ifc-worker:/tmp/gen/large.ifc "$SC/mep-large.ifc"
@@ -1027,7 +1027,7 @@ docker compose exec -T minio sh -c 'ls -l /data/bim/glb/' 2>/dev/null || curl -s
 `gen/gen_mep.py` 가 IfcOpenShell API 로 만든 가상 건물. 지리참조 없음, 상대좌표. 호스트 python 에 IfcOpenShell 이 없어 워커 컨테이너에서 실행한다(`gen/` 디렉터리째 복사 — `mep_plan.py` 를 import 한다).
 
 ```bash
-docker compose cp samples/gen ifc-worker:/tmp/gen
+docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen
 docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py mep-building.ifc'                                   # 기본: 지상 10층 + 주차타워, 격자 4 m
 docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py large.ifc --floors 20 --annex 2 --density high'    # 대형: 3D Tiles·규모 측정용
 docker compose cp ifc-worker:/tmp/gen/mep-building.ifc samples/
