@@ -18,11 +18,12 @@ class MonitorController {
 	private final StatusService status;
 	MonitorController(JdbcClient db, StatusService status) { this.db = db; this.status = status; }
 
-	/** 배관·트레이·케이블 같은 "선" 은 빼고 장비만 (segments=true 면 포함). power 는 ATS 의 Source, 없으면 UNKNOWN(화면은 '전원 정보 없음') */
+	/** 배관·트레이·케이블 같은 "선" 은 빼고 장비만 (segments=true 면 포함). power 는 ATS 의 Source, 없으면 UNKNOWN(화면은 '전원 정보 없음')
+	 *  building 은 층의 부모 동 이름 — 화면 층 단면이 같은 동의 다음 층을 상한으로 쓴다(부속동은 본동과 표고가 겹친다) */
 	@GetMapping("/monitor")
 	Map<String, Object> monitor(@PathVariable UUID id, @RequestParam(defaultValue = "false") boolean segments) {
 		List<Map<String, Object>> rows = db.sql("""
-			SELECT e.global_id "globalId", e.ifc_class "ifcClass", e.name, coalesce(st.elevation, sn.elevation) elevation,
+			SELECT e.global_id "globalId", e.ifc_class "ifcClass", e.name, coalesce(st.elevation, sn.elevation) elevation, bd.name building,
 			""" + Sql.STOREY_ZONE_COLS + "," + Sql.SYSTEMS_AGG + """
 			,
 			       (e.properties->'Pset_BimStatus')::text status,
@@ -36,10 +37,11 @@ class MonitorController {
 			  JOIN element_system es0 ON es0.element_id = e.id
 			""" + Sql.STOREY_ZONE_JOIN + """
 
+			  LEFT JOIN spatial_node bd ON bd.id = coalesce(st.parent_id, sn.parent_id) AND bd.ifc_class = 'IfcBuilding'
 			  LEFT JOIN asset a ON a.element_id = e.id
 			 WHERE e.model_id = :id AND (:seg OR e.ifc_class NOT IN """ + Sql.SEGMENT_CLASSES + """
 			)
-			 GROUP BY e.id, sn.id, st.id, a.id
+			 GROUP BY e.id, sn.id, st.id, bd.id, a.id
 			 ORDER BY coalesce(st.elevation, sn.elevation) DESC NULLS LAST, e.ifc_class, e.name""")
 			.param("id", id).param("seg", segments).query().listOfRows().stream().map(r -> {
 				r.put("status", r.get("status") == null ? null : Json.parse((String) r.get("status")));

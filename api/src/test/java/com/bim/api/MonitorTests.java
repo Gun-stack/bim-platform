@@ -29,12 +29,13 @@ class MonitorTests {
 		db.sql("DELETE FROM project").update();
 		UUID pid = db.sql("INSERT INTO project (name) VALUES ('t') RETURNING id").query(UUID.class).single();
 		mid = db.sql("INSERT INTO model (project_id, name, ifc_key) VALUES (:p, 'm', 'k') RETURNING id").param("p", pid).query(UUID.class).single();
-		long st = db.sql("INSERT INTO spatial_node (model_id, global_id, ifc_class, name, elevation) VALUES (:m, 'ST1', 'IfcBuildingStorey', 'B1', -3.5) RETURNING id").param("m", mid).query(Long.class).single();
+		long bd = db.sql("INSERT INTO spatial_node (model_id, global_id, ifc_class, name) VALUES (:m, 'BD1', 'IfcBuilding', '업무동') RETURNING id").param("m", mid).query(Long.class).single();
+		long st = db.sql("INSERT INTO spatial_node (model_id, parent_id, global_id, ifc_class, name, elevation) VALUES (:m, :p, 'ST1', 'IfcBuildingStorey', 'B1', -3.5) RETURNING id").param("m", mid).param("p", bd).query(Long.class).single();
 		long sp = db.sql("INSERT INTO spatial_node (model_id, parent_id, global_id, ifc_class, name) VALUES (:m, :p, 'SP1', 'IfcSpace', '기계실') RETURNING id").param("m", mid).param("p", st).query(Long.class).single();
 		long sys = db.sql("INSERT INTO system (model_id, global_id, name, predefined_type) VALUES (:m, 'S1', '급수', 'DOMESTICCOLDWATER') RETURNING id").param("m", mid).query(Long.class).single();
 		for (var e : List.of(new String[]{"PUMP", "IfcPump", "WP-1"}, new String[]{"PIPE", "IfcPipeSegment", "배관"}, new String[]{"FIT", "IfcFlowFitting", "엘보"}, new String[]{"DFIT", "IfcDuctFitting", "덕트 엘보"})) {
 			long eid = db.sql("INSERT INTO element (model_id, global_id, ifc_class, name, spatial_node_id) VALUES (:m, :g, :c, :n, :s) RETURNING id")
-				.param("m", mid).param("g", e[0]).param("c", e[1]).param("n", e[2]).param("s", sp).query(Long.class).single();
+				.param("m", mid).param("g", e[0]).param("c", e[1]).param("n", e[2]).param("s", e[0].equals("PIPE") ? st : sp).query(Long.class).single();
 			db.sql("INSERT INTO element_system (element_id, system_id) VALUES (:e, :s)").param("e", eid).param("s", sys).update();
 		}
 	}
@@ -57,5 +58,8 @@ class MonitorTests {
 		assertThat(status.powerNow(mid).get("source")).isEqualTo("UTILITY");   // 계산은 한전 수전으로
 		@SuppressWarnings("unchecked") var all = (List<Map<String, Object>>) monitor.monitor(mid, true).get("rows");
 		assertThat(all).hasSize(4);   // segments=true 면 선·피팅도 포함
+		assertThat(pump.get("building")).isEqualTo("업무동");   // 실 소속 → 층 → 동
+		var pipe = all.stream().filter(r -> "PIPE".equals(r.get("globalId"))).findFirst().orElseThrow();
+		assertThat(pipe.get("storey")).isEqualTo("B1"); assertThat(pipe.get("zone")).isNull(); assertThat(pipe.get("building")).isEqualTo("업무동");   // 층 직접 소속 → 동
 	}
 }
