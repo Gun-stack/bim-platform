@@ -70,6 +70,20 @@ class GenMepTest(unittest.TestCase):
         self.assertEqual(by["RPT-P2F 중계기"].ConnectedTo[0].RelatedElement.Name, "FACP 화재수신기 (R형)")
         self.assertGreaterEqual(len([e for e in f.by_type("IfcSensor") if e.Name.startswith("P-P")]), 36)
 
+    def test_annex_welfare(self):
+        r, out = gen("--annex", "2", "--floors", "3", "--density", "high")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        f = ifcopenshell.open(out)
+        self.assertEqual({b.Name for b in f.by_type("IfcBuilding")}, {"업무동", "주차타워", "후생동"})
+        sp = {s.Name for s in f.by_type("IfcSpace")}
+        self.assertTrue({"W1F-식당", "W1F-주방", "W2F-체력단련실"} <= sp)
+        by = {e.Name: e for e in f.by_type("IfcElement")}
+        self.assertEqual(by["지중 배수관 (후생동→본동)"].ConnectedTo[0].RelatedElement.Name, "SP-1 집수정")
+        self.assertEqual(by["GV-W 주방 가스 긴급차단밸브"].ConnectedFrom[0].RelatingElement.ConnectedFrom[0].RelatingElement.Name, "GR-1 가스 정압기")
+        self.assertIn("IDU-W2F-체력단련실-1 실내기", by); self.assertNotIn("FCU-W2F-체력단련실-1 팬코일", by); self.assertNotIn("VAV-W2F-체력단련실", by)
+        self.assertTrue(any(n.startswith("W1F-식당 콘센트") for n in by))
+        self.assertEqual(by["W1F-식당 위생기구 1"].ConnectedTo[0].RelatedElement.Name, "W1F 배수 횡주관")
+
 
 if __name__ == "__main__":
     unittest.main()

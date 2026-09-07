@@ -453,6 +453,53 @@ def annex_parking():
 
 if args.annex >= 1: annex_parking()
 
+def annex_welfare():
+    """후생동 W: x 0~20, y 26~38 (본동 북쪽, 옥외 램프 y 16.5~20.5 회피), 지상 2층 층고 3.5. W1F 식당·주방, W2F 체력단련실.
+    말단은 축소판(fit_zone 에 lcp·hwsb·chwb·hb·ddc 없음) — 냉난방수·공조 계통을 동 밖으로 끌지 않고 실외기→실내기"""
+    WX, WY, WW, WD, WH = 0.0, 26.0, 20.0, 12.0, 3.5
+    b = api.root.create_entity(f, ifc_class="IfcBuilding", name="후생동"); api.aggregate.assign_object(f, relating_object=site, products=[b])
+    ug_el = underground("지중 케이블 (본동→후생동)", "IfcCableCarrierSegment", "CABLELADDERSEGMENT", (ex, ey, -1.0), (WX + 1.0, WY + 0.5, -1.0), 0.08, "전기", MDB, ST["tray"])
+    ug_em = underground("지중 비상 케이블 (본동→후생동)", "IfcCableCarrierSegment", "CABLELADDERSEGMENT", (ex - 0.5, ey, -1.0), (WX + 1.0, WY + 1.0, -1.0), 0.06, "비상전원", EMDB, ST["em"])
+    ug_fp = underground("지중 소화배관 (본동→후생동)", "IfcPipeSegment", "RIGIDSEGMENT", (px + 0.3, py, -1.0), (WX + 1.0, WY + 1.5, -1.0), 0.065, "소방", riser_fp, ST["fp"])
+    ug_ws = underground("지중 급수관 (본동→후생동)", "IfcPipeSegment", "RIGIDSEGMENT", (px - 0.3, py, -1.0), (WX + 1.0, WY + 2.0, -1.0), 0.05, "급수", riser_ws, ST["ws"])
+    ug_comm = underground("지중 광케이블 (본동→후생동)", "IfcCableSegment", "FIBERSEGMENT", (ex + 0.4, ey - 0.6, -1.0), (WX + 1.0, WY + 2.5, -1.0), 0.02, "통신", MDF, ST["comm"])
+    ug_ww = make("IfcPipeSegment", "지중 배수관 (후생동→본동)", [pipe([(WX + 2.0, WY + 0.2, -0.5), (px, py - 0.3, -0.5), (px, py - 0.3, z2 + 0.3), (8.5, 7.8, z2 + 0.3)], 0.075)], storeys["1F"], ST["ww"], None, "RIGIDSEGMENT"); link(ug_ww, SP, "배수")
+    gp_w = make("IfcPipeSegment", "가스 배관 (본동 옥탑→후생동)", [pipe([(34.7, 2.6, RF + 0.8), (34.7, D + 0.5, RF + 0.8), (34.7, D + 0.5, 3.0), (WX + 19.5, WY + 0.5, 3.0)], 0.03)], rf, ST["gas"], None, "RIGIDSEGMENT"); link(GASR, gp_w, "가스")
+    fl = [("W1F", 0.0), ("W2F", WH)]; st_ = {}
+    for name, z in fl:
+        st = api.root.create_entity(f, ifc_class="IfcBuildingStorey", name=name); st.Elevation = z
+        api.aggregate.assign_object(f, relating_object=b, products=[st]); storeys[name] = st; st_[name] = st
+        make("IfcSlab", f"{name} 바닥", [box(WX, WY, z - 0.2, WW, WD, 0.2)], st, ST["slab"], ptype="FLOOR")
+        make("IfcWall", f"{name} 외벽", [box(WX, WY, z, WW, 0.2, WH), box(WX, WY + WD - 0.2, z, WW, 0.2, WH), box(WX, WY, z, 0.2, WD, WH), box(WX + WW - 0.2, WY, z, 0.2, WD, WH)], st, ST["wall"])
+        rooms = [("식당", WX, WY, 12.0, WD), ("주방", WX + 12.0, WY, 8.0, WD)] if name == "W1F" else [("체력단련실", WX, WY, WW, WD)]
+        for zname, x, y, w, d in rooms:
+            sp = api.root.create_entity(f, ifc_class="IfcSpace", name=f"{name}-{zname}")
+            api.geometry.assign_representation(f, product=sp, representation=rep([box(x + 0.2, y + 0.2, z, w - 0.4, d - 0.4, WH - 0.3)], ST["space"]))
+            api.geometry.edit_object_placement(f, product=sp); api.aggregate.assign_object(f, relating_object=st, products=[sp]); spaces[f"{name}-{zname}"] = sp
+    make("IfcSlab", "후생동 지붕", [box(WX, WY, 2 * WH, WW, WD, 0.2)], st_["W2F"], ST["slab"], None, "ROOF")
+    w1 = st_["W1F"]
+    LPW = make("IfcElectricDistributionBoard", "LP-W1F 분전반", [box(WX + 0.3, WY + 0.5, 0.8, 0.6, 0.25, 1.0)], w1, ST["el"], {"Pset_ElectricalDeviceCommon": {"RatedVoltage": 380.0, "RatedCurrent": 150.0}}, "DISTRIBUTIONBOARD", {"Status": "NORMAL", "Breaker": "CLOSED", "LoadPercent": 25.0}); link(ug_el, LPW, "전기")
+    ELPW = make("IfcElectricDistributionBoard", "ELP-W 비상분전반", [box(WX + 0.3, WY + 1.0, 0.8, 0.4, 0.25, 0.6)], w1, ST["em"], None, "DISTRIBUTIONBOARD", {"Status": "NORMAL", "Breaker": "CLOSED"}); link(ug_em, ELPW, "비상전원")
+    RPTW = make("IfcUnitaryControlElement", "RPT-W 중계기", [box(WX + 0.3, WY + 1.5, 1.6, 0.3, 0.15, 0.3)], w1, ST["fa"], None, "ALARMPANEL", {"Status": "NORMAL"}); link(RPTW, FACP, "화재감지"); link(ELPW, RPTW, "비상전원")
+    AVW = make("IfcValve", "AV-W 알람밸브", [box(WX + 0.5, WY + 2.0, 1.0, 0.3, 0.3, 0.3)], w1, ST["fp"], None, "ISOLATION", {"Status": "NORMAL", "Open": True, "Pressure": 0.55}); link(ug_fp, AVW, "소방")
+    VW = make("IfcValve", "V-W 급수밸브", [box(WX + 0.5, WY + 2.5, 2.85, 0.3, 0.3, 0.3)], w1, ST["ws"], None, "ISOLATION", {"Status": "NORMAL", "Open": True}); link(ug_ws, VW, "급수")
+    IDFW = make("IfcCommunicationsAppliance", "IDF-W 통신단자함", [box(WX + 0.3, WY + 3.0, 1.6, 0.4, 0.2, 0.6)], w1, ST["comm"], None, "NETWORKHUB", {"Status": "ONLINE"}); link(ug_comm, IDFW, "통신"); link(ELPW, IDFW, "비상전원")
+    ODUW = make("IfcUnitaryEquipment", "ODU-W 실외기 (EHP)", [box(WX + 2.0, WY + 2.0, 2 * WH + 0.2, 1.2, 0.5, 1.2)], st_["W2F"], ST["hvac"], None, "SPLITSYSTEM", {"Status": "RUNNING"}); link(LPW, ODUW, "전기")
+    KEF = make("IfcFan", "KEF-W 주방 배기팬", [box(WX + 17.0, WY + 10.0, WH - 0.9, 0.8, 0.8, 0.6)], spaces["W1F-주방"], ST["vent"], None, "CENTRIFUGALBACKWARDINCLINEDCURVED", {"Status": "RUNNING", "SpeedPercent": 50.0}); link(LPW, KEF, "전기"); api.system.assign_system(f, products=[KEF], system=systems["환기"])
+    GVW = make("IfcValve", "GV-W 주방 가스 긴급차단밸브", [box(WX + 19.3, WY + 0.5, 1.2, 0.4, 0.4, 0.4)], spaces["W1F-주방"], ST["gas"], None, "ISOLATION", {"Status": "NORMAL", "Open": True}); link(gp_w, GVW, "가스")
+    gp_k = make("IfcPipeSegment", "주방 가스 배관", [pipe([(WX + 19.5, WY + 0.9, 1.2), (WX + 19.5, WY + 6.0, 1.2), (WX + 14.0, WY + 6.0, 1.2)], 0.02)], spaces["W1F-주방"], ST["gas"], None, "RIGIDSEGMENT"); link(GVW, gp_k, "가스")
+    for name, z in fl:
+        st = st_[name]
+        WSB = make("IfcPipeSegment", f"{name} 급수 분기관", [pipe([(WX + 0.65, WY + 2.65, z + 3.0), (WX + 0.65, WY + 3.0, z + 3.0), (WX + WW - 1.0, WY + 3.0, z + 3.0)], 0.04)], st, ST["ws"], None, "RIGIDSEGMENT"); link(VW, WSB, "급수")
+        WWB = make("IfcPipeSegment", f"{name} 배수 횡주관", [pipe([(WX + WW - 1.0, WY + WD - 3.0, z + 0.15), (WX + 2.0, WY + WD - 3.0, z + 0.15), (WX + 2.0, WY + 0.2, z + 0.15), (WX + 2.0, WY + 0.2, -0.5)], 0.05)], st, ST["ww"], None, "RIGIDSEGMENT"); link(WWB, ug_ww, "배수")
+        FPB = make("IfcPipeSegment", f"{name} 스프링클러 주관", [pipe([(WX + 0.65, WY + 2.15, z + WH - 0.3), (WX + 0.65, WY + WD / 2, z + WH - 0.3), (WX + WW - 1.0, WY + WD / 2, z + WH - 0.3)], 0.04)], st, ST["fp"], None, "RIGIDSEGMENT"); link(AVW, FPB, "소방")
+        ctx_ = {"lp": LPW, "elp": ELPW, "rpt": RPTW, "fpb": FPB, "hc": AVW, "wsb": WSB, "wwb": WWB, "odu": ODUW, "tx": WX + 0.6, "my": WY + WD / 2}
+        rooms = [("식당", WX, WY, 12.0, WD, True), ("주방", WX + 12.0, WY, 8.0, WD, False)] if name == "W1F" else [("체력단련실", WX, WY, WW, WD, True)]
+        for zname, x, y, w, d, west in rooms:
+            fit_zone(spaces[f"{name}-{zname}"], x, y, w, d, z, WH, west, ctx_, (name, zname))
+
+if args.annex >= 2: annex_welfare()
+
 # ---------- 자기 검사 · 쓰기 · 카운트 ----------
 set_status(PCS, {"Capacity": len(spot_occ), "Occupied": sum(spot_occ)}); set_status(DISP, {"Text": f"여유 {len(spot_occ) - sum(spot_occ)}"})
 for s in systems.values():   # 계통 배정 요소는 흐름 연결이 1개 이상
