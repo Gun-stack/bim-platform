@@ -168,7 +168,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     if (selection.length > 1) Promise.all(selection.filter(g => byGid.has(g)).slice(0, 20).map(fetch1)).then(setDetails).catch(() => setDetails([]))
     else setDetails([])
   }, [selection, byGid, spaceGids, modelId, statusRows])
-  useEffect(() => { scene.current?.setMerged(opts.merged) }, [opts.merged])
+  useEffect(() => { if (loaded) scene.current?.setMerged(opts.merged) }, [opts.merged, loaded])   // loaded 의존: 마운트 땐 씬이 없어 저장된 merged 가 버려졌다 — 로드 뒤 다시 적용
   // 단일 선택 → URL ?sel= (replaceState: hashchange 가 안 나 딥링크 effect 재실행 없음) + 독 알림 + 0.7초 뒤 3D 스냅샷(핏/포커스 카메라가 자리잡은 뒤).
   // loaded 가드: 딥링크 effect 가 ?sel= 을 먼저 소비한 뒤에만 URL 을 다시 쓴다. focus 만 지워 다음 "3D 위치" 클릭이 새 해시가 되게 (v/clip/wo/fm 은 유지)
   useEffect(() => {
