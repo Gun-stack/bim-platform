@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { isAbn, overdue, rank, teamStats, type Row, type StatRow } from './monitor'
+import { isAbn, overdue, rank, storeyClipZ, teamStats, type Row, type StatRow, type Storey } from './monitor'
 
-const row = (p: Partial<Row>): Row => ({ globalId: 'g', ifcClass: 'IfcPump', name: 'WP-1', storey: 'B1', zone: null, elevation: 0, systems: [], status: null, assetId: null, assetTag: null, assetStatus: 'ACTIVE', lastResult: null, openWorkOrders: 0, ...p })
+const row = (p: Partial<Row>): Row => ({ globalId: 'g', ifcClass: 'IfcPump', name: 'WP-1', storey: 'B1', zone: null, elevation: 0, building: null, systems: [], status: null, assetId: null, assetTag: null, assetStatus: 'ACTIVE', lastResult: null, openWorkOrders: 0, ...p })
 
 describe('rank — "조치 필요" 순서', () => {
   it('경보 0 < 장애 1 < 계측 위험·무전원 2 < 주의·작업지시 3 < 결함 4 < 점검 지연 5 < 정상 9', () => {
@@ -48,4 +48,12 @@ describe('isAbn', () => {
     expect(isAbn(row({ status: { Status: 'OFFLINE' } }))).toBe(false)
     expect(isAbn(row({ status: null }))).toBe(false)
   })
+})
+
+describe('storeyClipZ — 층 단면 상한은 같은 동의 다음 층', () => {
+  const list: Storey[] = [{ name: '2F', z: 5, building: '업무동' }, { name: 'P3F', z: 6, building: '주차타워' }, { name: 'P2F', z: 3, building: '주차타워' }, { name: '1F', z: 0, building: '업무동' }, { name: 'P1F', z: 0, building: '주차타워' }]
+  it('본동 1F: 사이에 낀 P2F(3m) 를 무시하고 2F(5m) 까지', () => expect(storeyClipZ(list, '1F')).toEqual([0, 5]))
+  it('P1F: 표고가 같은 본동 1F 가 아니라 P2F 까지', () => expect(storeyClipZ(list, 'P1F')).toEqual([0, 3]))
+  it('같은 동 최상층은 +3.5', () => expect(storeyClipZ(list, 'P3F')).toEqual([6, 9.5]))
+  it('동 정보가 없는 모델(실무 IFC)은 전체를 한 동으로', () => expect(storeyClipZ([{ name: 'L1', z: 0, building: null }, { name: 'L2', z: 4, building: null }], 'L1')).toEqual([0, 4]))
 })

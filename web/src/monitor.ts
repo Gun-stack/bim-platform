@@ -4,7 +4,7 @@ import { TEAMS, teamOfSystems } from './teams'
 import { inspectionOverdue } from './ui'
 
 /** 모니터링 화면의 순수 로직 — 행 타입과 '조치 필요' 우선순위. 컴포넌트 밖에 두어 테스트한다 (monitor.test.ts) */
-export type Row = { globalId: string; ifcClass: string; name: string | null; storey: string | null; zone: string | null; elevation: number | null; systems: string[]
+export type Row = { globalId: string; ifcClass: string; name: string | null; storey: string | null; zone: string | null; elevation: number | null; building: string | null; systems: string[]
   status: (Record<string, unknown> & { Status?: string }) | null; assetId: string | null; assetTag: string | null; assetStatus: string | null; lastResult: string | null; openWorkOrders: number
   woAssignee?: string | null; woDueOn?: string | null; woStatus?: string | null; nextDueOn?: string | null }
 export type Ev = { at: string | null; kind: 'STATUS' | 'WORK_ORDER'; globalId: string | null; name: string | null; status: string | null; storey: string | null; woTitle: string | null; woStatus: string | null }
@@ -32,4 +32,12 @@ export const KEY_EQUIP: Record<string, string[]> = {
   mech: ['CH-1', 'CT-1', 'AHU-1', 'B-1', 'HWB-1', 'WP-1', 'WT-1', 'HP-1', 'JF-1'],
   comm: ['MDF', 'BMS', 'FMS', 'NVR', '출입통제', 'UPS-1'],
   elec: ['HV-1', 'TR-1', 'MDB', 'EG-1', 'ATS-1', 'EMDB', 'PV-1', 'UPS-1'],
+}
+/** 층 목록 항목 — 모니터 행에서 층 이름별 첫 행의 표고·동 */
+export type Storey = { name: string; z: number; building: string | null }
+/** 층 단면 z 범위 [표고, 상한]. 상한은 같은 동에서 바로 위 층의 표고 — 부속동은 본동과 표고가 겹치고 층고가 달라 전체 정렬로는 엉뚱한 높이를 자른다. 같은 동에 위가 없으면 +3.5 */
+export const storeyClipZ = (list: Storey[], name: string): [number, number] => {
+  const s = list.find(e => e.name === name)!
+  const above = list.filter(e => e.building === s.building && e.z > s.z).sort((a, b) => a.z - b.z)[0]
+  return [s.z, above ? above.z : s.z + 3.5]
 }

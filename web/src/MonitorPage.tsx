@@ -7,7 +7,7 @@ import { TEAMS, teamOfSystems } from './teams'
 import { day, btn, dateTime, hm, hms } from './ui'
 import { patchStatus } from './statusApi'
 import { isQuiet, statusUi, WO_STATUS, type WoStatus } from './status'
-import { KEY_EQUIP, isAbn, overdue, rank, teamStats, worst, type Ev, type Row, type StatRow } from './monitor'
+import { KEY_EQUIP, isAbn, overdue, rank, storeyClipZ, teamStats, worst, type Ev, type Row, type StatRow, type Storey } from './monitor'
 import { Section } from './Section'
 import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
@@ -63,8 +63,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   }, [sel, gotRows])
 
   const teamOf = (r: Row) => teamOfSystems(r.systems, r.name)
-  const storeyList = useMemo(() => [...new Map(rows.filter(r => r.storey).map(r => [r.storey!, r.elevation ?? 0])).entries()].sort((a, b) => b[1] - a[1]), [rows])
-  const storeys = storeyList.map(e => e[0]).filter(s => !storeyF || s === storeyF)
+  const storeyList = useMemo(() => { const m = new Map<string, Storey>(); rows.forEach(r => { if (r.storey && !m.has(r.storey)) m.set(r.storey, { name: r.storey, z: r.elevation ?? 0, building: r.building }) }); return [...m.values()].sort((a, b) => b.z - a.z) }, [rows])
+  const storeys = storeyList.map(e => e.name).filter(s => !storeyF || s === storeyF)
   const visibleTeams = TEAMS.filter(t => !team || t.key === team)
   const dead = (r: Row) => unpowered.has(r.globalId)
   const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (mode === 'all' || (mode === 'equipment' ? !!r.status || !!r.assetId || rank(r, dead(r)) < 9 : rank(r, dead(r)) < 9))).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (a.zone ?? '').localeCompare(b.zone ?? '') || (a.name ?? '').localeCompare(b.name ?? ''))
@@ -84,7 +84,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const todoRef = useRef<HTMLDivElement>(null)
   const goTodo = () => { if (!sec.todo) toggleSec('todo'); requestAnimationFrame(() => todoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
   const goEvents = () => { if (!sec.grid) toggleSec('grid'); requestAnimationFrame(() => document.querySelector('.monitor-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
-  const storeyClip = (st: string) => { const i = storeyList.findIndex(e => e[0] === st); const z0 = storeyList[i][1], z1 = i > 0 ? storeyList[i - 1][1] : z0 + 3.5; return `#/models/${modelId}?clip=-999,999,-999,999,${(z0 - 0.3).toFixed(1)},${(z1 - 0.05).toFixed(1)}` }
+  const storeyClip = (st: string) => { const [z0, z1] = storeyClipZ(storeyList, st); return `#/models/${modelId}?clip=-999,999,-999,999,${(z0 - 0.3).toFixed(1)},${(z1 - 0.05).toFixed(1)}` }
   const fs = kiosk ? 1.25 : 1
 
   return (
