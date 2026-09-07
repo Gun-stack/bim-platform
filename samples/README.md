@@ -38,7 +38,7 @@ docker compose cp ifc-worker:/tmp/gen/mep-building.ifc samples/
 
 생성 끝에 두 줄을 찍는다 — `ifc:` 원시 IFC 개수(개구부 포함), `db:` 워커 적재 기준(개구부 제외 요소·IfcSystem 포함 계통·연결). 검증은 `db:` 줄과 DB 를 비교한다. 기본 인자 실측: 14계통 **1,613요소 2,005연결**. 자기 검사(연결 없는 계통 요소·소속 없는 요소·이름 중복)는 AssertionError 로 멈춘다.
 
-테스트: 호스트 `python3 -m unittest samples/gen/test_mep_plan.py`(배치 로직), 컨테이너 `docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'`(생성·연결).
+테스트: 호스트 `(cd samples/gen && python3 -m unittest test_mep_plan)`(배치 로직), 컨테이너 `docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'`(생성·연결).
 
 `gen/bms_sim.py <modelId>` — 상태 API 시뮬레이터. `--interval 3 --ticks 0` 기본(무한), `--seed` 로 재현.
 

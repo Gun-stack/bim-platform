@@ -1,4 +1,4 @@
-"""mep_plan 순수 로직 — 호스트에서 `python3 -m unittest samples/gen/test_mep_plan.py` (ifcopenshell 불필요)"""
+"""mep_plan 순수 로직 — 호스트에서 `(cd samples/gen && python3 -m unittest test_mep_plan)` (ifcopenshell 불필요)"""
 import unittest
 from mep_plan import D, EXCL_CORE, ST1, floor_spec, grid, inside, pad, place
 

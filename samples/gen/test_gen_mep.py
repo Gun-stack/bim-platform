@@ -1,5 +1,5 @@
 """gen_mep.py 통합 검사 — ifcopenshell 필요(워커 컨테이너). 실행:
-docker compose cp samples/gen ifc-worker:/tmp/gen && docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'"""
+docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen && docker compose exec ifc-worker sh -c 'cd /tmp/gen && python -m unittest test_gen_mep -v'"""
 import os, subprocess, sys, tempfile, unittest
 
 try:
