@@ -147,10 +147,10 @@ project ─ model ─ element ─ asset ─┬─ inspection
 | Schependomlaan (건축, IFC2x3) | 47 MB | 3,635 | 12.6 s | 16.6 MB | 3.4 s | 4,671 |
 | Clinic HVAC (설비, IFC2x3) | 27 MB | 3,704 | ~20 s | 36.1 MB | 3.4 s | 3,968 → **3** (병합 9 s) |
 | Clinic Electrical (전기, IFC2x3) | 6 MB | 2,118 | 8.3 s | 26 MB | 3.4 s | 5,055 |
-| 가상 건물 (IFC4, 기본) | 2.3 MB | 1,613 | 0.9 s | 12.8 MB | 1.0~1.7 s | 1,808 → 30 |
+| 가상 건물 (IFC4, 기본) | 2.3 MB | 1,613 | 0.9 s | 12.8 MB | 1.0~1.7 s | 1,808 (병합 미측정) |
 | 가상 건물 대형 (IFC4, --floors 20 --annex 2 --density high) | 7.2 MB | 5,269 | 2.6 s | 48.9 MB | 2.0~3.8 s | 5,609 → 30 |
 
-생성 시간(`gen_mep.py`, 워커 컨테이너 내부) 34.2 s. 측정 환경: MacBook Pro M4 Pro / macOS 26.6.1 / Chrome 152 헤드리스(`--use-angle=swiftshader`) — 소프트웨어 렌더라 로드 시간·draw calls 만 비교값으로 쓰고 fps 는 제외.
+생성 시간(`gen_mep.py`, 워커 컨테이너 내부, 가상 건물 대형 `--floors 20 --annex 2 --density high` 기준) 34.2 s. 측정 환경: MacBook Pro M4 Pro / macOS 26.6.1 / Chrome 152 헤드리스(`--use-angle=swiftshader`) — 소프트웨어 렌더라 로드 시간·draw calls 만 비교값으로 쓰고 fps 는 제외.
 
 먼저 막히는 곳 셋과 조치:
 
