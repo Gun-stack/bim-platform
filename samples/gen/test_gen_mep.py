@@ -55,6 +55,21 @@ class GenMepTest(unittest.TestCase):
         self.assertGreater(len(fh.by_type("IfcOutlet")), 2)   # high 만 콘센트(EV 충전기 2 는 항상)
         self.assertEqual(len([o for o in f3.by_type("IfcOutlet")]), 2)
 
+    def test_annex_parking(self):
+        r, out = gen("--annex", "1", "--floors", "3")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        f = ifcopenshell.open(out)
+        self.assertEqual({b.Name for b in f.by_type("IfcBuilding")}, {"업무동", "주차타워"})
+        st = {s.Name: s for s in f.by_type("IfcBuildingStorey")}
+        self.assertTrue({"P1F", "P2F", "P3F"} <= set(st)); self.assertAlmostEqual(st["P2F"].Elevation, 3.0)
+        self.assertEqual(st["P1F"].Decomposes[0].RelatingObject.Name, "주차타워")   # IfcSite 아래 별도 IfcBuilding
+        by = {e.Name: e for e in f.by_type("IfcElement")}
+        cable = by["지중 케이블 (본동→P동)"]
+        self.assertEqual(cable.ConnectedFrom[0].RelatingElement.Name, "MDB 저압 배전반")
+        self.assertEqual(cable.ConnectedTo[0].RelatedElement.Name, "LP-P1F 분전반")
+        self.assertEqual(by["RPT-P2F 중계기"].ConnectedTo[0].RelatedElement.Name, "FACP 화재수신기 (R형)")
+        self.assertGreaterEqual(len([e for e in f.by_type("IfcSensor") if e.Name.startswith("P-P")]), 36)
+
 
 if __name__ == "__main__":
     unittest.main()

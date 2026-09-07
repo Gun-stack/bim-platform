@@ -401,6 +401,58 @@ for name, z, h, kind in FLOORS:
     for zname, x, y, w, d in PLAN[kind]:
         fit_zone(spaces[f"{name}-{zname}"], x, y, w, d, z, h, x < 13, ctx_, (name, zname), excl)
 
+# ---------- 부속동 ----------
+def underground(name, cls, ptype, p0, p1, r, sysname, up, style_):
+    """지중 매설 구간(z −1.0): 본동 원천 → 부속동 1F 장비. 본동 1F 층 소속"""
+    seg = make(cls, name, [pipe([p0, p1], r)], storeys["1F"], style_, None, ptype); link(up, seg, sysname); return seg
+
+def annex_parking():
+    """주차타워 P: x 44~64, y 0~16 (본동 동쪽 8 m 이격), 지상 3층 층고 3.0. 전기·비상전원·소방·통신은 지중으로 본동에서, 감지기는 본동 FACP 로, 주차면은 본동 PCS 가 관제"""
+    PX, PY, PW, PD, PH = 44.0, 0.0, 20.0, 16.0, 3.0
+    b = api.root.create_entity(f, ifc_class="IfcBuilding", name="주차타워"); api.aggregate.assign_object(f, relating_object=site, products=[b])
+    ug_el = underground("지중 케이블 (본동→P동)", "IfcCableCarrierSegment", "CABLELADDERSEGMENT", (ex, ey, -1.0), (PX + 0.5, PY + 7.0, -1.0), 0.08, "전기", MDB, ST["tray"])
+    ug_em = underground("지중 비상 케이블 (본동→P동)", "IfcCableCarrierSegment", "CABLELADDERSEGMENT", (ex - 0.5, ey, -1.0), (PX + 0.5, PY + 8.0, -1.0), 0.06, "비상전원", EMDB, ST["em"])
+    ug_fp = underground("지중 소화배관 (본동→P동)", "IfcPipeSegment", "RIGIDSEGMENT", (px + 0.3, py, -1.0), (PX + 0.5, PY + 9.0, -1.0), 0.065, "소방", riser_fp, ST["fp"])
+    ug_comm = underground("지중 광케이블 (본동→P동)", "IfcCableSegment", "FIBERSEGMENT", (ex + 0.4, ey - 0.6, -1.0), (PX + 0.5, PY + 10.0, -1.0), 0.02, "통신", MDF, ST["comm"])
+    AVP = None; prev = {"lp": ug_el, "elp": ug_em, "idf": ug_comm}
+    sl = {}
+    for n in (1, 2, 3):
+        name, z = f"P{n}F", (n - 1) * PH
+        st = api.root.create_entity(f, ifc_class="IfcBuildingStorey", name=name); st.Elevation = z
+        api.aggregate.assign_object(f, relating_object=b, products=[st]); storeys[name] = st
+        sl[n] = make("IfcSlab", f"{name} 바닥", [box(PX, PY, z - 0.2, PW, PD, 0.2)], st, ST["slab"], ptype="FLOOR")
+        walls = [(PX, PY + PD - 0.2, PW, 0.2), (PX, PY, 0.2, PD), (PX + PW - 0.2, PY, 0.2, PD)] + ([(PX, PY, 3.0, 0.2), (PX + 9.0, PY, PW - 9.0, 0.2)] if n == 1 else [(PX, PY, PW, 0.2)])   # P1F 남벽 x 47~53 출입구
+        make("IfcWall", f"{name} 외벽", [box(x, y, z, w, d, PH) for x, y, w, d in walls], st, ST["wall"])
+        if n < 3:   # 층간 램프(동측 x 61.2~63.8, +y 방향 run 13 m) + 윗층 슬래브 개구부(머리높이 2.1 m 확보 지점부터)
+            make("IfcRamp", f"RP-P{n} 램프 {name}→P{n + 1}F", [ramp(PX + 17.2, PY + 0.5, z, 2.6, 2.0, 13.0, PH)], st, ST["slab"], None, "STRAIGHT_RUN_RAMP")
+        if n > 1:
+            y0 = PY + 0.5 + 13.0 * (PH - 2.1) / PH
+            void(sl[n], PX + 17.0, y0, z - 0.25, 3.0, PY + 15.5 - y0, 0.3, f"{name} 램프 개구부")
+        LP = make("IfcElectricDistributionBoard", f"LP-{name} 분전반", [box(PX + 0.3, PY + 6.5, z + 0.8, 0.6, 0.25, 1.0)], st, ST["el"], {"Pset_ElectricalDeviceCommon": {"RatedVoltage": 380.0, "RatedCurrent": 150.0}}, "DISTRIBUTIONBOARD", {"Status": "NORMAL", "Breaker": "CLOSED", "LoadPercent": 20.0}); link(prev["lp"], LP, "전기")
+        ELP = make("IfcElectricDistributionBoard", f"ELP-{name} 비상분전반", [box(PX + 0.3, PY + 7.5, z + 0.8, 0.4, 0.25, 0.6)], st, ST["em"], None, "DISTRIBUTIONBOARD", {"Status": "NORMAL", "Breaker": "CLOSED"}); link(prev["elp"], ELP, "비상전원")
+        IDF = make("IfcCommunicationsAppliance", f"IDF-{name} 통신단자함", [box(PX + 0.3, PY + 8.5, z + 1.6, 0.4, 0.2, 0.6)], st, ST["comm"], None, "NETWORKHUB", {"Status": "ONLINE"}); link(prev["idf"], IDF, "통신"); link(ELP, IDF, "비상전원")
+        RPT = make("IfcUnitaryControlElement", f"RPT-{name} 중계기", [box(PX + 0.3, PY + 9.5, z + 1.6, 0.3, 0.15, 0.3)], st, ST["fa"], None, "ALARMPANEL", {"Status": "NORMAL"}); link(RPT, FACP, "화재감지"); link(ELP, RPT, "비상전원")
+        prev = {"lp": LP, "elp": ELP, "idf": IDF}
+        for i, (lx, ly) in enumerate(place("light", PX, PY, 16.0, PD, "mid")):
+            L = make("IfcLightFixture", f"{name} 조명 {i + 1}", [box(lx - 0.6, ly - 0.15, z + PH - 0.35, 1.2, 0.3, 0.08)], st, ST["light"], None, "POINTSOURCE", {"Status": "NORMAL", "On": True}); link(LP, L, "전기")
+        for i, lx in enumerate((PX + 5.0, PX + 12.0)):
+            EL = make("IfcLightFixture", f"{name} 비상조명 {i + 1}", [box(lx - 0.15, PY + 7.85, z + 2.4, 0.3, 0.3, 0.15)], st, ST["em"], None, "EMERGENCY", {"Status": "NORMAL", "BatteryLevel": 100.0}); link(ELP, EL, "비상전원")
+        for i, (hx, hy) in enumerate(place("det", PX, PY, 16.0, PD, "mid")):
+            DET = make("IfcSensor", f"{name} 열감지기 {i + 1}", [cyl(hx, hy, z + PH - 0.4, 0.06, 0.05), sb.sphere(radius=0.07, center=V(hx, hy, z + PH - 0.4))], st, ST["fa"], None, "HEATSENSOR", {"Status": "NORMAL", "LastTest": "2026-07-15"}); link(DET, RPT, "화재감지")
+        if AVP is None:
+            AVP = make("IfcValve", "AV-P 알람밸브", [box(PX + 0.5, PY + 11.0, z + 1.0, 0.3, 0.3, 0.3)], st, ST["fp"], None, "ISOLATION", {"Status": "NORMAL", "Open": True, "Pressure": 0.55}); link(ug_fp, AVP, "소방")
+        main_ = make("IfcPipeSegment", f"{name} 스프링클러 주관", [pipe([(PX + 0.8, PY + 8.0, z + PH - 0.3), (PX + 16.0, PY + 8.0, z + PH - 0.3)], 0.05)], st, ST["fp"], None, "RIGIDSEGMENT"); link(AVP, main_, "소방")
+        for i, (sx, sy) in enumerate(place("spr", PX, PY, 16.0, PD, "mid")):
+            SPR = make("IfcFireSuppressionTerminal", f"{name} 스프링클러 {i + 1}", [pipe([(sx, PY + 8.0, z + PH - 0.3), (sx, sy, z + PH - 0.3)], 0.015), sb.sphere(radius=0.08, center=V(sx, sy, z + PH - 0.3))], st, ST["fp"], None, "SPRINKLER"); link(main_, SPR, "소방")
+        JF = make("IfcFan", f"JF-{name} 제트팬", [cyl(PX + 8.0, PY + 8.0, z + PH - 0.5, 0.3, 0.9)], st, ST["vent"], None, "TUBEAXIAL", {"Status": "STANDBY", "COppm": 6}); link(LP, JF, "전기")
+        CO = make("IfcSensor", f"CO-{name} 일산화탄소 센서", [box(PX + 10.0, PY + 7.5, z + 1.5, 0.15, 0.1, 0.2)], st, ST["vent"], None, "GASSENSOR", {"Status": "NORMAL", "COppm": 6}); link(IDF, CO, "통신"); link(CO, JF, "환기")
+        for j, (sx, sy) in enumerate([(PX + 0.5 + 2.5 * k, yy) for yy in (PY + 0.5, PY + 10.5) for k in range(6)]):   # 주차면 2.5×5 m, 12면/층
+            occ = len(spot_occ) % 3 != 1; spot_occ.append(occ)
+            S_ = make("IfcSensor", f"P-{name}{j + 1:02d} 주차면 센서", [box(sx + 0.1, sy + 0.1, z, 2.3, 4.8, 0.02), cyl(sx + 1.25, sy + 2.5, z + PH - 0.4, 0.06, 0.05)], st, ST["park"] if occ else ST["mark"], None, "MOVEMENTSENSOR", {"Status": "NORMAL", "Occupied": occ}); link(PCS, S_, "주차관제")
+    BGP = make("IfcActuator", "BG-P 주차타워 입구 차단기", [box(PX + 3.5, PY + 0.3, 0.0, 0.4, 0.4, 1.0), box(PX + 3.9, PY + 0.45, 0.9, 2.3, 0.08, 0.08)], storeys["P1F"], ST["park"], None, "ELECTRICACTUATOR", {"Status": "NORMAL", "Open": False, "Cycles": 12040}); link(PCS, BGP, "주차관제")
+
+if args.annex >= 1: annex_parking()
+
 # ---------- 자기 검사 · 쓰기 · 카운트 ----------
 set_status(PCS, {"Capacity": len(spot_occ), "Occupied": sum(spot_occ)}); set_status(DISP, {"Text": f"여유 {len(spot_occ) - sum(spot_occ)}"})
 for s in systems.values():   # 계통 배정 요소는 흐름 연결이 1개 이상
