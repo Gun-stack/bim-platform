@@ -10,7 +10,7 @@ import ifcopenshell.api.root, ifcopenshell.api.unit, ifcopenshell.api.context, i
 import ifcopenshell.api.geometry, ifcopenshell.api.spatial, ifcopenshell.api.aggregate, ifcopenshell.api.system, ifcopenshell.api.pset, ifcopenshell.api.style, ifcopenshell.api.feature
 import ifcopenshell.util.element as ue
 from ifcopenshell.util.shape_builder import ShapeBuilder, V
-from mep_plan import D, DS, ELV, EPS, EXCL_CORE, PLAN, PS, SHAFTS, ST1, ST2, W, floor_spec, pad, place
+from mep_plan import D, DS, ELV, EPS, EXCL_CORE, PLAN, PS, SHAFTS, ST1, ST2, W, floor_spec, place
 
 ap = argparse.ArgumentParser(description="가상 업무동 MEP IFC 생성")
 ap.add_argument("out", nargs="?", default="mep-building.ifc")
@@ -269,7 +269,7 @@ esc_y0 = ESC_Y + ESC_RUN * (ESC_RISE - 2.1) / ESC_RISE
 ESC_OPEN = (1.7, esc_y0, 3.2, ESC_Y + ESC_RUN + 1.8 - esc_y0)          # 2F 개구부 사각형 — 말단 격자 제외 영역
 void(slabs["2F"], ESC_OPEN[0], ESC_OPEN[1], Z["2F"] - 0.25, ESC_OPEN[2], ESC_OPEN[3], 0.3, "2F 에스컬레이터 개구부")
 DW_OPEN = (ELV[0] - 1.2, ELV[1] + 0.6, 0.9, 0.9)                          # 덤웨이터 개구부(2F·3F)
-DW = make("IfcTransportElement", "DW-1 덤웨이터 (2F 식당용)", [box(DW_OPEN[0], DW_OPEN[1], 0.0, 0.9, 0.9, top)], storeys["1F"], ST["trans"], None, "ELEVATOR", {"Status": "NORMAL"})
+DW = make("IfcTransportElement", "DW-1 덤웨이터 (2F 식당용)", [box(DW_OPEN[0], DW_OPEN[1], 0.0, 0.9, 0.9, Z["3F"] + HH["3F"])], storeys["1F"], ST["trans"], None, "ELEVATOR", {"Status": "NORMAL"})   # 3F 상단까지 — 개구부는 2F·3F 뿐
 for n_ in ("2F", "3F"): void(slabs[n_], DW_OPEN[0], DW_OPEN[1], Z[n_] - 0.25, 0.9, 0.9, 0.3, f"{n_} 덤웨이터 개구부")
 for m in (ELEV, ESC, DW): link(EMDB if m is ELEV else MDB, m, "수송")
 ELMR = make("IfcElectricDistributionBoard", "EL-1 기계실 제어반", [box(ELV[0], ELV[1] - 0.8, RF, 1.0, 0.5, 1.6)], S("RF-옥상"), ST["trans"], None, "DISTRIBUTIONBOARD", {"Status": "NORMAL"}); link(ELMR, ELEV, "수송"); link(EMDB, ELMR, "비상전원")
@@ -311,10 +311,10 @@ DISP = make("IfcAudioVisualAppliance", "DISP-1 만공차 표시판 (지상 램�
 for m in (BG_IN, BG_OUT, LPR_IN, LPR_OUT, PAY, DISP): link(PCS, m, "주차관제")
 spots = [("B1-주차A", 1.0 + 2.5 * i, 0.5, zb) for i in range(3)] + [("B1-주차B", 21.5 + 2.5 * i, 4.0, zb) for i in range(4)] + [("B1-주차B", 21.5 + 2.5 * i, 9.5, zb) for i in range(3)] \
       + [("B2-주차C", x, 9.5, z2) for x in (7.5, 13.2, 15.7, 18.1)]
-for i, (zone, sx, sy, sz) in enumerate(spots):
-    occ = i % 3 != 1
-    PS_ = make("IfcSensor", f"P-{zone[:2]}{i + 1:02d} 주차면 센서", [box(sx + 0.1, sy + 0.1, sz, 2.3, 4.8, 0.02), cyl(sx + 1.25, sy + 2.5, sz + H - 0.4, 0.06, 0.05)], S(zone), ST["park"] if occ else ST["mark"], None, "MOVEMENTSENSOR", {"Status": "NORMAL", "Occupied": occ}); link(PCS, PS_, "주차관제")
 spot_occ = [i % 3 != 1 for i in range(len(spots))]   # 부속동 주차면이 더해지면 끝에서 PCS 집계를 다시 쓴다
+for i, (zone, sx, sy, sz) in enumerate(spots):
+    occ = spot_occ[i]
+    PS_ = make("IfcSensor", f"P-{zone[:2]}{i + 1:02d} 주차면 센서", [box(sx + 0.1, sy + 0.1, sz, 2.3, 4.8, 0.02), cyl(sx + 1.25, sy + 2.5, sz + H - 0.4, 0.06, 0.05)], S(zone), ST["park"] if occ else ST["mark"], None, "MOVEMENTSENSOR", {"Status": "NORMAL", "Occupied": occ}); link(PCS, PS_, "주차관제")
 def set_status(el, props):
     api.pset.edit_pset(f, pset=f.by_id(ue.get_pset(el, "Pset_BimStatus")["id"]), properties=props)
 
@@ -330,7 +330,7 @@ def fit_zone(sp, x, y, w, d, z, h, west, c, key, excl=()):
     pts = lambda kind: place(kind, x, y, w, d, args.density, ex_)
     ZP = None
     if c.get("lp"):
-        tx0, tx1 = (c["tx"] - 0.15, x0 + 1.0) if west else (c["tx"] + 0.15, x1 - 1.0)
+        tx0, tx1 = (c["tx"] - 0.15, x0 + 1.0) if west else (max(c["tx"] + 0.15, x0), x1 - 1.0)
         tray = make("IfcCableCarrierSegment", f"{fl}-{rm} 트레이", [box(min(tx0, tx1), ey - 0.1 if fl[0] != "W" else y + d / 2, z + 3.05, abs(tx1 - tx0), 0.2, 0.1)], sp, ST["tray"], None, "CABLETRAYSEGMENT"); link(c["lp"], tray, "전기")
         ZP = make("IfcElectricDistributionBoard", f"LP-{fl}-{rm} 구역 분전반", [box(ax, y + d / 2 - 0.3, z + 1.2, 0.25, 0.6, 0.8)], sp, ST["el"], {"Pset_ElectricalDeviceCommon": {"RatedVoltage": 220.0, "RatedCurrent": 100.0}}, "DISTRIBUTIONBOARD", {"Status": "NORMAL", "Breaker": "CLOSED", "LoadPercent": 22.0}); link(tray, ZP, "전기")
         for i, (lx, ly) in enumerate(pts("light")):

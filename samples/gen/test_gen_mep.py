@@ -39,6 +39,8 @@ class GenMepTest(unittest.TestCase):
         self.assertIn("2F-회의1 연기감지기 1", names); self.assertIn("3F-사무A 열감지기 4", names)
         alarm = next(e for e in f.by_type("IfcSensor") if e.Name == "2F-회의1 연기감지기 1")
         self.assertEqual(ue.get_pset(alarm, "Pset_BimStatus")["Status"], "ALARM")
+        fault = next(e for e in f.by_type("IfcSensor") if e.Name == "3F-사무A 열감지기 4")
+        self.assertEqual(ue.get_pset(fault, "Pset_BimStatus")["Status"], "FAULT")
         for el in f.by_type("IfcElement"):   # 개구부 제외 전부 실 또는 층 소속
             if not el.is_a("IfcOpeningElement"):
                 self.assertIsNotNone(ue.get_container(el), el.Name)
