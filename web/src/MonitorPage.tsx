@@ -84,7 +84,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const todoRef = useRef<HTMLDivElement>(null)
   const goTodo = () => { if (!sec.todo) toggleSec('todo'); requestAnimationFrame(() => todoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
   const goEvents = () => { if (!sec.grid) toggleSec('grid'); requestAnimationFrame(() => document.querySelector('.monitor-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
-  const storeyClip = (st: string) => { const [z0, z1] = storeyClipZ(storeyList, st); return `#/models/${modelId}?clip=-999,999,-999,999,${(z0 - 0.3).toFixed(1)},${(z1 - 0.05).toFixed(1)}` }
+  const storeyClip = (st: string) => { const [z0, z1] = storeyClipZ(storeyList, st); return `#/models/${modelId}?clip=-999,999,${(z0 - 0.3).toFixed(1)},${(z1 - 0.05).toFixed(1)},-999,999` }   // 씬은 Y-up(GLB) — 높이는 clip[2..3]. 섹션 박스의 층 버튼과 같은 축
   const fs = kiosk ? 1.25 : 1
 
   return (
