@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { NavCube } from './NavCube'
+import { FLY, isTyping } from './keys'
 import { coverRect } from '../context'
 import { T, num } from '../theme'
 
@@ -64,6 +65,8 @@ export class Scene3D {
   private measurePt?: THREE.Vector3
   private measureGroup = new THREE.Group()
   private marker?: THREE.Group
+  private keys = new Set<string>()   // 눌린 연속 키 (code). fly() 가 프레임마다 읽는다
+  private last = performance.now()
 
   private el: HTMLElement
   private ro: ResizeObserver
@@ -95,11 +98,11 @@ export class Scene3D {
       else this.select(gid ? [gid] : [])
     })
     this.renderer.domElement.addEventListener('contextmenu', e => e.preventDefault())   // 브라우저 기본 메뉴만 막는다
-    addEventListener('keydown', this.onKey)
+    addEventListener('keydown', this.onKey); addEventListener('keyup', this.onKey); addEventListener('blur', this.onBlur)
     this.renderer.domElement.addEventListener('dblclick', e => { const g = this.pick(e.clientX, e.clientY); this.fitAll(g ? [g] : []) })
     this.ro = new ResizeObserver(this.onResize); this.ro.observe(el)   // 패널 리사이즈 추종
     this.navCube = new NavCube(el, dir => this.lookFrom(dir), () => this.preset('home'))
-    const loop = () => { this.raf = requestAnimationFrame(loop); this.controls.update(); this.renderer.render(this.scene, this.camera); this.navCube.sync(this.camera); this.frames++ }
+    const loop = () => { this.raf = requestAnimationFrame(loop); const now = performance.now(); this.fly((now - this.last) / 1000); this.last = now; this.controls.update(); this.renderer.render(this.scene, this.camera); this.navCube.sync(this.camera); this.frames++ }
     loop()
   }
 
@@ -318,9 +321,33 @@ export class Scene3D {
     return { calls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles, fps: this.fps }
   }
 
-  private onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') this.select([]) }
+  /** 키보드: Escape = 선택 해제. 연속 키(WASD·QE·방향키·±·Shift)는 Set 에 담아 fly() 가 프레임마다 본다. 입력란·Ctrl/Cmd/Alt 조합은 무시. 단발 액션 키는 Viewer 가 처리 */
+  private onKey = (e: KeyboardEvent) => {
+    if (e.type === 'keyup') { this.keys.delete(e.code); return }
+    if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
+    if (e.key === 'Escape') { this.select([]); return }
+    if (FLY.has(e.code)) { this.keys.add(e.code); e.preventDefault() }   // 방향키·Shift 의 기본 스크롤 방지
+  }
+  private onBlur = () => this.keys.clear()   // 키 누른 채 탭 전환 → keyup 을 못 받아 계속 날아가는 것 방지
 
-  dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); this.navCube.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
+  /** 키보드 연속 조작: WASD/QE 비행(카메라·타깃 함께), 방향키 궤도 회전, ± 줌. 속도는 모델 크기 비례, Shift 4배 */
+  private fly(dt: number) {
+    const k = this.keys; if (!k.size || this.box.isEmpty() || dt > 0.5) return   // 탭 복귀 첫 프레임의 큰 dt 는 버린다
+    const ax = (neg: string, pos: string) => +k.has(pos) - +k.has(neg)
+    const cam = this.camera, t = this.controls.target
+    const v = this.box.getSize(new THREE.Vector3()).length() * 0.25 * dt * (k.has('ShiftLeft') || k.has('ShiftRight') ? 4 : 1)
+    const fwd = cam.getWorldDirection(new THREE.Vector3()), right = new THREE.Vector3().setFromMatrixColumn(cam.matrix, 0)
+    const move = fwd.multiplyScalar(ax('KeyS', 'KeyW') * v).addScaledVector(right, ax('KeyA', 'KeyD') * v).addScaledVector(cam.up, ax('KeyQ', 'KeyE') * v)
+    cam.position.add(move); t.add(move)
+    // 회전·줌: 타깃 기준 구면 좌표. 방향 감각은 OrbitControls 키 회전과 동일(← 는 theta 감소, ↑ 는 phi 감소)
+    const rot = Math.PI / 2 * dt, off = cam.position.clone().sub(t), sph = new THREE.Spherical().setFromVector3(off)
+    sph.theta += ax('ArrowLeft', 'ArrowRight') * rot
+    sph.phi = THREE.MathUtils.clamp(sph.phi + ax('ArrowUp', 'ArrowDown') * rot, 0.01, Math.PI - 0.01)   // 극점에서 lookAt 이 무너지지 않게
+    sph.radius *= Math.exp(-ax('Minus', 'Equal') * 1.2 * dt)
+    cam.position.copy(t).add(off.setFromSpherical(sph))
+  }
+
+  dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); removeEventListener('keyup', this.onKey); removeEventListener('blur', this.onBlur); this.navCube.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
 
   private apply() {
     this.outlines.traverse(o => (o as THREE.LineSegments).geometry?.dispose()); this.outlines.clear()
