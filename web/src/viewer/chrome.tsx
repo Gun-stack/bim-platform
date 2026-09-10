@@ -36,7 +36,7 @@ export function Floating({ id, anchor, children }: { id: string; anchor: React.C
   )
 }
 
-export function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { icon: LucideIcon; label: string; hint?: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
+export function Tool({ icon: Icon, label, hint, keys, onClick, active, disabled }: { icon: LucideIcon; label: string; hint?: string; keys?: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
   const [hov, setHov] = useState(false)
   return <span style={{ position: 'relative', display: 'inline-block' }} onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
     <button aria-label={label} onClick={onClick} disabled={disabled}
@@ -44,7 +44,7 @@ export function Tool({ icon: Icon, label, hint, onClick, active, disabled }: { i
                background: active ? T.accent : hov && !disabled ? T.accentSoft : 'transparent', color: active ? T.bg.base : disabled ? T.bg.line : T.ink[1], transition: 'background .12s' }}>
       <Icon size={18} strokeWidth={1.8} /></button>
     {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: T.ink[1], color: T.bg.base, padding: '4px 8px', borderRadius: T.radius, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: T.shadow }}>
-      {label}{disabled && hint && <span style={{ opacity: 0.65 }}> · {hint}</span>}</span>}
+      {label}{keys && <span style={{ opacity: 0.6, marginLeft: 8 }}>{keys}</span>}{disabled && hint && <span style={{ opacity: 0.65 }}> · {hint}</span>}</span>}
   </span>
 }
 
