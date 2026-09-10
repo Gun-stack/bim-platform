@@ -159,6 +159,16 @@ export class Scene3D {
 
   get selected() { return [...this.picked] }
 
+  /** Tab 순환: 보이는 요소(element)를 glb 순서로 다음(+1)/이전(-1) 선택. 단일 선택이 아니면 처음/끝부터. 카메라는 그대로 */
+  cycle(dir: 1 | -1) {
+    const gids: string[] = []; const seen = new Set<string>()
+    for (const m of this.meshes) { const g = m.name; if (!seen.has(g) && this.kind.get(g) === 'element' && this.visible(g, 'element')) { seen.add(g); gids.push(g) } }
+    if (!gids.length) return
+    const cur = this.picked.size === 1 ? gids.indexOf([...this.picked][0]) : -1
+    const i = cur < 0 ? (dir > 0 ? 0 : gids.length - 1) : (cur + dir + gids.length) % gids.length
+    this.select([gids[i]])
+  }
+
   /** glb 에 형상이 있는 요소인지 */
   has(gid: string) { return this.kind.has(gid) }
 

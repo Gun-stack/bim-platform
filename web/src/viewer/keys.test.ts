@@ -18,6 +18,17 @@ describe('keyAction — code 기준 단발 액션', () => {
     expect(keyAction(ev('KeyG'))).toBe('grid')
     expect(keyAction(ev('KeyP'))).toBe('colors')
     expect(keyAction(ev('KeyL'))).toBe('share')
+    expect(keyAction(ev('KeyB'))).toBe('struct')
+    expect(keyAction(ev('KeyO'))).toBe('openings')
+    expect(keyAction(ev('KeyZ'))).toBe('spaces')
+    expect(keyAction(ev('KeyR'))).toBe('merged')
+    expect(keyAction(ev('KeyT'))).toBe('status')
+    expect(keyAction(ev('KeyK'))).toBe('systems')
+  })
+  it('Tab / Shift+Tab 은 다음 / 이전 요소', () => {
+    expect(keyAction(ev('Tab'))).toBe('next')
+    expect(keyAction(ev('Tab', { shiftKey: true }))).toBe('prev')
+    expect(keyAction(ev('Tab', { target: { tagName: 'INPUT', isContentEditable: false } as unknown as EventTarget }))).toBeUndefined()   // 입력란에선 브라우저 포커스 이동
   })
   it('H 는 수정자에 따라 숨김 / 선택만 보기 / 모두 표시', () => {
     expect(keyAction(ev('KeyH'))).toBe('hide')

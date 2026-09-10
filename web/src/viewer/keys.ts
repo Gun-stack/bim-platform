@@ -1,6 +1,7 @@
 /** 뷰어 키보드 단축키 — 단일 출처. 안내 오버레이(KEYS)·단발 액션 분기(keyAction)·연속 키 집합(FLY). DOM·React 의존 없음 */
 
-export type Action = 'home' | 'fit' | 'front' | 'side' | 'top' | 'isolate' | 'hide' | 'solo' | 'showAll' | 'clip' | 'measure' | 'snap' | 'grid' | 'colors' | 'share' | 'help'
+export type Action = 'home' | 'fit' | 'front' | 'side' | 'top' | 'next' | 'prev' | 'isolate' | 'hide' | 'solo' | 'showAll' | 'struct' | 'openings' | 'spaces' | 'merged'
+  | 'clip' | 'measure' | 'snap' | 'grid' | 'colors' | 'status' | 'systems' | 'share' | 'help'
 
 /** 안내 표 (그룹 순서대로) */
 export const KEYS: { group: string; keys: string; label: string }[] = [
@@ -13,15 +14,23 @@ export const KEYS: { group: string; keys: string; label: string }[] = [
   { group: '뷰', keys: 'Home', label: '홈 뷰' },
   { group: '뷰', keys: 'F', label: '선택 요소에 맞춤 (없으면 전체)' },
   { group: '뷰', keys: '1 3 7', label: '정면 / 측면 / 평면' },
+  { group: '선택', keys: 'Tab', label: '다음 요소 (보이는 요소를 모델 순서로)' },
+  { group: '선택', keys: 'Shift Tab', label: '이전 요소' },
   { group: '표시', keys: 'I', label: '격리 — 선택 외 반투명' },
   { group: '표시', keys: 'H', label: '선택 숨김' },
   { group: '표시', keys: 'Shift H', label: '선택만 보기' },
   { group: '표시', keys: 'Alt H', label: '숨긴 것 모두 표시 · 격리·솔로 해제' },
+  { group: '표시', keys: 'B', label: '구조체 숨김 (벽·슬래브·지붕)' },
+  { group: '표시', keys: 'O', label: '개구부 표시' },
+  { group: '표시', keys: 'Z', label: '공간(구역) 표시' },
+  { group: '표시', keys: 'R', label: '병합 렌더 (성능)' },
   { group: '도구', keys: 'C', label: '단면' },
   { group: '도구', keys: 'M', label: '측정' },
   { group: '도구', keys: 'N', label: '스냅' },
   { group: '도구', keys: 'G', label: '그리드' },
   { group: '도구', keys: 'P', label: '속성별 색상' },
+  { group: '도구', keys: 'T', label: '상태 색으로 보기' },
+  { group: '도구', keys: 'K', label: '계통별 색으로 보기' },
   { group: '기타', keys: 'L', label: '현재 화면 링크 복사' },
   { group: '기타', keys: '?', label: '이 안내' },
   { group: '기타', keys: 'Esc', label: '선택 해제 · 측정 종료 · 안내 닫기' },
@@ -46,13 +55,20 @@ export function keyAction(e: KeyLike): Action | undefined {
     case 'Digit1': case 'Numpad1': return 'front'
     case 'Digit3': case 'Numpad3': return 'side'
     case 'Digit7': case 'Numpad7': return 'top'
+    case 'Tab': return e.shiftKey ? 'prev' : 'next'
     case 'KeyI': return 'isolate'
     case 'KeyH': return e.shiftKey ? 'solo' : 'hide'
+    case 'KeyB': return 'struct'
+    case 'KeyO': return 'openings'
+    case 'KeyZ': return 'spaces'
+    case 'KeyR': return 'merged'
     case 'KeyC': return 'clip'
     case 'KeyM': return 'measure'
     case 'KeyN': return 'snap'
     case 'KeyG': return 'grid'
     case 'KeyP': return 'colors'
+    case 'KeyT': return 'status'
+    case 'KeyK': return 'systems'
     case 'KeyL': return 'share'
   }
 }

@@ -237,6 +237,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }
   // 단축키(단발 액션). 핸들러는 렌더마다 새로 만들어지므로 ref 로 최신 것을 본다 — 리스너는 마운트 때 한 번. 연속 키(WASD 등)는 Scene3D 가 직접 본다
   const act = useRef<(a: Action) => void>(() => {})
+  const flipOpt = (k: keyof Opts) => { const n = { ...opts, [k]: !opts[k] }; try { localStorage.setItem('viewer.opts', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } setOpts(n) }   // LeftPanel flipOpt 와 같은 저장 규칙
+  const flipStruct = () => { const on = STRUCT.every(c => hidden.classes.has(c)), cls = new Set(hidden.classes); for (const c of STRUCT) { if (on) cls.delete(c); else cls.add(c) } setHidden({ ...hidden, classes: cls }); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }   // LeftPanel 구조체 토글과 동일
   act.current = a => {
     const s = scene.current
     switch (a) {
@@ -245,15 +247,23 @@ export default function Viewer({ modelId }: { modelId: string }) {
       case 'front': s?.preset('front'); break
       case 'side': s?.preset('side'); break
       case 'top': s?.preset('top'); break
+      case 'next': s?.cycle(1); break
+      case 'prev': s?.cycle(-1); break
       case 'isolate': if (selection.length || focus === 'ghost') setFocus(focus === 'ghost' ? 'none' : 'ghost'); break
       case 'hide': if (selection.length) hideSelected(); break
       case 'solo': soloSelected(); break
       case 'showAll': showAll(); break
+      case 'struct': flipStruct(); break
+      case 'openings': flipOpt('openings'); break
+      case 'spaces': flipOpt('spaces'); break
+      case 'merged': flipOpt('merged'); break
       case 'clip': if (bounds) setClip(clip ? null : bounds.min.flatMap((m, i) => [m, bounds.max[i]])); break
       case 'measure': setMeasuring(m => !m); break
       case 'snap': setSnap(v => !v); break
-      case 'grid': { const n = { ...opts, grid: !opts.grid }; try { localStorage.setItem('viewer.opts', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } setOpts(n); break }   // LeftPanel flipOpt 와 같은 저장 규칙
+      case 'grid': flipOpt('grid'); break
       case 'colors': setColorMode(v => !v); break
+      case 'status': setStatusView(v => !v); break
+      case 'systems': setSysColor(v => !v); break
       case 'share': share(); break
       case 'help': setShowKeys(v => !v); break
     }
