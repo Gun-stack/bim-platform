@@ -67,8 +67,8 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
     </div>)
   return (
     <div style={{ padding: '4px 6px' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', fontSize: 12, color: T.ink[2] }}>
-        <input type="checkbox" checked={colorMode} onChange={e => setColorMode(e.target.checked)} /> 계통별 색으로 보기 <span style={{ color: T.ink[3] }}>K</span></label>
+      <label title="단축키 K" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', fontSize: 12, color: T.ink[2] }}>
+        <input type="checkbox" checked={colorMode} onChange={e => setColorMode(e.target.checked)} /> 계통별 색으로 보기</label>
       {groupByTeam(systems).map(([team, ss]) => <div key={team?.key ?? 'etc'}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 6px 2px', fontSize: 11, fontWeight: 600, color: team?.color ?? T.ink[2] }}>
           {team && <span style={{ width: 8, height: 8, borderRadius: 999, background: team.color, flexShrink: 0, display: 'inline-block' }} />}{team?.name ?? '기타'}<span style={{ fontWeight: 400, color: T.ink[3] }}>{ss.reduce((n, s) => n + (s.memberCount ?? 0), 0)}</span>
@@ -105,8 +105,8 @@ export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setSt
         {collapsed ? <ChevronDown size={14} style={{ color: T.ink[2] }} /> : <ChevronUp size={14} style={{ color: T.ink[2] }} />}
       </div>
       {!collapsed && <>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.ink[2], margin: '6px 0 4px' }}>
-        <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기 <span style={{ color: T.ink[3] }}>T</span>
+      <label title="단축키 T" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.ink[2], margin: '6px 0 4px' }}>
+        <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기
         <span style={{ display: 'inline-flex', gap: 6, marginLeft: 4, color: T.ink[2], fontSize: 11 }}>{[[T.ok, '정상'], [T.crit, '경보'], [T.warn, '장애'], [T.ink[3], '점유·소등']].map(([c, l]) => <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: c }} />{l}</span>)}</span></label>
       {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: T.radius, background: T.critSoft }}>
         <span style={{ width: 8, height: 8, borderRadius: 999, background: statusHex(r.status.Status), flexShrink: 0 }} />
