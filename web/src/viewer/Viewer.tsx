@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { Check, Magnet, Eye, Palette, Ruler, Trash2, X, EyeOff, Focus, Grid2x2, Home, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors } from 'lucide-react'
+import { Check, Magnet, Eye, Palette, Ruler, Trash2, X, EyeOff, Focus, Grid2x2, Home, Keyboard, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors } from 'lucide-react'
 import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type System, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
@@ -18,6 +18,8 @@ import LeftPanel, { STRUCT, type Hidden, type Opts, type SelectMode } from './Le
 import ColorPanel from './ColorPanel'
 import ContextMenu, { type MenuItem } from './ContextMenu'
 import { Axis, Floating, Gap, Tool } from './chrome'
+import { keyAction, type Action } from './keys'
+import Shortcuts from './Shortcuts'
 import { MultiProps, Props } from './Props'
 import { useHashQuery } from '../useHashQuery'
 import './viewer.css'
@@ -187,7 +189,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
   const [snap, setSnap] = useState(() => { try { return localStorage.getItem('viewer.snap') !== '0' } catch { return true } })
   useEffect(() => { if (scene.current) scene.current.snap = snap; try { localStorage.setItem('viewer.snap', snap ? '1' : '0') } catch { /* 저장 불가 환경 */ } }, [snap, loaded])
-  useEsc(useCallback(() => setMeasuring(false), []))
+  const [showKeys, setShowKeys] = useState(false)
+  useEsc(useCallback(() => { setMeasuring(false); setShowKeys(false) }, []))
   useEffect(() => {   // 격리(반투명) — 선택 집합 기준 (+ 포커스 모드면 구역도 함께, 구역은 진한 파랑)
     const spaceGid = focusInfo?.spaceGid
     scene.current?.setFocus(focus !== 'ghost' || !selSet.size ? undefined : { gids: spaceGid ? new Set([...selSet, spaceGid]) : selSet }, spaceGid)
@@ -199,15 +202,16 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }
   const hideSelected = () => { const g = new Set(hidden.gids); for (const x of selection) g.add(x); setHidden({ ...hidden, gids: g }); scene.current?.select([]) }
   const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
+  const showAll = () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); setFocus('none') }
   const menuItems = (): MenuItem[] => {
     const n = selection.length, none = n === 0, label = n === 1 ? (byGid.get(selection[0])?.name ?? selection[0]) : `${n}개`
     return [
-      { icon: Maximize, label: none ? '전체 보기' : `맞춤: ${label}`, hint: 'dbl', onClick: () => scene.current?.fit() },
+      { icon: Maximize, label: none ? '전체 보기' : `맞춤: ${label}`, hint: 'F · dbl', onClick: () => scene.current?.fit() },
       'sep',
-      { icon: Focus, label: focus === 'ghost' ? '격리 해제' : '격리 (나머지 반투명)', disabled: none && focus !== 'ghost', onClick: () => setFocus(focus === 'ghost' ? 'none' : 'ghost') },
-      { icon: EyeOff, label: hidden.solo?.key === 'sel' ? '선택만 보기 해제' : '선택만 보기', disabled: none && hidden.solo?.key !== 'sel', onClick: soloSelected },
-      { icon: EyeOff, label: '숨김', disabled: none, onClick: hideSelected },
-      { icon: Eye, label: '숨긴 것 모두 표시', disabled: !anyHidden, onClick: () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); setFocus('none') } },
+      { icon: Focus, label: focus === 'ghost' ? '격리 해제' : '격리 (나머지 반투명)', hint: 'I', disabled: none && focus !== 'ghost', onClick: () => setFocus(focus === 'ghost' ? 'none' : 'ghost') },
+      { icon: EyeOff, label: hidden.solo?.key === 'sel' ? '선택만 보기 해제' : '선택만 보기', hint: '⇧H', disabled: none && hidden.solo?.key !== 'sel', onClick: soloSelected },
+      { icon: EyeOff, label: '숨김', hint: 'H', disabled: none, onClick: hideSelected },
+      { icon: Eye, label: '숨긴 것 모두 표시', hint: '⌥H', disabled: !anyHidden, onClick: showAll },
       'sep',
       { label: n === 1 ? 'GlobalId 복사' : `GlobalId ${n}개 복사`, disabled: none, onClick: () => navigator.clipboard?.writeText(selection.join('\n')) },
       { label: '선택 해제', hint: 'Esc', disabled: none, onClick: () => scene.current?.select([]) },
@@ -231,6 +235,33 @@ export default function Viewer({ modelId }: { modelId: string }) {
     history.replaceState(null, '', `#/models/${modelId}?${p}`)
     navigator.clipboard?.writeText(location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
   }
+  // 단축키(단발 액션). 핸들러는 렌더마다 새로 만들어지므로 ref 로 최신 것을 본다 — 리스너는 마운트 때 한 번. 연속 키(WASD 등)는 Scene3D 가 직접 본다
+  const act = useRef<(a: Action) => void>(() => {})
+  act.current = a => {
+    const s = scene.current
+    switch (a) {
+      case 'home': s?.preset('home'); break
+      case 'fit': s?.fit(); break
+      case 'front': s?.preset('front'); break
+      case 'side': s?.preset('side'); break
+      case 'top': s?.preset('top'); break
+      case 'isolate': if (selection.length || focus === 'ghost') setFocus(focus === 'ghost' ? 'none' : 'ghost'); break
+      case 'hide': if (selection.length) hideSelected(); break
+      case 'solo': soloSelected(); break
+      case 'showAll': showAll(); break
+      case 'clip': if (bounds) setClip(clip ? null : bounds.min.flatMap((m, i) => [m, bounds.max[i]])); break
+      case 'measure': setMeasuring(m => !m); break
+      case 'snap': setSnap(v => !v); break
+      case 'grid': { const n = { ...opts, grid: !opts.grid }; try { localStorage.setItem('viewer.opts', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } setOpts(n); break }   // LeftPanel flipOpt 와 같은 저장 규칙
+      case 'colors': setColorMode(v => !v); break
+      case 'share': share(); break
+      case 'help': setShowKeys(v => !v); break
+    }
+  }
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { const a = keyAction(e); if (a) { e.preventDefault(); act.current(a) } }
+    addEventListener('keydown', h); return () => removeEventListener('keydown', h)
+  }, [])
 
   const storeys = spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0))
   const abnormal = useMemo(() => new Map(statusRows.filter(r => isAbnormal(r.status.Status)).map(r => [r.globalId, r.status.Status!])), [statusRows])
@@ -289,6 +320,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => setRoute(undefined)} /></div>}
 
           {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems()} onClose={() => setMenu(undefined)} />}
+          {showKeys && <Shortcuts onClose={() => setShowKeys(false)} />}
 
           {/* 섹션 박스: 단면 모드일 때만 */}
           {clip && bounds && (
@@ -321,21 +353,22 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
           {/* 하단 툴바 — 플로팅(드래그 이동·위치 기억) */}
           <Floating id="toolbar" anchor={{ bottom: 8, left: '50%', transform: 'translateX(-50%)', gap: 2, padding: 4, borderRadius: T.radius }}>
-            <Tool icon={Home} label="홈" onClick={() => scene.current?.preset('home')} />
-            <Tool icon={Maximize} label="선택 요소에 맞춤 (더블클릭)" onClick={() => scene.current?.fit()} />
-            <Tool icon={Grid2x2} label="평면" onClick={() => scene.current?.preset('top')} />
-            <Tool icon={RectangleHorizontal} label="정면" onClick={() => scene.current?.preset('front')} />
+            <Tool icon={Home} label="홈" keys="Home" onClick={() => scene.current?.preset('home')} />
+            <Tool icon={Maximize} label="선택 요소에 맞춤 (더블클릭)" keys="F" onClick={() => scene.current?.fit()} />
+            <Tool icon={Grid2x2} label="평면" keys="7" onClick={() => scene.current?.preset('top')} />
+            <Tool icon={RectangleHorizontal} label="정면" keys="1" onClick={() => scene.current?.preset('front')} />
             <Gap />
-            <Tool icon={Focus} label="격리 — 선택 외 반투명" hint="요소를 먼저 선택" active={focus === 'ghost'} disabled={!selection.length} onClick={() => setFocus(focus === 'ghost' ? 'none' : 'ghost')} />
-            <Tool icon={EyeOff} label="선택만 보기 (나머지 숨김)" hint="요소를 먼저 선택" active={hidden.solo?.key === 'sel'} disabled={!selection.length} onClick={soloSelected} />
-            <Tool icon={RotateCcw} label="격리·솔로 해제" hint="적용된 격리·솔로 없음" disabled={focus === 'none' && !hidden.solo} onClick={() => { setFocus('none'); if (hidden.solo) setHidden({ ...hidden, solo: undefined }) }} />
+            <Tool icon={Focus} label="격리 — 선택 외 반투명" keys="I" hint="요소를 먼저 선택" active={focus === 'ghost'} disabled={!selection.length} onClick={() => setFocus(focus === 'ghost' ? 'none' : 'ghost')} />
+            <Tool icon={EyeOff} label="선택만 보기 (나머지 숨김)" keys="⇧H" hint="요소를 먼저 선택" active={hidden.solo?.key === 'sel'} disabled={!selection.length} onClick={soloSelected} />
+            <Tool icon={RotateCcw} label="격리·솔로 해제" keys="⌥H" hint="적용된 격리·솔로 없음" disabled={focus === 'none' && !hidden.solo} onClick={() => { setFocus('none'); if (hidden.solo) setHidden({ ...hidden, solo: undefined }) }} />
             <Gap />
-            <Tool icon={Scissors} label="단면 — X/Y/Z 범위, 층별 자르기" active={!!clip} disabled={!bounds} onClick={() => setClip(clip ? null : bounds!.min.flatMap((m, i) => [m, bounds!.max[i]]))} />
-            <Tool icon={Ruler} label="측정 — 면 위 두 점 거리" active={measuring} onClick={() => setMeasuring(!measuring)} />
-            <Tool icon={Magnet} label="스냅 — 빈 곳 클릭 시 가까운 요소, 측정 시 꼭짓점·모서리" active={snap} onClick={() => setSnap(!snap)} />
-            <Tool icon={Palette} label="속성별 색상 — 종류·층·속성값으로 칠하기" active={colorMode} onClick={() => setColorMode(!colorMode)} />
+            <Tool icon={Scissors} label="단면 — X/Y/Z 범위, 층별 자르기" keys="C" active={!!clip} disabled={!bounds} onClick={() => setClip(clip ? null : bounds!.min.flatMap((m, i) => [m, bounds!.max[i]]))} />
+            <Tool icon={Ruler} label="측정 — 면 위 두 점 거리" keys="M" active={measuring} onClick={() => setMeasuring(!measuring)} />
+            <Tool icon={Magnet} label="스냅 — 빈 곳 클릭 시 가까운 요소, 측정 시 꼭짓점·모서리" keys="N" active={snap} onClick={() => setSnap(!snap)} />
+            <Tool icon={Palette} label="속성별 색상 — 종류·층·속성값으로 칠하기" keys="P" active={colorMode} onClick={() => setColorMode(!colorMode)} />
             <Gap />
-            <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" onClick={share} />
+            <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" keys="L" onClick={share} />
+            <Tool icon={Keyboard} label="키보드 단축키" keys="?" active={showKeys} onClick={() => setShowKeys(v => !v)} />
           </Floating>
 
           {/* 그리드 설정: 평면(건축 z-up 기준 이름)·간격 — 그리드가 켜져 있을 때만 */}
@@ -360,7 +393,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           </div>
           {tab === 'fm' && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpointForWorkOrder} />}
           {tab === 'props' && <>
-          {!selection.length && <p style={{ color: T.ink[2] }} title="Cmd/Ctrl+클릭: 추가 선택 · Shift+클릭(트리): 범위 · Esc: 해제 · 더블클릭: 맞춤">요소를 클릭하면 속성이 표시됩니다. <span style={{ color: T.ink[3], cursor: 'help' }}>단축키 ?</span></p>}
+          {!selection.length && <p style={{ color: T.ink[2] }}>요소를 클릭하면 속성이 표시됩니다. <span onClick={() => setShowKeys(true)} style={{ color: T.ink[3], cursor: 'pointer' }} title="? 키">단축키 ?</span></p>}
           {selection.length === 1 && detail && !('properties' in detail) && <p style={{ color: T.ink[2] }}>{detail.kind === 'space' ? '공간(구역) 형상입니다. 구역 정보는 왼쪽 공간 트리에서 확인하세요.' : '개구부 형상입니다 (요소 아님).'}</p>}
           {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: T.warn, fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
           {selection.length === 1 && detail && 'properties' in detail && <><StatusEditor key={detail.globalId} modelId={modelId} e={detail} reload={reloadStatus} /><Props e={detail} /></>}
