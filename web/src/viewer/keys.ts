@@ -1,7 +1,7 @@
 /** 뷰어 키보드 단축키 — 단일 출처. 안내 오버레이(KEYS)·단발 액션 분기(keyAction)·연속 키 집합(FLY). DOM·React 의존 없음 */
 
 export type Action = 'home' | 'fit' | 'front' | 'side' | 'top' | 'next' | 'prev' | 'isolate' | 'hide' | 'solo' | 'showAll' | 'struct' | 'openings' | 'spaces' | 'merged'
-  | 'clip' | 'measure' | 'snap' | 'grid' | 'colors' | 'status' | 'systems' | 'share' | 'help'
+  | 'clip' | 'measure' | 'snap' | 'grid' | 'colors' | 'status' | 'systems' | 'traceUp' | 'traceDown' | 'share' | 'help'
 
 /** 안내 표 (그룹 순서대로) */
 export const KEYS: { group: string; keys: string; label: string }[] = [
@@ -31,6 +31,8 @@ export const KEYS: { group: string; keys: string; label: string }[] = [
   { group: '도구', keys: 'P', label: '속성별 색상' },
   { group: '도구', keys: 'T', label: '상태 색으로 보기' },
   { group: '도구', keys: 'K', label: '계통별 색으로 보기' },
+  { group: '계통', keys: '[', label: '상류 추적 (원천까지) — 요소 하나 선택 후' },
+  { group: '계통', keys: ']', label: '하류 추적 (말단까지)' },
   { group: '기타', keys: 'L', label: '현재 화면 링크 복사' },
   { group: '기타', keys: '?', label: '이 안내' },
   { group: '기타', keys: 'Esc', label: '선택 해제 · 측정 종료 · 안내 닫기' },
@@ -69,6 +71,8 @@ export function keyAction(e: KeyLike): Action | undefined {
     case 'KeyP': return 'colors'
     case 'KeyT': return 'status'
     case 'KeyK': return 'systems'
+    case 'BracketLeft': return 'traceUp'
+    case 'BracketRight': return 'traceDown'
     case 'KeyL': return 'share'
   }
 }

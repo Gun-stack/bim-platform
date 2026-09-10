@@ -24,6 +24,8 @@ describe('keyAction — code 기준 단발 액션', () => {
     expect(keyAction(ev('KeyR'))).toBe('merged')
     expect(keyAction(ev('KeyT'))).toBe('status')
     expect(keyAction(ev('KeyK'))).toBe('systems')
+    expect(keyAction(ev('BracketLeft'))).toBe('traceUp')
+    expect(keyAction(ev('BracketRight'))).toBe('traceDown')
   })
   it('Tab / Shift+Tab 은 다음 / 이전 요소', () => {
     expect(keyAction(ev('Tab'))).toBe('next')

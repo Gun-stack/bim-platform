@@ -236,6 +236,12 @@ export default function Viewer({ modelId }: { modelId: string }) {
     navigator.clipboard?.writeText(location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
   }
   // 단축키(단발 액션). 핸들러는 렌더마다 새로 만들어지므로 ref 로 최신 것을 본다 — 리스너는 마운트 때 한 번. 연속 키(WASD 등)는 Scene3D 가 직접 본다
+  // 상류/하류 추적. 실무 IFC 는 계통(IfcSystem) 없이 포트 연결만 있는 경우가 많다 — 소속 계통이 없으면 scope=all 로 전체 연결 그래프를 탄다
+  const trace = (dir: 'up' | 'down') => {
+    const gid = selection.length === 1 ? selection[0] : undefined; if (!gid) return Promise.resolve()
+    const inSystem = systemsMeta.some(s => (sysMembers.get(s.id) ?? []).some(m => m.globalId === gid))
+    return api<Route>(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}${inSystem ? '' : '&scope=all'}`).then(setRoute).catch(() => setRoute(undefined))
+  }
   const act = useRef<(a: Action) => void>(() => {})
   const flipOpt = (k: keyof Opts) => { const n = { ...opts, [k]: !opts[k] }; try { localStorage.setItem('viewer.opts', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } setOpts(n) }   // LeftPanel flipOpt 와 같은 저장 규칙
   const flipStruct = () => { const on = STRUCT.every(c => hidden.classes.has(c)), cls = new Set(hidden.classes); for (const c of STRUCT) { if (on) cls.delete(c); else cls.add(c) } setHidden({ ...hidden, classes: cls }); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }   // LeftPanel 구조체 토글과 동일
@@ -264,6 +270,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
       case 'colors': setColorMode(v => !v); break
       case 'status': setStatusView(v => !v); break
       case 'systems': setSysColor(v => !v); break
+      case 'traceUp': trace('up'); break
+      case 'traceDown': trace('down'); break
       case 'share': share(); break
       case 'help': setShowKeys(v => !v); break
     }
@@ -288,7 +296,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
         <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={() => scene.current?.fit()}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
-          systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute}
+          systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute} onTrace={trace}
             onSolo={(label, gids, key) => setHidden({ ...hidden, solo: hidden.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } })}
             onSelect={gids => scene.current?.select(gids)} colorMode={sysColor} setColorMode={setSysColor} />} />
       </Panel>
