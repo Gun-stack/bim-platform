@@ -5,6 +5,7 @@ body { margin: 0; background: var(--bg-base); color: var(--ink-1); font-family: 
 ::selection { background: rgba(122,162,247,.35) }
 a { color: var(--accent) }
 button, input, select, textarea { font-family: inherit }
+html { scroll-padding-top: 52px }   /* sticky 상단 바(Shell 44px) 밑으로 scrollIntoView 가 숨지 않게 */
 
 /* maplibre 기본 CSS 는 흰색 — 지도 팝업·내비 버튼 */
 .maplibregl-popup-content { background: var(--bg-raised); color: var(--ink-1); border: 1px solid var(--bg-line); box-shadow: 0 8px 24px rgba(0,0,0,.45) }

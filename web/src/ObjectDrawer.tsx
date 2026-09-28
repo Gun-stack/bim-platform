@@ -6,6 +6,7 @@ import { useObject } from './useObject'
 import NavLinks from './NavLinks'
 import { ifcKo } from './ifcNames'
 import { useEsc } from './ui'
+import { SHELL_H } from './Shell'
 import { T } from './theme'
 
 /** 공용 객체 패널: 모니터링·시설관리에서 ?sel= 이 있으면 우측에 뜬다 — 뷰어 우측 패널과 같은 내용(요약·운영 상태·자산/점검/작업지시·트렌드).
@@ -16,7 +17,7 @@ export default function ObjectDrawer({ modelId, gid, tick, reload, onClose }: { 
   const reloadAll = () => Promise.all([obj.reload(), reload?.()])
   const d = obj.detail
   return (
-    <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 14, overflow: 'auto', fontSize: 13, zIndex: 40, boxSizing: 'border-box', fontFamily: 'system-ui' }}>
+    <aside style={{ position: 'fixed', top: SHELL_H, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 14, overflow: 'auto', fontSize: 13, zIndex: 40, boxSizing: 'border-box', fontFamily: 'system-ui' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <b>요소</b><span style={{ color: T.ink[2], fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={gid}>{d ? `${ifcKo(d.ifcClass)}${d.spatialName ? ' · ' + d.spatialName : ''}` : ''}</span>
         <NavLinks modelId={modelId} gid={gid} style={{ fontSize: 12 }} />

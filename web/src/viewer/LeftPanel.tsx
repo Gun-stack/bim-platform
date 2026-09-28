@@ -5,7 +5,6 @@ import { Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen
 import { ifcKo } from '../ifcNames'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
-import { selQ } from '../context'
 import { T } from '../theme'
 
 /** 트리 한 행. children 은 지연 계산(펼칠 때만) */
@@ -30,7 +29,6 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Set<string>>(new Set())   // 펼친 행 key. Site·Building 은 기본 펼침
   const [anchor, setAnchor] = useState<string>()             // Shift 범위 선택 시작 행
-  const sel1 = selected.size === 1 ? [...selected][0] : undefined   // 내비 링크가 선택 객체를 끌고 간다 (?sel=)
 
   const byNode = useMemo(() => { const m = new Map<number | null, ElementRow[]>(); for (const e of elements) (m.get(e.spatialNodeId) ?? m.set(e.spatialNodeId, []).get(e.spatialNodeId)!).push(e); return m }, [elements])
   const childrenOf = useMemo(() => {   // 층은 elevation 순 (IFC 저장 순서는 툴마다 제멋대로)
@@ -107,11 +105,6 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   return (
     <aside style={{ height: '100%', display: 'flex', flexDirection: 'column', fontSize: 13, background: T.bg.raised }}>
       <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${T.bg.line}` }}>
-        <div style={{ display: 'flex', fontSize: 12 }}>
-          <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent }}>← 모델 목록</a>
-          <a href={`#/models/${model?.id}/monitor${selQ(sel1)}`} style={{ marginLeft: 'auto', textDecoration: 'none', color: T.accent }}>모니터링</a>
-          <a href={`#/models/${model?.id}/fm${selQ(sel1)}`} style={{ marginLeft: 10, textDecoration: 'none', color: T.accent }}>시설관리 →</a>
-        </div>
         <div style={{ fontWeight: 600, fontSize: T.fs.lg, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model?.name}>{model?.name ?? '…'}</div>
         <div style={{ color: T.ink[3], fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · ${stats.fps} fps`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}{abnormal.size > 0 && <b style={{ color: T.crit, marginLeft: 6 }}>· 이상 {abnormal.size}</b>}</div>
       </div>

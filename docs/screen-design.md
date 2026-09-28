@@ -7,7 +7,7 @@
 
 | 화면 | 경로 | 역할 |
 |---|---|---|
-| 모델 목록 | `#/` | IFC 업로드(드래그) → 변환 진행률(SSE) → 모델별 뷰어·모니터링·시설관리 진입. 앱의 현관 |
+| 건물 운영 현황(홈) | `#/` | 합계(모델·요소·경보·장애·열린 작업지시) + 모델 카드(3D 썸네일·운영 칩) → 세 화면 진입. IFC 업로드(버튼·페이지 드롭) → 변환 진행률(SSE). 앱의 현관 |
 | 3D 뷰어 | `#/models/{id}` | 공간 탐색의 중심 — 요소 선택 → 요약 카드, 계통 추적, 정전 시나리오, 경보 포커스, 측정·단면 |
 | 설비 모니터링 | `#/models/{id}/monitor` | "지금 건물이 어떤가"에 답하는 관제 화면. 5초 갱신. `?kiosk=1` 벽면 모드 |
 | 시설관리 | `#/models/{id}/fm` | "무엇을 처리할 것인가"의 업무 화면 — 작업지시 칸반 + 자산 대장 |
@@ -142,7 +142,7 @@ flowchart LR
 4. **타이포 5/2** — 11·12·13·15·18, 400·600.
 5. **모서리 6, 알약 999.** 그림자는 플로팅(툴바·메뉴·토스트·모달·독)만, 흐름 안 카드는 1px line.
 6. **한 줄 ≤3 사실**, 나머지는 `title`.
-7. **문구는 명사** — 버튼 라벨의 괄호 설명은 title 로. 내비는 "← 모델 목록" 글자.
+7. **문구는 명사** — 버튼 라벨의 괄호 설명은 title 로. 화면 이동은 공통 상단 바(모델 전환 · 3D 뷰어/모니터링/시설관리 탭).
 8. **팀 = 색 점 + 텍스트**, 팀 아이콘 없음.
 9. **배경 계층은 base(페이지) < surface(카드) < raised(카드 안 강조)** — 화면마다 뒤집지 않는다 (09-03 모니터링을 raised 페이지에서 base 로 정리).
 10. **계통색은 소속 팀 색의 명도 변형** (화재감지=소방 연한 적, 비상전원=전기 어두운 금). 예외: 설비 배관은 현업 도색 관례 우선 — 급수=청, 급탕=적, 가스=황, 오배수=갈, 환기=녹 (`SystemPanel.SYSTEM_COLOR`).
@@ -185,7 +185,7 @@ flowchart LR
 
 | 무엇 | 파일 | 비고 |
 |---|---|---|
-| 모델 목록·라우팅 | `web/src/App.tsx` | 해시 라우팅 (`#/models/{id}`, `/monitor`, `/fm`, `#/map`) |
+| 라우팅·상단 바·홈 | `web/src/App.tsx` · `Shell.tsx` · `Home.tsx` · `summary.ts` | 해시 라우팅 (`#/models/{id}`, `/monitor`, `/fm`, `#/map`), 화면은 모델 id 로 key. 썸네일 `GET·PUT /api/models/{id}/thumbnail` |
 | 3D 뷰어 | `web/src/viewer/Viewer.tsx` + `scene.ts`(Three) · `NavCube.ts` · `chrome.tsx`(플로팅·툴바) · `Props.tsx`(속성 표) · `LeftPanel.tsx` · `SystemPanel.tsx` · `FmPanel.tsx` · `StatusEditor.tsx` · `ColorPanel.tsx` | 딥링크 `?v= sel= clip= focus= wo= fm=` |
 | 설비 모니터링 | `web/src/MonitorPage.tsx` (화면) + `monitor.ts` (순수 로직: 우선순위 `rank`·점검 지연·핵심 장비·경보 통계 팀 합계 `teamStats`) | `monitor.test.ts` 가 순서·합계를 고정 |
 | 시설관리 | `web/src/FmPage.tsx` (대장) + `FmBoard.tsx` (칸반) | |

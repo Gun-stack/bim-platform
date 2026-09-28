@@ -3,6 +3,7 @@ import TrendModal from './TrendModal'
 import ObjectDrawer from './ObjectDrawer'
 import { objLinks, selQ } from './context'
 import { api, post, type Model } from './api'
+import { SHELL_H } from './Shell'
 import { TEAMS, teamOfSystems } from './teams'
 import { day, btn, dateTime, hm, hms } from './ui'
 import { patchStatus } from './statusApi'
@@ -90,14 +91,12 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13 * fs, padding: kiosk ? '14px 18px' : '20px 24px', paddingRight: sel && !kiosk ? 460 : undefined, minHeight: '100vh', background: T.bg.base }}>   {/* 페이지=base, 카드=surface — 다른 화면과 같은 돌출 계층. 객체 패널(440px)이 떠 있으면 그만큼 비워 최근 이벤트 열이 가려지지 않게 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-        {!kiosk && <a href="#/" style={{ color: T.accent, textDecoration: 'none' }}>← 모델 목록</a>}
         <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>설비 모니터링</span></h1>
         <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: T.ink[2], cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} /> 알림음</label>
         <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 * fs }}>갱신 {hms(tick)} · 5초</span>
         {(() => { const q = new URLSearchParams(hq); if (kiosk) q.delete('kiosk'); else q.set('kiosk', '1'); const url = `#/models/${modelId}/monitor${q.size ? '?' + q.toString() : ''}`
           return kiosk ? <a href={url} style={{ color: T.ink[3], fontSize: 12 * fs, textDecoration: 'none' }}>키오스크 해제</a>
             : <a href={url} title="벽면 모드 — 내비 숨김 · 글자 확대 · 이상만" style={btn}>키오스크</a> })()}
-        {!kiosk && <><a href={`#/models/${modelId}${selQ(sel)}`} style={btn}>3D 뷰어</a><a href={`#/models/${modelId}/fm${selQ(sel)}`} style={btn}>시설관리</a></>}
       </div>
 
       {/* 건물 전체 요약 — 관제 화면의 첫 줄은 총계 */}
@@ -175,7 +174,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         </div></div>
 
         {/* 최근 이벤트 — 격자는 '지금'만 보여주므로 '언제 무슨 일이' 는 여기 */}
-        <div className="monitor-events" style={{ width: kiosk ? 400 : 300, flexShrink: 0,   /* 벽면에선 '최근 무슨 일'이 격자보다 자주 읽힌다 */ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, padding: '8px 10px', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflow: 'auto' }}>
+        <div className="monitor-events" style={{ width: kiosk ? 400 : 300, flexShrink: 0,   /* 벽면에선 '최근 무슨 일'이 격자보다 자주 읽힌다 */ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, padding: '8px 10px', position: 'sticky', top: SHELL_H + 12, maxHeight: `calc(100vh - ${SHELL_H + 24}px)`, overflow: 'auto' }}>
           <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>최근 이벤트 <span style={{ color: T.ink[2], fontWeight: 400, fontSize: 11 * fs }}>{events.length}</span></div>
           {!events.length && <div style={{ color: T.ink[3], fontSize: 12 * fs }}>아직 이벤트가 없습니다</div>}
           {events.map((e, i) => { const abn = e.status === 'ALARM' || e.status === 'FAULT'; return (

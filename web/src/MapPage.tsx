@@ -8,6 +8,7 @@ maplibregl.setWorkerUrl(new URL(workerUrl, location.href).href)   // Blob 워커
 import { X } from 'lucide-react'
 import { api, post, type Model } from './api'
 import { btn } from './ui'
+import { SHELL_H } from './Shell'
 import { T } from './theme'
 
 type Feature = { type: 'Feature'; id: string; geometry: { type: 'Polygon'; coordinates: number[][][] }; properties: { name: string; georefSource: string | null; crs: string | null; manual: boolean | null; areaM2: number; lon: number; lat: number; elementCount: number } }
@@ -72,9 +73,8 @@ export default function MapPage() {
   const placed = new Set(features.map(f => f.id))
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', height: '100vh', fontFamily: 'system-ui', fontSize: 13 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <aside style={{ overflow: 'auto', borderRight: `1px solid ${T.bg.line}`, background: T.bg.raised, padding: 12 }}>
-        <a href="#/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', color: T.accent, fontSize: 12 }}>← 모델 목록</a>
         <h3 style={{ margin: '6px 0 2px', display: 'flex', alignItems: 'center', gap: 6 }}>지도</h3>
         <div style={{ color: T.ink[3], fontSize: 12, marginBottom: 10 }}>배치 {features.length} · 미배치 {models.filter(m => !placed.has(m.id)).length}</div>
         {placing && <div style={{ background: T.warnSoft, border: `1px solid ${T.warn}`, borderRadius: T.radius, padding: 10, marginBottom: 10 }}>

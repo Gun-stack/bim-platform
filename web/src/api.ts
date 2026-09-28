@@ -1,6 +1,7 @@
 export type Model = {
   id: string; name: string; status: 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED'
   ifcSchema?: string; elementCount?: number; progress: number; error?: string; glbUrl?: string; createdAt?: string
+  alarms?: number; faults?: number; openWorkOrders?: number   // 홈 카드 운영 칩 (ALARM·FAULT, DONE 제외 작업지시)
 }
 export type SpatialNode = { id: number; parentId: number | null; globalId: string; ifcClass: string; name: string | null; elevation: number | null }
 export type ElementRow = { globalId: string; ifcClass: string; name: string | null; spatialNodeId: number | null }

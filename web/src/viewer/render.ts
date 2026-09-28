@@ -59,11 +59,11 @@ export class Pipeline {
 
   setSize(w: number, h: number) { this.composer.setPixelRatio(devicePixelRatio); this.composer.setSize(w, h) }
 
-  /** 한 프레임. 카메라가 움직였으면 AO 를 끄고, AO_IDLE_MS 동안 멈춰 있으면 켠다 */
-  draw(now = performance.now()) {
+  /** 한 프레임. 카메라가 움직였으면 AO 를 끄고, AO_IDLE_MS 동안 멈춰 있으면 켠다. ao 를 주면 강제(썸네일) */
+  draw(now = performance.now(), ao?: boolean) {
     const c = this.camera
     if (!c.position.equals(this.prevP) || !c.quaternion.equals(this.prevQ)) { this.lastMove = now; this.prevP.copy(c.position); this.prevQ.copy(c.quaternion) }
-    this.ao.enabled = now - this.lastMove > AO_IDLE_MS
+    this.ao.enabled = ao ?? now - this.lastMove > AO_IDLE_MS
     this.renderer.info.reset()
     this.composer.render()
   }

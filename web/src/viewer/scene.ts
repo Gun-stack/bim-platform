@@ -312,6 +312,17 @@ export class Scene3D {
     return c.toDataURL('image/jpeg', 0.7)
   }
 
+  /** 홈 카드 썸네일: 캔버스 크기·비율과 무관하게 w×h 에 건물 전체(홈 뷰)를 AO 켠 한 프레임으로. 한 태스크 안에서 크기·카메라를 원복해 화면 깜빡임 없음 */
+  thumbnail(w: number, h: number) {
+    const v = this.dest(), cw = this.el.clientWidth, ch = this.el.clientHeight
+    const resize = (x: number, y: number) => { this.renderer.setSize(x, y, false); this.pipeline.setSize(x, y); this.camera.aspect = x / y; this.camera.updateProjectionMatrix() }
+    this.tickReveal(Infinity); resize(w, h); this.setView(this.fitView([], PRESET.home)); this.frame(performance.now(), true)
+    const c = document.createElement('canvas'); c.width = w; c.height = h
+    c.getContext('2d')!.drawImage(this.renderer.domElement, 0, 0, w, h)
+    resize(cw, ch); this.setView(v)
+    return c.toDataURL('image/jpeg', 0.8)
+  }
+
   getView(): View { const v = this.dest(); return { p: v.p.map(n => +n.toFixed(2)), t: v.t.map(n => +n.toFixed(2)) } }
   /** animate: 보는 중 바뀌는 경우(딥링크 재적용). 최초 복원·공유 링크는 즉시 */
   setView(v: View, animate = false): void {
@@ -430,7 +441,7 @@ export class Scene3D {
   get animating() { return !!this.tween || !!this.reveal }
 
   /** 한 프레임 — 루프·스냅샷·통계 공용. 연출 틱은 여기에 모인다 */
-  private frame(now = performance.now()) { this.tickTween(now); this.tickGlow(now); this.tickReveal(now); this.pipeline.draw(now) }
+  private frame(now = performance.now(), ao?: boolean) { this.tickTween(now); this.tickGlow(now); this.tickReveal(now); this.pipeline.draw(now, ao) }
 
   stats(): Stats {
     this.frame()  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로

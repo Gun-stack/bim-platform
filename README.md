@@ -14,12 +14,13 @@
 
 ## 화면으로 보는 흐름
 
-**1. 업로드 → 변환 → 목록**
+**1. 업로드 → 변환 → 건물 운영 현황**
 
-- IFC 드래그 업로드 → 서버 워커가 glTF 변환 → 진행률 SSE
-- 모델마다 3D 뷰어·모니터링·시설관리 진입 버튼. 상단 링크로 운영 흐름·아키텍처 다이어그램
+- IFC 업로드(버튼·페이지 어디에나 드롭) → 서버 워커가 glTF 변환 → 진행률 SSE
+- 모델 카드: 3D 썸네일(첫 뷰어 방문 때 렌더해 서버에 저장) · 경보·장애·열린 작업지시 칩 · 세 화면 진입. 머리 줄은 전체 합계
+- 공통 상단 바: 모델 전환 · 3D 뷰어/모니터링/시설관리 탭(선택 객체 유지) · 지도 · 운영 흐름·아키텍처 다이어그램
 
-![모델 목록](images/01-list.png)
+![건물 운영 현황 — 모델 카드·썸네일·운영 칩](images/01-list.png)
 
 **2. 3D 뷰어 — 고르면 "무엇·어디·누가"가 한 카드에**
 
@@ -138,7 +139,7 @@ flowchart LR
 
 - Docker Compose: `web`, `api`, `ifc-worker`, `postgis`, `minio`
 - 브라우저는 SSE로 변환 진행률 수신. GLB의 IFC GlobalId 노드 ↔ API 요소 데이터 연결
-- 🗺️ 탐색형 다이어그램([Archify](https://github.com/tt-a1i/archify) 생성, 모델 목록 상단 링크):
+- 🗺️ 탐색형 다이어그램([Archify](https://github.com/tt-a1i/archify) 생성, 상단 바 오른쪽 링크):
   - 운영 흐름 [web/public/flow.html](web/public/flow.html) — 업로드→변환→운영→작업지시 4개 뷰. 원본 [docs/flow.archify.json](docs/flow.archify.json)
   - 아키텍처 [web/public/architecture.html](web/public/architecture.html) — 요청 경로·변환 파이프라인·GLB 전달 3개 뷰. 원본 [docs/architecture.archify.json](docs/architecture.archify.json)
 
@@ -246,7 +247,7 @@ python3 samples/gen/bms_sim.py <modelId>        # 상태 API 시뮬레이터 (�
 (cd samples/gen && python3 -m unittest test_mep_plan)
 ```
 
-- `#/` — 모델 목록과 IFC 업로드
+- `#/` — 건물 운영 현황(모델 카드·썸네일·경보·작업지시 합계)과 IFC 업로드
 - `#/models/{id}` — 3D 뷰어 (`?sel=` 선택, `?focus=1` 경보 포커스, `?clip=` 단면, `?v=` 카메라, `?wo=` 작업지시 뷰포인트) · 단축키 안내 `?`
 - `#/models/{id}/monitor` — 설비 모니터링 (`?team= storey= mode= days=` 필터, `?kiosk=1` 벽면 모드)
 - `#/models/{id}/fm` — 자산 대장·작업지시 보드 (`?wo=` 카드, `?due=1` 지연 자산, `?assignee=none` 미배정)

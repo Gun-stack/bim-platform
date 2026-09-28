@@ -8,7 +8,6 @@ import FmBoard from './FmBoard'
 import { setHashParam, useHashQuery } from './useHashQuery'
 import { AlertToast, useAlerts } from './useAlerts'
 import ObjectDrawer from './ObjectDrawer'
-import { selQ } from './context'
 import { T } from './theme'
 import NavLinks from './NavLinks'
 
@@ -50,9 +49,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
   return (
     <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 1100, margin: '0 auto', padding: '24px 20px', paddingRight: selGid ? 460 : 20 }}>   {/* 객체 패널(440px) 자리 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <a href="#/" style={{ color: T.accent, textDecoration: 'none' }}>← 모델 목록</a>
         <h1 style={{ margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>시설관리</span></h1>
-        <a href={`#/models/${modelId}${selQ(selGid)}`} style={{ marginLeft: 'auto', ...btn }}>3D 뷰어</a><a href={`#/models/${modelId}/monitor${selQ(selGid)}`} style={btn}>모니터링{abnormal.length > 0 && <b style={{ color: T.crit }}>{abnormal.length}</b>}</a>
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
         <Stat label="자산" value={assets.length} sub={`결함 ${assets.filter(a => a.lastResult === 'DEFECT').length}`} />

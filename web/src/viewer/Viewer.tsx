@@ -23,6 +23,7 @@ import Shortcuts from './Shortcuts'
 import { MultiProps, Props } from './Props'
 import { useHashQuery } from '../useHashQuery'
 import './viewer.css'
+import { SHELL_H } from '../Shell'
 import { T, num } from '../theme'
 
 export default function Viewer({ modelId }: { modelId: string }) {
@@ -173,6 +174,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
     if (selection.length > 1) Promise.all(selection.filter(g => byGid.has(g)).slice(0, 20).map(fetch1)).then(setDetails).catch(() => setDetails([]))
     else setDetails([])
   }, [selection, byGid, spaceGids, modelId, statusRows])
+  useEffect(() => {   // 홈 카드 썸네일이 없으면 등장 연출이 끝난 뒤 한 번 만들어 올린다 — 첫 방문자가 만든 것을 모두가 쓴다
+    if (!loaded) return
+    const t = setTimeout(() => fetch(`/api/models/${modelId}/thumbnail`, { method: 'HEAD' }).then(r => {
+      const s = scene.current; if (r.status !== 404 || !s) return
+      return fetch(s.thumbnail(480, 300)).then(d => d.blob()).then(b => fetch(`/api/models/${modelId}/thumbnail`, { method: 'PUT', headers: { 'content-type': 'image/jpeg' }, body: b }))
+    }).catch(() => {}), 2500)
+    return () => clearTimeout(t)
+  }, [loaded, modelId])
   useEffect(() => { if (loaded) scene.current?.setXray(opts.xray) }, [opts.xray, loaded])   // 병합보다 먼저 — 병합이 X-ray 재질로 묶이게
   useEffect(() => { if (loaded) scene.current?.setMerged(opts.merged) }, [opts.merged, loaded])   // loaded 의존: 마운트 땐 씬이 없어 저장된 merged 가 버려졌다 — 로드 뒤 다시 적용
   // 단일 선택 → URL ?sel= (replaceState: hashchange 가 안 나 딥링크 effect 재실행 없음) + 독 알림 + 0.7초 뒤 3D 스냅샷(핏/포커스 카메라가 자리잡은 뒤).
@@ -301,7 +310,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     return { origin: byGid.get(route.globalId)?.name ?? route.globalId, floors: sorted.length > 1 ? `${sorted[0]}~${sorted[sorted.length - 1]}` : sorted[0] ?? '', top: [...cls].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, n]) => `${ifcKo(c)} ${n}`).join(' · ') } }, [route, spatial, byGid, storeys])
 
   return (
-    <Group orientation="horizontal" style={{ height: '100vh', fontFamily: 'system-ui', fontSize: 13 }}>
+    <Group orientation="horizontal" style={{ height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
         <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={() => scene.current?.fit()}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
