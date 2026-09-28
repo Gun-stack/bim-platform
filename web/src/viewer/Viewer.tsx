@@ -288,6 +288,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
   const storeys = spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0))
   const abnormal = useMemo(() => new Map(statusRows.filter(r => isAbnormal(r.status.Status)).map(r => [r.globalId, r.status.Status!])), [statusRows])
+  useEffect(() => { scene.current?.setPulse(new Map([...abnormal].map(([g, st]) => [g, STATUS[st]?.color ?? num(T.crit)]))) }, [abnormal, loaded])   // 경보=빨강·장애=주황 발광
+  useEffect(() => { scene.current?.setFlow(route?.nodes.map(n => ({ gid: n.globalId, depth: n.depth })) ?? [], route?.direction ?? 'down', route?.direction === 'up' ? num(T.accent) : num(T.ok)) }, [route, loaded])   // 추적 경로 흐름
   const selAsset = selection.length === 1 ? assetByGid.get(selection[0]) : undefined
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- 자산 id·열린 작업지시 수가 바뀔 때만
   useEffect(() => { if (!selAsset) { setAssetDetail(undefined); return } api<AssetDetail>(`/assets/${selAsset.id}`).then(setAssetDetail).catch(() => setAssetDetail(undefined)) }, [selAsset?.id, selAsset?.openWorkOrders])

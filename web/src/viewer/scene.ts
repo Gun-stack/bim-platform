@@ -6,7 +6,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { NavCube } from './NavCube'
 import { Pipeline } from './render'
 import { EDGE, edgesOf, tier, xrayMat, type Tier } from './xray'
-import { FLY_MS, interpView, reducedMotion } from './fx'
+import { FLY_MS, GlowLayer, flowLevel, interpView, pulseOpacity, reducedMotion } from './fx'
 import { FLY, isTyping } from './keys'
 import { coverRect } from '../context'
 import { T, num } from '../theme'
@@ -39,6 +39,10 @@ export class Scene3D {
   private frames = 0; private fpsAt = performance.now(); private fps = 0
   private tween?: { from: View; to: View; t0: number }   // 카메라 전환 중
   private still = reducedMotion()
+  private pulse = new GlowLayer(true)   // 경보·장애 요소 발광 + 후광
+  private flow = new GlowLayer()    // 추적 경로 depth 파동
+  private pulseOn = new Map<string, number>()
+  private flowOn?: { depth: Map<string, number>; max: number; dir: 'up' | 'down'; color: number; t0: number }
   /** 원본 메시. 병합 모드에서도 유지(픽킹·재구성용) */
   private meshes: THREE.Mesh[] = []
   private kind = new Map<string, Kind>()
@@ -93,6 +97,7 @@ export class Scene3D {
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4048, 0.8))   // 환경맵이 채광을 더하므로 직접광은 낮춘다
     const sun = new THREE.DirectionalLight(0xffffff, 1.2); sun.position.set(1, 2, 1); this.scene.add(sun)
     this.scene.add(this.hoverGroup)
+    this.scene.add(this.pulse.group, this.flow.group)
     this.camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 5000)
     this.renderer = new THREE.WebGLRenderer({ antialias: false })   // AA 는 컴포저의 MSAA 렌더 타깃이 담당
     this.renderer.setSize(el.clientWidth, el.clientHeight); this.renderer.setPixelRatio(devicePixelRatio)
@@ -208,6 +213,29 @@ export class Scene3D {
 
   /** X-ray(건축 반투명 + 외곽선) ↔ 원본 재질 */
   setXray(on: boolean) { this.xray = on; for (const e of this.edges.values()) e.visible = on; this.apply() }
+
+  /** 경보 펄스: gid → 색. 빈 맵이면 해제. 선택된 요소는 마젠타가 우선 */
+  setPulse(m: Map<string, number>) { this.pulseOn = m; this.refreshGlow() }
+
+  /** 계통 흐름: 추적 경로의 depth 순 밝기 파동. 빈 배열이면 해제 */
+  setFlow(nodes: { gid: string; depth: number }[], dir: 'up' | 'down', color: number) {
+    this.flowOn = nodes.length ? { depth: new Map(nodes.map(n => [n.gid, n.depth])), max: Math.max(...nodes.map(n => n.depth)), dir, color, t0: performance.now() } : undefined
+    this.refreshGlow()
+  }
+
+  /** 오버레이 재구성 — 표시 조건(층 필터·숨김)을 따른다. 병합 모드는 원본 메시가 전부 숨김이라 m.visible 대신 visible() */
+  private refreshGlow() {
+    const shown = (m: THREE.Mesh) => this.visible(m.name, this.kind.get(m.name) ?? 'element')
+    this.pulse.set(this.meshes.filter(m => this.pulseOn.has(m.name) && !this.picked.has(m.name) && shown(m)).map(m => ({ mesh: m, key: this.pulseOn.get(m.name)!, color: this.pulseOn.get(m.name)! })))
+    const f = this.flowOn
+    this.flow.set(f ? this.meshes.filter(m => f.depth.has(m.name) && shown(m)).map(m => ({ mesh: m, key: f.depth.get(m.name)!, color: f.color })) : [])
+  }
+
+  private tickGlow(now: number) {
+    this.pulse.update(() => this.still ? 0.5 : pulseOpacity(now / 1000))
+    const f = this.flowOn
+    if (f) this.flow.update(d => this.still ? 0.5 : 0.7 * flowLevel((now - f.t0) / 1000, d, f.max, f.dir))
+  }
 
   /** 요소 위치 비콘 (길찾기): 요소에서 건물 지붕 위까지 솟는 기둥 + 머리. 반투명·벽을 뚫고 보이도록 depthTest 끔 */
   setMarker(gid?: string, color = num(T.crit)) {
@@ -375,7 +403,7 @@ export class Scene3D {
   private clearPreview() { if (this.previewDot) { this.measureGroup.remove(this.previewDot); this.previewDot.geometry.dispose(); (this.previewDot.material as THREE.Material).dispose(); this.previewDot = undefined } }
 
   /** 한 프레임 — 루프·스냅샷·통계 공용. 연출 틱은 여기에 모인다 */
-  private frame(now = performance.now()) { this.tickTween(now); this.pipeline.draw(now) }
+  private frame(now = performance.now()) { this.tickTween(now); this.tickGlow(now); this.pipeline.draw(now) }
 
   stats(): Stats {
     this.frame()  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로
@@ -411,7 +439,7 @@ export class Scene3D {
     cam.position.copy(t).add(off.setFromSpherical(sph))
   }
 
-  dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); removeEventListener('keyup', this.onKey); removeEventListener('blur', this.onBlur); this.navCube.dispose(); this.pipeline.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
+  dispose() { this.pulse.set([]); this.flow.set([]); cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); removeEventListener('keyup', this.onKey); removeEventListener('blur', this.onBlur); this.navCube.dispose(); this.pipeline.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
 
   private apply() {
     this.outlines.traverse(o => (o as THREE.LineSegments).geometry?.dispose()); this.outlines.clear()
@@ -424,6 +452,7 @@ export class Scene3D {
         : this.colors ? (this.colors.has(gid) ? this.colorMat(this.colors.get(gid)!) : this.ghostOthers ? (x ?? GHOST) : this.colorMat(0x8b9199)) : x ?? this.original.get(m)!   // 색 없음: 채색 요소보다 눌리는 회색. 계통·상태 색의 반투명 배경은 건축이면 X-ray 재질
     }
     if (this.merged) this.setMerged(true)  // 병합 모드면 재구성 (하이라이트·고스트가 자기 그룹으로 분리)
+    this.refreshGlow()
   }
 
   private colorMat(hex: number) {
