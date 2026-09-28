@@ -1,6 +1,6 @@
 /** 뷰어 키보드 단축키 — 단일 출처. 안내 오버레이(KEYS)·단발 액션 분기(keyAction)·연속 키 집합(FLY). DOM·React 의존 없음 */
 
-export type Action = 'home' | 'fit' | 'front' | 'side' | 'top' | 'next' | 'prev' | 'isolate' | 'hide' | 'solo' | 'showAll' | 'struct' | 'openings' | 'spaces' | 'merged'
+export type Action = 'home' | 'fit' | 'front' | 'side' | 'top' | 'next' | 'prev' | 'isolate' | 'hide' | 'solo' | 'showAll' | 'struct' | 'openings' | 'spaces' | 'merged' | 'xray'
   | 'clip' | 'measure' | 'snap' | 'grid' | 'colors' | 'status' | 'systems' | 'traceUp' | 'traceDown' | 'share' | 'help'
 
 /** 안내 표 (그룹 순서대로) */
@@ -24,6 +24,7 @@ export const KEYS: { group: string; keys: string; label: string }[] = [
   { group: '표시', keys: 'O', label: '개구부 표시' },
   { group: '표시', keys: 'Z', label: '공간(구역) 표시' },
   { group: '표시', keys: 'R', label: '병합 렌더 (성능)' },
+  { group: '표시', keys: 'X', label: 'X-ray ↔ 원본 재질' },
   { group: '도구', keys: 'C', label: '단면' },
   { group: '도구', keys: 'M', label: '측정' },
   { group: '도구', keys: 'N', label: '스냅' },
@@ -64,6 +65,7 @@ export function keyAction(e: KeyLike): Action | undefined {
     case 'KeyO': return 'openings'
     case 'KeyZ': return 'spaces'
     case 'KeyR': return 'merged'
+    case 'KeyX': return 'xray'
     case 'KeyC': return 'clip'
     case 'KeyM': return 'measure'
     case 'KeyN': return 'snap'

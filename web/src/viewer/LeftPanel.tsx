@@ -1,7 +1,7 @@
 /* oxlint-disable react/only-export-components, react-hooks/exhaustive-deps */
 import { useMemo, useState, type ReactNode } from 'react'
 import type React from 'react'
-import { Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Grid3x3, Layers, LayoutGrid, MapPin, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
+import { Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Grid3x3, Layers, LayoutGrid, MapPin, ScanEye, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
 import { ifcKo } from '../ifcNames'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
@@ -14,7 +14,7 @@ export type SelectMode = 'set' | 'toggle' | 'range'
 
 /** 숨김 3종 + 솔로(이것만 보기). 보임 = (solo 없음 || gid ∈ solo) && !hidden */
 export type Hidden = { nodes: Set<number>; classes: Set<string>; gids: Set<string>; solo?: { key: string; label: string; gids: Set<string> } }
-export type Opts = { openings: boolean; spaces: boolean; merged: boolean; grid: boolean }
+export type Opts = { openings: boolean; spaces: boolean; merged: boolean; grid: boolean; xray: boolean }
 
 export const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', 'IfcCovering', 'IfcCurtainWall']   // 구조체 숨김 토글 대상 (포커스 모드도 사용)
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
@@ -122,6 +122,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
         <Toggle icon={Box} label="공간(구역) 표시 · Z" on={opts.spaces} onClick={() => flipOpt('spaces')} />
         <Toggle icon={Grid3x3} label="그리드 (평면·간격은 캔버스 좌하단) · G" on={opts.grid} onClick={() => flipOpt('grid')} />
         <Toggle icon={Combine} label="병합 렌더 (성능) · R" on={opts.merged} onClick={() => flipOpt('merged')} />
+        <Toggle icon={ScanEye} label="X-ray — 건축 반투명·외곽선 (끄면 원본 재질) · X" on={opts.xray} onClick={() => flipOpt('xray')} />
         <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕) · B" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }} />
         <span style={{ flex: 1 }} />
         <Toggle icon={Eye} label="숨긴 것 모두 표시 · ⌥H" on={false} disabled={!anyHidden} onClick={allVisible} />

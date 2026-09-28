@@ -36,7 +36,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [details, setDetails] = useState<ElementDetail[]>([])          // 여러 개 선택 시 공통 Pset 계산용 (최대 20)
   const selSet = useMemo(() => new Set(selection), [selection])
   // 표시 옵션 저장은 LeftPanel 버튼 클릭 시(flipOpt) — focusOn 등 프로그램적 변경이 사용자 저장값을 덮지 않게
-  const [opts, setOpts] = useState<Opts>(() => { const d: Opts = { openings: false, spaces: true, merged: false, grid: true }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.opts') ?? '{}') } } catch { return d } })
+  const [opts, setOpts] = useState<Opts>(() => { const d: Opts = { openings: false, spaces: true, merged: false, grid: true, xray: true }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.opts') ?? '{}') } } catch { return d } })
   const [hidden, setHidden] = useState<Hidden>(() => { let s = false; try { s = localStorage.getItem('viewer.structHidden') === '1' } catch { /* 저장 불가 환경 */ } return { nodes: new Set(), classes: new Set(s ? STRUCT : []), gids: new Set() } })   // 구조체 숨김 기억
   const [stats, setStats] = useState<Stats>({ calls: 0, triangles: 0, fps: 0 })
   const [err, setErr] = useState<string>()
@@ -119,7 +119,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const el = canvas.current   // cleanup 에서 ref 대신 이 변수를 쓴다
     const s = new Scene3D(el); scene.current = s
     s.onPick = setSelection
-    s.load(model.glbUrl, gid => byGid.has(gid) ? 'element' : spaceGids.has(gid) ? 'space' : 'opening').then(() => {
+    s.load(model.glbUrl, gid => { const e = byGid.get(gid); return { kind: e ? 'element' : spaceGids.has(gid) ? 'space' : 'opening', ifcClass: e?.ifcClass } }).then(() => {
       setBounds(s.bounds()); setLoaded(true)   // 뷰포인트 복원은 아래 딥링크 effect 가 (최초 + hashchange 재적용)
     }).catch(e => setErr(String(e)))
     let pending = false   // 호버 툴팁: 프레임당 1회
@@ -171,6 +171,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     if (selection.length > 1) Promise.all(selection.filter(g => byGid.has(g)).slice(0, 20).map(fetch1)).then(setDetails).catch(() => setDetails([]))
     else setDetails([])
   }, [selection, byGid, spaceGids, modelId, statusRows])
+  useEffect(() => { if (loaded) scene.current?.setXray(opts.xray) }, [opts.xray, loaded])   // 병합보다 먼저 — 병합이 X-ray 재질로 묶이게
   useEffect(() => { if (loaded) scene.current?.setMerged(opts.merged) }, [opts.merged, loaded])   // loaded 의존: 마운트 땐 씬이 없어 저장된 merged 가 버려졌다 — 로드 뒤 다시 적용
   // 단일 선택 → URL ?sel= (replaceState: hashchange 가 안 나 딥링크 effect 재실행 없음) + 독 알림 + 0.7초 뒤 3D 스냅샷(핏/포커스 카메라가 자리잡은 뒤).
   // loaded 가드: 딥링크 effect 가 ?sel= 을 먼저 소비한 뒤에만 URL 을 다시 쓴다. focus 만 지워 다음 "3D 위치" 클릭이 새 해시가 되게 (v/clip/wo/fm 은 유지)
@@ -264,6 +265,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       case 'openings': flipOpt('openings'); break
       case 'spaces': flipOpt('spaces'); break
       case 'merged': flipOpt('merged'); break
+      case 'xray': flipOpt('xray'); break
       case 'clip': if (bounds) setClip(clip ? null : bounds.min.flatMap((m, i) => [m, bounds.max[i]])); break
       case 'measure': setMeasuring(m => !m); break
       case 'snap': setSnap(v => !v); break

@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { NavCube } from './NavCube'
 import { Pipeline } from './render'
+import { EDGE, edgesOf, tier, xrayMat, type Tier } from './xray'
 import { FLY, isTyping } from './keys'
 import { coverRect } from '../context'
 import { T, num } from '../theme'
@@ -16,9 +17,10 @@ export type Stats = { calls: number; triangles: number; fps: number }
 const HIGHLIGHT = new THREE.MeshBasicMaterial({ color: 0xff2d95, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide })
 const OUTLINE = new THREE.LineBasicMaterial({ color: 0xff2d95, depthTest: false })
 const HOVER_OUTLINE = new THREE.LineBasicMaterial({ color: num(T.accent), transparent: true, opacity: 0.85, depthTest: false })
-const SPACE = new THREE.MeshStandardMaterial({ color: 0x6a9ad9, transparent: true, opacity: 0.22, depthWrite: false })
-const GHOST = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, transparent: true, opacity: 0.15, depthWrite: false })   // 어두운 배경에선 유령이 배경보다 밝아야 보인다
-const FOCUS_SPACE = new THREE.MeshStandardMaterial({ color: num(T.accent), emissive: 0x24406e, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
+// 반투명 불투명도는 선형 블렌딩 기준(컴포저 버퍼) — 예전 캔버스 직접 렌더(sRGB 블렌딩)보다 같은 값이 훨씬 진하게 보여 낮췄다
+const SPACE = new THREE.MeshStandardMaterial({ color: 0x6a9ad9, transparent: true, opacity: 0.07, depthWrite: false })
+const GHOST = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, transparent: true, opacity: 0.07, depthWrite: false })   // 어두운 배경에선 유령이 배경보다 밝아야 보인다
+const FOCUS_SPACE = new THREE.MeshStandardMaterial({ color: num(T.accent), emissive: 0x24406e, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide })
 export type View = { p: number[]; t: number[] }
 /** 격리: 집합 밖 요소는 반투명(GHOST). undefined 면 해제 */
 export type Focus = { gids: Set<string> } | undefined
@@ -34,6 +36,10 @@ export class Scene3D {
   /** 원본 메시. 병합 모드에서도 유지(픽킹·재구성용) */
   private meshes: THREE.Mesh[] = []
   private kind = new Map<string, Kind>()
+  private tiers = new Map<string, Tier>()
+  private edges = new Map<THREE.Mesh, THREE.LineSegments>()   // 건축 메시 → 외곽선(메시 자식 — 가시성 상속)
+  private mergedEdges?: THREE.LineSegments
+  private xray = true
   private original = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>()
   private visible: (gid: string, kind: Kind) => boolean = () => true
   private merged?: THREE.Group
@@ -113,7 +119,7 @@ export class Scene3D {
     loop()
   }
 
-  async load(url: string, classify: (gid: string) => Kind) {
+  async load(url: string, classify: (gid: string) => { kind: Kind; ifcClass?: string }) {
     const gltf = await new GLTFLoader().loadAsync(url)
     gltf.scene.traverse(o => {
       const m = o as THREE.Mesh
@@ -121,8 +127,10 @@ export class Scene3D {
       // 프리미티브가 여럿인 노드는 GLTFLoader 가 자식 메시를 `GlobalId_0`, `_1` 로 이름 붙인다 → GlobalId 형식(22자)에 맞는 쪽을 취한다
       const gid = [m.name, m.parent?.name].find(n => GID.test(n ?? '')) ?? m.name
       m.name = gid; this.meshes.push(m); this.original.set(m, m.material)
-      this.kind.set(gid, classify(gid))
-      if (this.kind.get(gid) === 'space') m.material = SPACE
+      const c = classify(gid), t = c.kind === 'element' ? tier(c.ifcClass) : 'equipment'
+      this.kind.set(gid, c.kind); this.tiers.set(gid, t)
+      if (c.kind === 'space') m.material = SPACE
+      if (t !== 'equipment') { const e = edgesOf(m.geometry); e.visible = this.xray; m.add(e); this.edges.set(m, e) }
     })
     this.scene.add(gltf.scene); this.scene.add(this.measureGroup); this.scene.add(this.outlines); this.outlines.renderOrder = 9
     this.box.setFromObject(gltf.scene)
@@ -138,6 +146,7 @@ export class Scene3D {
   /** 병합 모드: 보이는 메시를 재질별로 합쳐 draw call 을 재질 수로 줄인다. 원본은 숨김. */
   setMerged(on: boolean) {
     if (this.merged) { this.scene.remove(this.merged); this.merged.traverse(o => (o as THREE.Mesh).geometry?.dispose()); this.merged = undefined; this.mergedRanges = [] }
+    if (this.mergedEdges) { this.scene.remove(this.mergedEdges); this.mergedEdges.geometry.dispose(); this.mergedEdges = undefined }
     if (on) {
       const byMat = new Map<THREE.Material, THREE.Mesh[]>()
       for (const m of this.meshes) if (m.visible && !Array.isArray(m.material)) (byMat.get(m.material) ?? byMat.set(m.material, []).get(m.material)!).push(m)
@@ -152,6 +161,12 @@ export class Scene3D {
         // 병합 결과의 index 순서 = 입력 순서. faceIndex*3 이 어느 구간에 속하는지로 요소를 되찾는다
         for (const m of ms) { const cnt = m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count; ranges.push({ start, end: start + cnt, gid: m.name }); start += cnt }
         const mesh = new THREE.Mesh(g, mat); this.merged.add(mesh); this.mergedRanges.push({ mesh, ranges })
+      }
+      if (this.xray) {   // 외곽선도 한 덩어리로 — 원본 메시를 숨기면 자식 외곽선도 숨는다. 픽킹 대상(merged)과 분리
+        const eg = this.meshes.filter(m => m.visible && this.edges.has(m)).map(m => this.edges.get(m)!.geometry.clone().applyMatrix4(m.matrixWorld))
+        const g = eg.length ? mergeGeometries(eg, false) : null
+        eg.forEach(x => x.dispose())
+        if (g) { this.mergedEdges = new THREE.LineSegments(g, EDGE); this.scene.add(this.mergedEdges) }
       }
       this.scene.add(this.merged)
     }
@@ -183,6 +198,9 @@ export class Scene3D {
 
   /** 색상 모드: gid → 색. undefined 면 원래 재질 */
   setColors(map?: Map<string, number>, ghostOthers = false) { this.colors = map; this.ghostOthers = ghostOthers; this.apply() }
+
+  /** X-ray(건축 반투명 + 외곽선) ↔ 원본 재질 */
+  setXray(on: boolean) { this.xray = on; for (const e of this.edges.values()) e.visible = on; this.apply() }
 
   /** 요소 위치 비콘 (길찾기): 요소에서 건물 지붕 위까지 솟는 기둥 + 머리. 반투명·벽을 뚫고 보이도록 depthTest 끔 */
   setMarker(gid?: string, color = num(T.crit)) {
@@ -377,8 +395,9 @@ export class Scene3D {
       if (this.picked.has(m.name)) { const l = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 20), OUTLINE); l.matrixAutoUpdate = false; l.matrix.copy(m.matrixWorld); l.renderOrder = 9; this.outlines.add(l) }
       const gid = m.name, kind = this.kind.get(gid)!, inFocus = !this.focusSet || this.focusSet.gids.has(gid)
       m.visible = this.visible(gid, kind)
+      const x = this.xray ? xrayMat(this.tiers.get(gid) ?? 'equipment') : undefined   // X-ray 는 원본 재질 자리만 대신한다
       m.material = this.picked.has(gid) ? HIGHLIGHT : !inFocus ? GHOST : gid === this.focusSpace ? FOCUS_SPACE : kind === 'space' ? SPACE
-        : this.colors ? (this.colors.has(gid) ? this.colorMat(this.colors.get(gid)!) : this.ghostOthers ? GHOST : this.colorMat(0x8b9199)) : this.original.get(m)!   // 색 없음: 채색 요소보다 눌리는 회색
+        : this.colors ? (this.colors.has(gid) ? this.colorMat(this.colors.get(gid)!) : this.ghostOthers ? (x ?? GHOST) : this.colorMat(0x8b9199)) : x ?? this.original.get(m)!   // 색 없음: 채색 요소보다 눌리는 회색. 계통·상태 색의 반투명 배경은 건축이면 X-ray 재질
     }
     if (this.merged) this.setMerged(true)  // 병합 모드면 재구성 (하이라이트·고스트가 자기 그룹으로 분리)
   }
