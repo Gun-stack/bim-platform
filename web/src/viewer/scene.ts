@@ -93,6 +93,7 @@ export class Scene3D {
   private ro: ResizeObserver
   private navCube: NavCube
   private pipeline: Pipeline
+  private env: THREE.WebGLRenderTarget
 
   constructor(el: HTMLElement) {
     this.el = el
@@ -105,7 +106,7 @@ export class Scene3D {
     this.renderer = new THREE.WebGLRenderer({ antialias: false })   // AA 는 컴포저의 MSAA 렌더 타깃이 담당
     this.renderer.setSize(el.clientWidth, el.clientHeight); this.renderer.setPixelRatio(devicePixelRatio)
     const pmrem = new THREE.PMREMGenerator(this.renderer), room = new RoomEnvironment()
-    this.scene.environment = pmrem.fromScene(room, 0.04).texture; this.scene.environmentIntensity = 0.3   // 설비 재질의 은은한 반사
+    this.env = pmrem.fromScene(room, 0.04); this.scene.environment = this.env.texture; this.scene.environmentIntensity = 0.3   // 설비 재질의 은은한 반사
     room.dispose(); pmrem.dispose()
     this.pipeline = new Pipeline(this.renderer, this.scene, this.camera, el.clientWidth, el.clientHeight)
     el.appendChild(this.renderer.domElement)
@@ -304,7 +305,6 @@ export class Scene3D {
 
   /** 현재 화면을 w×h JPEG dataURL 로 (가운데 크롭). render 직후 같은 태스크에서 읽으므로 preserveDrawingBuffer 가 필요 없다. 독·객체 패널의 썸네일용 */
   snapshot(w: number, h: number) {
-    this.tickReveal(Infinity); this.tickTween(Infinity)   // 도착 상태로 — 등장·전환 중간 프레임이 썸네일에 남지 않게
     this.frame()
     const src = this.renderer.domElement, c = document.createElement('canvas'); c.width = w; c.height = h
     const r = coverRect(src.width, src.height, w, h)
@@ -426,6 +426,9 @@ export class Scene3D {
 
   private clearPreview() { if (this.previewDot) { this.measureGroup.remove(this.previewDot); this.previewDot.geometry.dispose(); (this.previewDot.material as THREE.Material).dispose(); this.previewDot = undefined } }
 
+  /** 카메라 전환·등장 연출 중 — 스냅샷을 미루는 기준 */
+  get animating() { return !!this.tween || !!this.reveal }
+
   /** 한 프레임 — 루프·스냅샷·통계 공용. 연출 틱은 여기에 모인다 */
   private frame(now = performance.now()) { this.tickTween(now); this.tickGlow(now); this.tickReveal(now); this.pipeline.draw(now) }
 
@@ -448,7 +451,7 @@ export class Scene3D {
   /** 키보드 연속 조작: WASD/QE 비행(카메라·타깃 함께), 방향키 궤도 회전, ± 줌. 속도는 모델 크기 비례, Shift 4배 */
   private fly(dt: number) {
     const k = this.keys; if (!k.size || this.box.isEmpty() || dt > 0.5) return   // 탭 복귀 첫 프레임의 큰 dt 는 버린다
-    this.tween = undefined   // 키 조작이 전환을 끊는다
+    if ([...k].some(c => !c.startsWith('Shift'))) this.tween = undefined   // 이동 키가 전환을 끊는다 — Shift 만 누른 채 F·Home 은 유지
     const ax = (neg: string, pos: string) => +k.has(pos) - +k.has(neg)
     const cam = this.camera, t = this.controls.target
     const v = this.box.getSize(new THREE.Vector3()).length() * 0.25 * dt * (k.has('ShiftLeft') || k.has('ShiftRight') ? 4 : 1)
@@ -463,7 +466,7 @@ export class Scene3D {
     cam.position.copy(t).add(off.setFromSpherical(sph))
   }
 
-  dispose() { this.pulse.set([]); this.flow.set([]); cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); removeEventListener('keyup', this.onKey); removeEventListener('blur', this.onBlur); this.navCube.dispose(); this.pipeline.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
+  dispose() { this.pulse.set([]); this.flow.set([]); cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); removeEventListener('keyup', this.onKey); removeEventListener('blur', this.onBlur); this.navCube.dispose(); this.pipeline.dispose(); this.env.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
 
   private apply() {
     this.outlines.traverse(o => (o as THREE.LineSegments).geometry?.dispose()); this.outlines.clear()
@@ -501,17 +504,17 @@ export class Scene3D {
     const r = this.renderer.domElement.getBoundingClientRect()
     const ray = new THREE.Raycaster()
     ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), this.camera)
-    let gids: (string | undefined)[]
-    if (this.merged) {
-      gids = ray.intersectObjects(this.merged.children, false).map(hit => {
-        if (hit.faceIndex == null) return undefined
-        const entry = this.mergedRanges.find(e => e.mesh === hit.object)
-        const idx = hit.faceIndex * 3
-        return entry?.ranges.find(rg => idx >= rg.start && idx < rg.end)?.gid
-      })
-    } else gids = ray.intersectObjects(this.meshes.filter(m => m.visible), false).map(h => (h.object as THREE.Mesh).name)
-    const found = gids.filter((g): g is string => !!g)
-    return found.find(g => this.kind.get(g) === 'element') ?? found[0]
+    const planes = this.renderer.clippingPlanes   // 섹션 박스·등장 연출로 잘려 안 보이는 부분은 못 잡는다
+    const hits = ray.intersectObjects(this.merged ? this.merged.children : this.meshes.filter(m => m.visible), false).filter(h => planes.every(p => p.distanceToPoint(h.point) >= 0))
+    const gids = this.merged ? hits.map(hit => {
+      if (hit.faceIndex == null) return undefined
+      const entry = this.mergedRanges.find(e => e.mesh === hit.object)
+      const idx = hit.faceIndex * 3
+      return entry?.ranges.find(rg => idx >= rg.start && idx < rg.end)?.gid
+    }) : hits.map(h => (h.object as THREE.Mesh).name)
+    const found = gids.filter((g): g is string => !!g), el = (g: string) => this.kind.get(g) === 'element'
+    // X-ray 면 벽·슬래브 너머로 보이는 설비가 먼저 — 투명한 벽이 클릭을 가로채지 않게
+    return (this.xray ? found.find(g => el(g) && this.tiers.get(g) === 'equipment') : undefined) ?? found.find(el) ?? found[0]
   }
 
   private onResize = () => { this.camera.aspect = this.el.clientWidth / this.el.clientHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(this.el.clientWidth, this.el.clientHeight); this.pipeline.setSize(this.el.clientWidth, this.el.clientHeight) }

@@ -183,7 +183,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const p = new URLSearchParams(location.hash.split('?')[1] ?? ''); p.delete('focus'); if (gid) p.set('sel', gid); else p.delete('sel')
     history.replaceState(null, '', `#/models/${modelId}${String(p) ? '?' + p : ''}`); notify()
     if (!gid) return
-    const t = setTimeout(() => { const s = scene.current; if (s) { saveSnap(modelId, gid, s.snapshot(240, 150)); notify() } }, 700)
+    let t = 0
+    const shoot = () => { const s = scene.current; if (!s) return; if (s.animating) { t = window.setTimeout(shoot, 300); return } saveSnap(modelId, gid, s.snapshot(240, 150)); notify() }   // 전환·등장 연출이 끝난 뒤에
+    t = window.setTimeout(shoot, 700)
     return () => clearTimeout(t)
   }, [selection, byGid, modelId, loaded])
   const [gridCfg, setGridCfgState] = useState<{ plane: 'floor' | 'front' | 'side'; step: number }>(() => { const d = { plane: 'floor' as const, step: 1 }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.grid') ?? '{}') } } catch { return d } })

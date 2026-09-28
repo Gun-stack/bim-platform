@@ -16,7 +16,7 @@ class OpaqueGTAOPass extends GTAOPass {
     this.scene.traverse(o => {
       if (!o.visible) return
       const m = o as THREE.Mesh
-      const skip = (o as THREE.Line).isLine || (o as THREE.Points).isPoints || (m.isMesh && [m.material].flat().some(x => x.transparent && !x.userData.ao))
+      const skip = (o as THREE.Line).isLine || (o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite || (m.isMesh && [m.material].flat().some(x => x.transparent && !x.userData.ao))
       if (skip) { o.visible = false; cache.push(o) }
     })
   }
@@ -39,6 +39,7 @@ export class Pipeline {
   private composer: EffectComposer
   private main: CountingRenderPass
   private ao: OpaqueGTAOPass
+  private out = new OutputPass()
   private lastMove = -Infinity
   private prevP = new THREE.Vector3()
   private prevQ = new THREE.Quaternion()
@@ -52,7 +53,7 @@ export class Pipeline {
     this.ao = new OpaqueGTAOPass(scene, camera, w, h)
     this.ao.updateGtaoMaterial({ radius: 0.5, samples: 24 })   // 미터 단위 모델 — 설비 접촉부·모서리 크기. 샘플↑ = 근접 시 입자 노이즈↓ (정지 때만 도는 비용)
     this.ao.updatePdMaterial({ samples: 24 })
-    this.composer.addPass(this.main); this.composer.addPass(this.ao); this.composer.addPass(new OutputPass())
+    this.composer.addPass(this.main); this.composer.addPass(this.ao); this.composer.addPass(this.out)
     this.setSize(w, h)
   }
 
@@ -70,5 +71,5 @@ export class Pipeline {
   get calls() { return this.main.calls }
   get triangles() { return this.main.triangles }
 
-  dispose() { this.ao.dispose(); this.composer.dispose() }
+  dispose() { this.ao.dispose(); this.out.dispose(); this.composer.dispose() }
 }
