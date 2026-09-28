@@ -57,6 +57,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [assetDetail, setAssetDetail] = useState<AssetDetail>()
   const [focusInfo, setFocusInfo] = useState<{ gid: string; name: string; zone?: string; storey?: string; status?: string; spaceGid?: string }>()
   const [loaded, setLoaded] = useState(false)   // glb 로드 완료 — 딥링크 재적용 effect 가드
+  const firstVp = useRef(true)   // 최초 뷰포인트 복원은 즉시, 같은 페이지 hashchange 재적용은 전환
   /** 경보/장애 요소로 포커스: 구역 반투명 강조 + 요소 하이라이트 + 위층 단면 + 구역에 카메라 */
   const focusOn = (gid: string) => {
     const s = scene.current, el = byGid.get(gid); if (!s || !el) return
@@ -117,7 +118,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => {
     if (!model?.glbUrl || !canvas.current || !elements.length || scene.current) return
     const el = canvas.current   // cleanup 에서 ref 대신 이 변수를 쓴다
-    const s = new Scene3D(el); scene.current = s
+    const s = new Scene3D(el); scene.current = s; firstVp.current = true
     s.onPick = setSelection
     s.load(model.glbUrl, gid => { const e = byGid.get(gid); return { kind: e ? 'element' : spaceGids.has(gid) ? 'space' : 'opening', ifcClass: e?.ifcClass } }).then(() => {
       setBounds(s.bounds()); setLoaded(true)   // 뷰포인트 복원은 아래 딥링크 effect 가 (최초 + hashchange 재적용)
@@ -145,7 +146,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => {
     const s = scene.current; if (!loaded || !s) return
     const vp = readViewpoint(hq)
-    if (vp.v) s.setView(vp.v)
+    if (vp.v) s.setView(vp.v, !firstVp.current)
+    firstVp.current = false
     if (vp.clip) setClip(vp.clip)
     if (vp.sel) { const sel = vp.sel.split(','); s.select(sel); if (vp.focus) setTimeout(() => focusRef.current(sel[0]), 300) }   // byGid·spatial 준비 후
   }, [loaded, hq])

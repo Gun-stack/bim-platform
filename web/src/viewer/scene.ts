@@ -6,6 +6,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { NavCube } from './NavCube'
 import { Pipeline } from './render'
 import { EDGE, edgesOf, tier, xrayMat, type Tier } from './xray'
+import { FLY_MS, interpView, reducedMotion } from './fx'
 import { FLY, isTyping } from './keys'
 import { coverRect } from '../context'
 import { T, num } from '../theme'
@@ -22,6 +23,9 @@ const SPACE = new THREE.MeshStandardMaterial({ color: 0x6a9ad9, transparent: tru
 const GHOST = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, transparent: true, opacity: 0.07, depthWrite: false })   // 어두운 배경에선 유령이 배경보다 밝아야 보인다
 const FOCUS_SPACE = new THREE.MeshStandardMaterial({ color: num(T.accent), emissive: 0x24406e, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide })
 export type View = { p: number[]; t: number[] }
+const PRESET = { home: new THREE.Vector3(1, 0.8, 1), top: new THREE.Vector3(0, 1, 0.0001), front: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0) }
+/** 맞춤 최소 반경(m) — 펌프 하나에 맞춰도 주변 배관·실이 함께 보이게 */
+const FIT_MIN_R = 3
 /** 격리: 집합 밖 요소는 반투명(GHOST). undefined 면 해제 */
 export type Focus = { gids: Set<string> } | undefined
 
@@ -33,6 +37,8 @@ export class Scene3D {
   private controls: OrbitControls
   private raf = 0
   private frames = 0; private fpsAt = performance.now(); private fps = 0
+  private tween?: { from: View; to: View; t0: number }   // 카메라 전환 중
+  private still = reducedMotion()
   /** 원본 메시. 병합 모드에서도 유지(픽킹·재구성용) */
   private meshes: THREE.Mesh[] = []
   private kind = new Map<string, Kind>()
@@ -97,7 +103,8 @@ export class Scene3D {
     el.appendChild(this.renderer.domElement)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     const down = new THREE.Vector2()
-    this.renderer.domElement.addEventListener('pointerdown', e => down.set(e.clientX, e.clientY))
+    this.renderer.domElement.addEventListener('pointerdown', e => { down.set(e.clientX, e.clientY); this.tween = undefined })   // 사용자 조작이 전환을 끊는다
+    this.renderer.domElement.addEventListener('wheel', () => { this.tween = undefined }, { passive: true })
     this.renderer.domElement.addEventListener('pointerup', e => {
       if (down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 3) return  // 드래그는 회전/팬
       if (this.measuring && e.button === 0) return this.measureClick(e.clientX, e.clientY)
@@ -136,7 +143,7 @@ export class Scene3D {
     this.box.setFromObject(gltf.scene)
     const diag = this.box.getSize(new THREE.Vector3()).length() || 100
     this.camera.near = Math.max(0.01, diag / 2000); this.camera.far = diag * 20; this.camera.updateProjectionMatrix()   // GTAO 는 깊이로 위치를 복원 — near/far 비를 모델 크기에 맞춰 정밀도 확보
-    this.preset('home')
+    this.setView(this.fitView([], PRESET.home))   // 첫 화면은 즉시
     this.apply()
   }
 
@@ -253,30 +260,46 @@ export class Scene3D {
     return c.toDataURL('image/jpeg', 0.7)
   }
 
-  getView(): View { return { p: this.camera.position.toArray().map(n => +n.toFixed(2)), t: this.controls.target.toArray().map(n => +n.toFixed(2)) } }
-  setView(v: View) { this.camera.position.fromArray(v.p); this.controls.target.fromArray(v.t); this.controls.update() }
+  getView(): View { const v = this.dest(); return { p: v.p.map(n => +n.toFixed(2)), t: v.t.map(n => +n.toFixed(2)) } }
+  /** animate: 보는 중 바뀌는 경우(딥링크 재적용). 최초 복원·공유 링크는 즉시 */
+  setView(v: View, animate = false): void {
+    if (animate) return this.flyTo(v)
+    this.tween = undefined; this.camera.position.fromArray(v.p); this.controls.target.fromArray(v.t); this.controls.update()
+  }
+  /** 카메라 전환 — FLY_MS 동안 보간. 동작 줄이기면 즉시 */
+  flyTo(v: View): void { if (this.still) return this.setView(v); this.tween = { from: this.now(), to: v, t0: performance.now() } }
+  private now(): View { return { p: this.camera.position.toArray(), t: this.controls.target.toArray() } }
+  /** 전환 중이면 목적지 — 연달아 누른 키(Home 직후 F)·링크 복사가 도착 뷰 기준 */
+  private dest(): View { return this.tween?.to ?? this.now() }
+  private tickTween(now: number) {
+    const tw = this.tween; if (!tw) return
+    const k = Math.min(1, (now - tw.t0) / FLY_MS), v = interpView(tw.from, tw.to, k)
+    this.camera.position.fromArray(v.p); this.controls.target.fromArray(v.t); this.controls.update()
+    if (k >= 1) this.tween = undefined
+  }
 
   /** 선택 요소들 또는 전체가 화면에 들어오게 */
   fit() { this.fitAll(this.selected) }
 
-  preset(name: 'home' | 'top' | 'front' | 'side') {
-    this.lookFrom({ home: new THREE.Vector3(1, 0.8, 1), top: new THREE.Vector3(0, 1, 0.0001), front: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0) }[name])
-    this.fitAll([])   // 프리셋은 선택과 무관하게 건물 전체
-  }
+  preset(name: 'home' | 'top' | 'front' | 'side') { this.flyTo(this.fitView([], PRESET[name])) }   // 프리셋은 선택과 무관하게 건물 전체
 
-  /** 주어진 방향에서 현재 타깃을 바라보게 (거리 유지). NavCube·프리셋 공용 */
+  /** 주어진 방향에서 현재 타깃을 바라보게 (거리 유지). NavCube 용 */
   lookFrom(dir: THREE.Vector3) {
-    const t = this.controls.target, d = this.camera.position.distanceTo(t) || this.box.getSize(new THREE.Vector3()).length()
-    this.camera.position.copy(t).addScaledVector(dir.clone().normalize(), d); this.controls.update()
+    const v = this.dest(), t = new THREE.Vector3().fromArray(v.t)
+    const d = new THREE.Vector3().fromArray(v.p).distanceTo(t) || this.box.getSize(new THREE.Vector3()).length()
+    this.flyTo({ p: t.addScaledVector(dir.clone().normalize(), d).toArray(), t: v.t })
   }
 
   /** 요소들에 카메라 맞춤. 비었거나 형상이 없으면 전체 */
-  fitAll(gids: string[]) {
+  fitAll(gids: string[]) { this.flyTo(this.fitView(gids)) }
+
+  /** gids(없으면 전체)가 화면에 들어오는 뷰. dir 없으면 현재(전환 중이면 목적지) 방향 유지 */
+  private fitView(gids: string[], dir?: THREE.Vector3): View {
     const set = new Set(gids), ms = this.meshes.filter(m => set.has(m.name))
     const box = ms.length ? ms.reduce((b, m) => b.expandByObject(m), new THREE.Box3()) : this.box
-    const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2
-    const dir = this.camera.position.clone().sub(this.controls.target).normalize()
-    this.controls.target.copy(c); this.camera.position.copy(c).addScaledVector(dir, r / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 1.1); this.controls.update()
+    const c = box.getCenter(new THREE.Vector3()), r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, ms.length ? FIT_MIN_R : 0)
+    const v = this.dest(), d = (dir?.clone() ?? new THREE.Vector3().fromArray(v.p).sub(new THREE.Vector3().fromArray(v.t))).normalize()
+    return { p: c.clone().addScaledVector(d, r / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 1.1).toArray(), t: c.toArray() }
   }
 
   private measureClick(x: number, y: number) {
@@ -352,7 +375,7 @@ export class Scene3D {
   private clearPreview() { if (this.previewDot) { this.measureGroup.remove(this.previewDot); this.previewDot.geometry.dispose(); (this.previewDot.material as THREE.Material).dispose(); this.previewDot = undefined } }
 
   /** 한 프레임 — 루프·스냅샷·통계 공용. 연출 틱은 여기에 모인다 */
-  private frame(now = performance.now()) { this.pipeline.draw(now) }
+  private frame(now = performance.now()) { this.tickTween(now); this.pipeline.draw(now) }
 
   stats(): Stats {
     this.frame()  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로
@@ -373,6 +396,7 @@ export class Scene3D {
   /** 키보드 연속 조작: WASD/QE 비행(카메라·타깃 함께), 방향키 궤도 회전, ± 줌. 속도는 모델 크기 비례, Shift 4배 */
   private fly(dt: number) {
     const k = this.keys; if (!k.size || this.box.isEmpty() || dt > 0.5) return   // 탭 복귀 첫 프레임의 큰 dt 는 버린다
+    this.tween = undefined   // 키 조작이 전환을 끊는다
     const ax = (neg: string, pos: string) => +k.has(pos) - +k.has(neg)
     const cam = this.camera, t = this.controls.target
     const v = this.box.getSize(new THREE.Vector3()).length() * 0.25 * dt * (k.has('ShiftLeft') || k.has('ShiftRight') ? 4 : 1)
