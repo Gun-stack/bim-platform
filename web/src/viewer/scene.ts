@@ -2,7 +2,9 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { NavCube } from './NavCube'
+import { Pipeline } from './render'
 import { FLY, isTyping } from './keys'
 import { coverRect } from '../context'
 import { T, num } from '../theme'
@@ -71,16 +73,21 @@ export class Scene3D {
   private el: HTMLElement
   private ro: ResizeObserver
   private navCube: NavCube
+  private pipeline: Pipeline
 
   constructor(el: HTMLElement) {
     this.el = el
     this.scene.background = new THREE.Color(num(T.bg.base))
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4048, 1.5))
-    const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(1, 2, 1); this.scene.add(sun)
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4048, 0.8))   // 환경맵이 채광을 더하므로 직접광은 낮춘다
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2); sun.position.set(1, 2, 1); this.scene.add(sun)
     this.scene.add(this.hoverGroup)
     this.camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 5000)
-    this.renderer = new THREE.WebGLRenderer({ antialias: true })
+    this.renderer = new THREE.WebGLRenderer({ antialias: false })   // AA 는 컴포저의 MSAA 렌더 타깃이 담당
     this.renderer.setSize(el.clientWidth, el.clientHeight); this.renderer.setPixelRatio(devicePixelRatio)
+    const pmrem = new THREE.PMREMGenerator(this.renderer), room = new RoomEnvironment()
+    this.scene.environment = pmrem.fromScene(room, 0.04).texture; this.scene.environmentIntensity = 0.3   // 설비 재질의 은은한 반사
+    room.dispose(); pmrem.dispose()
+    this.pipeline = new Pipeline(this.renderer, this.scene, this.camera, el.clientWidth, el.clientHeight)
     el.appendChild(this.renderer.domElement)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     const down = new THREE.Vector2()
@@ -102,7 +109,7 @@ export class Scene3D {
     this.renderer.domElement.addEventListener('dblclick', e => { const g = this.pick(e.clientX, e.clientY); this.fitAll(g ? [g] : []) })
     this.ro = new ResizeObserver(this.onResize); this.ro.observe(el)   // 패널 리사이즈 추종
     this.navCube = new NavCube(el, dir => this.lookFrom(dir), () => this.preset('home'))
-    const loop = () => { this.raf = requestAnimationFrame(loop); const now = performance.now(); this.fly((now - this.last) / 1000); this.last = now; this.controls.update(); this.renderer.render(this.scene, this.camera); this.navCube.sync(this.camera); this.frames++ }
+    const loop = () => { this.raf = requestAnimationFrame(loop); const now = performance.now(); this.fly((now - this.last) / 1000); this.last = now; this.controls.update(); this.frame(now); this.navCube.sync(this.camera); this.frames++ }
     loop()
   }
 
@@ -119,6 +126,8 @@ export class Scene3D {
     })
     this.scene.add(gltf.scene); this.scene.add(this.measureGroup); this.scene.add(this.outlines); this.outlines.renderOrder = 9
     this.box.setFromObject(gltf.scene)
+    const diag = this.box.getSize(new THREE.Vector3()).length() || 100
+    this.camera.near = Math.max(0.01, diag / 2000); this.camera.far = diag * 20; this.camera.updateProjectionMatrix()   // GTAO 는 깊이로 위치를 복원 — near/far 비를 모델 크기에 맞춰 정밀도 확보
     this.preset('home')
     this.apply()
   }
@@ -219,7 +228,7 @@ export class Scene3D {
 
   /** 현재 화면을 w×h JPEG dataURL 로 (가운데 크롭). render 직후 같은 태스크에서 읽으므로 preserveDrawingBuffer 가 필요 없다. 독·객체 패널의 썸네일용 */
   snapshot(w: number, h: number) {
-    this.renderer.render(this.scene, this.camera)
+    this.frame()
     const src = this.renderer.domElement, c = document.createElement('canvas'); c.width = w; c.height = h
     const r = coverRect(src.width, src.height, w, h)
     c.getContext('2d')!.drawImage(src, r.sx, r.sy, r.sw, r.sh, 0, 0, w, h)
@@ -324,11 +333,14 @@ export class Scene3D {
 
   private clearPreview() { if (this.previewDot) { this.measureGroup.remove(this.previewDot); this.previewDot.geometry.dispose(); (this.previewDot.material as THREE.Material).dispose(); this.previewDot = undefined } }
 
+  /** 한 프레임 — 루프·스냅샷·통계 공용. 연출 틱은 여기에 모인다 */
+  private frame(now = performance.now()) { this.pipeline.draw(now) }
+
   stats(): Stats {
-    this.renderer.render(this.scene, this.camera)  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로
+    this.frame()  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로
     const now = performance.now()
     if (now - this.fpsAt > 500) { this.fps = Math.round(this.frames * 1000 / (now - this.fpsAt)); this.frames = 0; this.fpsAt = now }
-    return { calls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles, fps: this.fps }
+    return { calls: this.pipeline.calls, triangles: this.pipeline.triangles, fps: this.fps }
   }
 
   /** 키보드: Escape = 선택 해제. 연속 키(WASD·QE·방향키·±·Shift)는 Set 에 담아 fly() 가 프레임마다 본다. 입력란·Ctrl/Cmd/Alt 조합은 무시. 단발 액션 키는 Viewer 가 처리 */
@@ -357,7 +369,7 @@ export class Scene3D {
     cam.position.copy(t).add(off.setFromSpherical(sph))
   }
 
-  dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); removeEventListener('keyup', this.onKey); removeEventListener('blur', this.onBlur); this.navCube.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
+  dispose() { cancelAnimationFrame(this.raf); this.ro.disconnect(); removeEventListener('keydown', this.onKey); removeEventListener('keyup', this.onKey); removeEventListener('blur', this.onBlur); this.navCube.dispose(); this.pipeline.dispose(); this.renderer.dispose(); this.el.removeChild(this.renderer.domElement) }
 
   private apply() {
     this.outlines.traverse(o => (o as THREE.LineSegments).geometry?.dispose()); this.outlines.clear()
@@ -406,5 +418,5 @@ export class Scene3D {
     return found.find(g => this.kind.get(g) === 'element') ?? found[0]
   }
 
-  private onResize = () => { this.camera.aspect = this.el.clientWidth / this.el.clientHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(this.el.clientWidth, this.el.clientHeight) }
+  private onResize = () => { this.camera.aspect = this.el.clientWidth / this.el.clientHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(this.el.clientWidth, this.el.clientHeight); this.pipeline.setSize(this.el.clientWidth, this.el.clientHeight) }
 }

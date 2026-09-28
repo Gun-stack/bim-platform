@@ -124,6 +124,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     }).catch(e => setErr(String(e)))
     let pending = false   // 호버 툴팁: 프레임당 1회
     const onMove = (e: PointerEvent) => {
+      if (e.buttons) { setHover(undefined); return }   // 궤도 회전·팬 중엔 픽킹 생략 — 병합 모델(수백만 삼각형 한 덩어리)에서 레이캐스트가 프레임을 잡아먹는다
       if (pending) return; pending = true
       requestAnimationFrame(() => {
         pending = false

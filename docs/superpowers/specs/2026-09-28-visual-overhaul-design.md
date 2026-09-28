@@ -8,7 +8,7 @@
 
 | # | 하위 프로젝트 | 핵심 | 주 무대 |
 |---|---|---|---|
-| S1 | 3D 렌더 품질 | X-ray 재질·AO·톤매핑·외곽선 + 카메라 전환·경보 펄스·계통 흐름·로드 등장 | `web/src/viewer/` |
+| S1 | 3D 렌더 품질 | X-ray 재질·AO·환경광·외곽선 + 카메라 전환·경보 펄스·계통 흐름·로드 등장 | `web/src/viewer/` |
 | S2 | 앱 셸 + 홈 | 공통 상단 바(화면 탭·경보 뱃지), 홈 = 모델 카드 + 3D 썸네일 + 요약 KPI, 데모 진입 버튼 | `App.tsx`·신규 셸 |
 | S3 | 모니터링·시설관리 시각화 | 층 스택 다이어그램, 경보 추세 차트, "이상 없음" 칸 축약, 자산 대장 페이지네이션, 트리 라벨 잘림 | `MonitorPage`·`FmPage`·`LeftPanel` |
 | S4 | 데모 운영 | Cloudflare Tunnel, 공개 모드(쓰기 차단 또는 주기 리셋), BMS 시뮬 상시, 원클릭 시연 시나리오 | compose·nginx |
@@ -29,8 +29,9 @@
 
 ## 3. 렌더 파이프라인
 
-- `renderer.toneMapping = AgXToneMapping`, `scene.environment = PMREM(RoomEnvironment)` — 설비 재질에 은은한 반사. 기존 조명 2개는 세기만 재조정
-- `EffectComposer`(MSAA 4× 렌더 타깃): `RenderPass` → `GTAOPass` → `OutputPass`. 톤매핑·sRGB 는 `OutputPass` 담당
+- 톤매핑 없음(선형 → sRGB 출력만) — 구현 중 정정: Neutral 은 암부를 눌러 다크 테마 배경 `#121417` 이 검게·그리드가 푸르게 변함, AgX·ACES 는 의미색 채도 저하
+- `scene.environment = PMREM(RoomEnvironment)` — 설비 재질에 은은한 반사. 기존 조명 2개는 세기만 재조정
+- `EffectComposer`(MSAA 4× 렌더 타깃): `RenderPass` → `GTAOPass` → `OutputPass`. sRGB 변환은 `OutputPass` 담당
 - AO 적응: 카메라 이동 중(포인터 드래그·휠·비행 키·전환) GTAO 끔, 멈춘 뒤 150ms 부터 켬
 - 단일 진입점 `draw()`: 루프·`snapshot()`·`stats()` 공용 → 독·홈 썸네일도 같은 화질
 - 통계: `renderer.info.autoReset = false`, 프레임 시작에 `info.reset()` — 패스 여러 개 합산
