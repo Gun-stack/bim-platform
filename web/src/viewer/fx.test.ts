@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ease, flowLevel, FLOW_SPEED, interpView, pulseOpacity, PULSE_S } from './fx'
+import { ease, flowLevel, FLOW_SPEED, interpView, pulseOpacity, PULSE_S, revealY } from './fx'
 
 const close = (a: number[], b: number[]) => a.forEach((x, i) => expect(x).toBeCloseTo(b[i], 5))
 const dist = (p: number[], t: number[]) => Math.hypot(p[0] - t[0], p[1] - t[1], p[2] - t[2])
@@ -53,5 +53,12 @@ describe('flowLevel — 계통 흐름 파동 (항상 상류 → 하류)', () => 
   })
   it('주기 = (maxDepth + 4) 단계 — 끝까지 간 뒤 반복', () => {
     expect(flowLevel(at(2) + (10 + 4) / FLOW_SPEED, 2, 10, 'down')).toBeCloseTo(1)
+  })
+})
+
+describe('revealY — 등장 절단 높이', () => {
+  it('바닥 → 지붕, 범위 밖 클램프', () => {
+    expect(revealY(0, -7, 40)).toBe(-7); expect(revealY(1, -7, 40)).toBe(40); expect(revealY(3, -7, 40)).toBe(40)
+    expect(revealY(0.5, -7, 40)).toBeCloseTo(16.5)
   })
 })

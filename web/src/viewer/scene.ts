@@ -6,7 +6,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { NavCube } from './NavCube'
 import { Pipeline } from './render'
 import { EDGE, edgesOf, tier, xrayMat, type Tier } from './xray'
-import { FLY_MS, GlowLayer, flowLevel, interpView, pulseOpacity, reducedMotion } from './fx'
+import { FLY_MS, GlowLayer, REVEAL_MS, flowLevel, interpView, pulseOpacity, reducedMotion, revealY } from './fx'
 import { FLY, isTyping } from './keys'
 import { coverRect } from '../context'
 import { T, num } from '../theme'
@@ -67,6 +67,9 @@ export class Scene3D {
     new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Plane(new THREE.Vector3(0, -1, 0), 0),
     new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)]
   private box = new THREE.Box3()
+  private sectionOn = false
+  private revealPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0)   // y <= constant 만 남긴다
+  private reveal?: { t0: number; line: THREE.LineLoop }
   onPick?: (gids: string[]) => void
   onContext?: (x: number, y: number) => void
   /** 측정 모드. 클릭마다 점을 찍고 두 점이 모이면 onMeasure. 끄면 스냅 미리보기 점도 정리 */
@@ -111,7 +114,7 @@ export class Scene3D {
     this.renderer.domElement.addEventListener('pointerdown', e => { down.set(e.clientX, e.clientY); this.tween = undefined })   // 사용자 조작이 전환을 끊는다
     this.renderer.domElement.addEventListener('wheel', () => { this.tween = undefined }, { passive: true })
     this.renderer.domElement.addEventListener('pointerup', e => {
-      if (down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 3) return  // 드래그는 회전/팬
+      if (this.reveal || down.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 3) return  // 등장 중 클릭 무시, 드래그는 회전/팬
       if (this.measuring && e.button === 0) return this.measureClick(e.clientX, e.clientY)
       const gid = this.pick(e.clientX, e.clientY)
       if (e.button === 2) {   // 우클릭: contextmenu 이벤트는 OrbitControls 의 pointer capture·macOS 순서 문제로 신뢰 못 함 → pointerup 에서 연다
@@ -150,6 +153,7 @@ export class Scene3D {
     this.camera.near = Math.max(0.01, diag / 2000); this.camera.far = diag * 20; this.camera.updateProjectionMatrix()   // GTAO 는 깊이로 위치를 복원 — near/far 비를 모델 크기에 맞춰 정밀도 확보
     this.setView(this.fitView([], PRESET.home))   // 첫 화면은 즉시
     this.apply()
+    this.startReveal()
   }
 
   /** 표시 조건 교체 → 즉시 반영 */
@@ -272,9 +276,28 @@ export class Scene3D {
 
   /** 섹션 박스 [xmin,xmax,ymin,ymax,zmin,zmax]. null 이면 해제 */
   setClipBox(b: number[] | null) {
-    if (!b) { this.renderer.clippingPlanes = []; return }
-    for (let a = 0; a < 3; a++) { this.clipPlanes[a * 2].constant = -b[a * 2]; this.clipPlanes[a * 2 + 1].constant = b[a * 2 + 1] }
-    this.renderer.clippingPlanes = this.clipPlanes
+    if (b) for (let a = 0; a < 3; a++) { this.clipPlanes[a * 2].constant = -b[a * 2]; this.clipPlanes[a * 2 + 1].constant = b[a * 2 + 1] }
+    this.sectionOn = !!b; this.syncClip()
+  }
+  /** 섹션 박스 + 등장 평면을 합쳐 렌더러에 — GTAO·픽킹(hitPoint)도 같은 평면을 본다 */
+  private syncClip() { this.renderer.clippingPlanes = [...(this.sectionOn ? this.clipPlanes : []), ...(this.reveal ? [this.revealPlane] : [])] }
+
+  /** 로드 등장: 수평 절단면이 바닥 → 지붕으로 오르며 층층이 드러난다 + 절단 높이의 bounds 테두리 선. 동작 줄이기면 생략 */
+  private startReveal() {
+    if (this.still || this.box.isEmpty()) return
+    const { min, max } = this.box
+    const pts = [[min.x, min.z], [max.x, min.z], [max.x, max.z], [min.x, max.z]].map(([x, z]) => new THREE.Vector3(x, 0, z))
+    const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: num(T.accent), transparent: true, opacity: 0.9, depthTest: false }))
+    line.renderOrder = 13; this.scene.add(line)
+    this.reveal = { t0: performance.now(), line }; this.syncClip()
+  }
+  private tickReveal(now: number) {
+    const r = this.reveal; if (!r) return
+    const k = (now - r.t0) / REVEAL_MS, y = revealY(k, this.box.min.y, this.box.max.y)
+    this.revealPlane.constant = y; r.line.position.y = y - 0.01   // 선은 남는 쪽(아래)에 — 자기 평면에 잘리지 않게
+    if (k < 1) return
+    this.scene.remove(r.line); r.line.geometry.dispose(); (r.line.material as THREE.Material).dispose()
+    this.reveal = undefined; this.syncClip()
   }
 
   bounds() { return { min: this.box.min.toArray(), max: this.box.max.toArray() } }
@@ -403,7 +426,7 @@ export class Scene3D {
   private clearPreview() { if (this.previewDot) { this.measureGroup.remove(this.previewDot); this.previewDot.geometry.dispose(); (this.previewDot.material as THREE.Material).dispose(); this.previewDot = undefined } }
 
   /** 한 프레임 — 루프·스냅샷·통계 공용. 연출 틱은 여기에 모인다 */
-  private frame(now = performance.now()) { this.tickTween(now); this.tickGlow(now); this.pipeline.draw(now) }
+  private frame(now = performance.now()) { this.tickTween(now); this.tickGlow(now); this.tickReveal(now); this.pipeline.draw(now) }
 
   stats(): Stats {
     this.frame()  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로

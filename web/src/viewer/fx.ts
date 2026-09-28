@@ -21,6 +21,11 @@ export function interpView(a: View, b: View, k: number): View {
   return { p: t.clone().addScaledVector(dir, ra + (rb - ra) * e).toArray(), t: t.toArray() }
 }
 
+/** 로드 등장 시간(ms) */
+export const REVEAL_MS = 1200
+/** 등장 절단 높이: 바닥(min) → 지붕(max), 이징 적용 */
+export const revealY = (k: number, min: number, max: number) => min + (max - min) * ease(k)
+
 /** 경보 펄스 주기(초) */
 export const PULSE_S = 1.2
 /** 경보 펄스 불투명도: 0.15 ↔ 0.6 사인 */
