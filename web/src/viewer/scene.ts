@@ -304,6 +304,7 @@ export class Scene3D {
 
   /** 현재 화면을 w×h JPEG dataURL 로 (가운데 크롭). render 직후 같은 태스크에서 읽으므로 preserveDrawingBuffer 가 필요 없다. 독·객체 패널의 썸네일용 */
   snapshot(w: number, h: number) {
+    this.tickReveal(Infinity); this.tickTween(Infinity)   // 도착 상태로 — 등장·전환 중간 프레임이 썸네일에 남지 않게
     this.frame()
     const src = this.renderer.domElement, c = document.createElement('canvas'); c.width = w; c.height = h
     const r = coverRect(src.width, src.height, w, h)
