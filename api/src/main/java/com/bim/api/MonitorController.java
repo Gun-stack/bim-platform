@@ -76,6 +76,19 @@ class MonitorController {
 			.map(r -> { r.put("systems", Sql.csv(r.get("systems"))); return r; }).toList();
 	}
 
+	/** 24시간 발생 막대: 시간당 정상→이상(ALARM·FAULT) 전이 수. 빈 시간도 0 행으로 — 막대 수 고정. 전이 판정은 stats 와 같은 LAG(전체 이력 기준) */
+	@GetMapping("/monitor/timeline")
+	List<Map<String, Object>> timeline(@PathVariable UUID id, @RequestParam(defaultValue = "24") int hours) {
+		return db.sql("""
+			WITH ev AS (
+			  SELECT at, status, LAG(status) OVER (PARTITION BY global_id ORDER BY at, id) prev
+			    FROM op_event WHERE model_id = :id AND kind = 'STATUS' AND global_id IS NOT NULL)
+			SELECT h.at, count(ev.at) FILTER (WHERE ev.status = 'ALARM') alarms, count(ev.at) FILTER (WHERE ev.status = 'FAULT') faults
+			  FROM generate_series(date_trunc('hour', now()) - make_interval(hours => :h - 1), date_trunc('hour', now()), interval '1 hour') h(at)
+			  LEFT JOIN ev ON date_trunc('hour', ev.at) = h.at AND ev.status IN ('ALARM', 'FAULT') AND coalesce(ev.prev, '') NOT IN ('ALARM', 'FAULT')
+			 GROUP BY h.at ORDER BY h.at""").param("id", id).param("h", Math.max(1, Math.min(hours, 168))).query().listOfRows();
+	}
+
 	/** 최근 이벤트: op_event 이력 — 상태 패치·작업지시 생성/상태 변경이 그때 값으로 쌓인다 (V6). 최신순 limit */
 	@GetMapping("/monitor/events")
 	List<Map<String, Object>> events(@PathVariable UUID id, @RequestParam(defaultValue = "30") int limit) {
