@@ -111,6 +111,7 @@ export class Tiles {
     this.scene.begin(this.ts.box)
     const fixed = [this.ts.site, ...this.ts.buildings.map(b => b.shell)].filter((u): u is string => !!u)
     await Promise.all(fixed.map(u => this.load(u)))
+    if (this.disposed) return   // 대기 중 언마운트 — 죽은 씬에 표시·순회 타이머를 걸지 않는다
     this.scene.setTileShown(u => fixed.includes(u))
     this.timer = window.setInterval(() => this.update(), TICK_MS)
   }
@@ -160,7 +161,7 @@ export class Tiles {
         let tris = 0
         g.scene.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) tris += (m.geometry.index?.count ?? m.geometry.attributes.position.count) / 3 })
         this.scene.addContent(g.scene, uri, this.classify)
-        this.loaded.set(uri, { tris, used: this.tick }); this.added = true
+        this.loaded.set(uri, { tris, used: this.tick }); this.added = true; this.failed.delete(uri)   // 고정으로 나중에 성공하면 다음부터 순회기가 다시 요청할 수 있게
       }).catch(e => { this.failed.add(uri); console.warn('타일 로드 실패', uri, e) })
         .finally(() => { this.loading.delete(uri); this.update(true) })
       this.loading.set(uri, p)

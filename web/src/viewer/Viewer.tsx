@@ -134,7 +134,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
     setTileOn(on)
     const ready = on
       ? fetch(model.tilesetUrl!).then(r => { if (!r.ok) throw new Error(`tileset ${r.status}`); return r.json() })
-        .then(j => { const t = new Tiles(j, new URL(model.tilesetUrl!, location.href).href, s, classify, storeyOf); tiles.current = t; return t.start() })
+        .then(j => {
+          if (scene.current !== s) return   // fetch 대기 중 언마운트 — 죽은 씬에 Tiles 를 만들지 않는다(cleanup 이 scene.current 를 지운다)
+          const t = new Tiles(j, new URL(model.tilesetUrl!, location.href).href, s, classify, storeyOf); tiles.current = t; return t.start()
+        })
         .catch(e => { console.warn('tileset 실패 — 단일 GLB 로', e); tiles.current = undefined; return single() })
       : single()
     ready.then(() => {
@@ -191,13 +194,19 @@ export default function Viewer({ modelId }: { modelId: string }) {
     if (selection.length > 1) Promise.all(selection.filter(g => byGid.has(g)).slice(0, 20).map(fetch1)).then(setDetails).catch(() => setDetails([]))
     else setDetails([])
   }, [selection, byGid, spaceGids, modelId, statusRows])
-  useEffect(() => {   // 홈 카드 썸네일이 없으면 등장 연출이 끝난 뒤 한 번 만들어 올린다 — 첫 방문자가 만든 것을 모두가 쓴다
-    if (!loaded) return
-    const t = setTimeout(() => fetch(`/api/models/${modelId}/thumbnail`, { method: 'HEAD' }).then(r => {
+  useEffect(() => {   // 홈 카드 썸네일이 없으면 등장 연출이 끝난 뒤 한 번 만들어 올린다 — 첫 방문자가 만든 것을 모두가 쓴다.
+    if (!loaded) return   // 타일 모드는 필요한 타일이 다 들어온 뒤에나(그렇지 않으면 외피만 찍혀 모두에게 남는다) — 최대 ~10초 기다리고 포기
+    let poll = 0
+    const capture = () => fetch(`/api/models/${modelId}/thumbnail`, { method: 'HEAD' }).then(r => {
       const s = scene.current; if (r.status !== 404 || !s) return
       return fetch(s.thumbnail(480, 300)).then(d => d.blob()).then(b => fetch(`/api/models/${modelId}/thumbnail`, { method: 'PUT', headers: { 'content-type': 'image/jpeg' }, body: b }))
-    }).catch(() => {}), 2500)
-    return () => clearTimeout(t)
+    }).catch(() => {})
+    const waitTiles = (tries = 0) => {
+      if (!tiles.current || tiles.current.count().pending === 0 || tries > 40) void capture()
+      else poll = window.setTimeout(() => waitTiles(tries + 1), 250)
+    }
+    const t = setTimeout(() => waitTiles(), 2500)
+    return () => { clearTimeout(t); clearTimeout(poll) }
   }, [loaded, modelId])
   useEffect(() => { if (loaded) scene.current?.setXray(opts.xray) }, [opts.xray, loaded])   // 병합보다 먼저 — 병합이 X-ray 재질로 묶이게
   useEffect(() => { if (loaded) scene.current?.setMerged(opts.merged && !tileOn) }, [opts.merged, loaded, tileOn])   // loaded 의존: 마운트 땐 씬이 없어 저장된 merged 가 버려졌다 — 로드 뒤 다시 적용. 타일 모드는 병합 끔(층이 들어오고 나간다)

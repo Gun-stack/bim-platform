@@ -1,6 +1,13 @@
 import * as THREE from 'three'
-import { describe, expect, it } from 'vitest'
-import { boxYup, evict, parse, plan, sse, SSE_PX, tileMode, type Cam, type Tileset } from './tiles'
+import { describe, expect, it, vi } from 'vitest'
+import type { Scene3D } from './scene'
+
+// GLTFLoader.loadAsync 를 즉시 이행되는(그러나 microtask 인) 더미로 — dispose 타이밍 테스트가 실제 네트워크 없이 성공 경로를 타게
+vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
+  GLTFLoader: class { loadAsync() { return Promise.resolve({ scene: { traverse: () => {} } }) } },
+}))
+
+import { boxYup, evict, parse, plan, sse, SSE_PX, tileMode, Tiles, type Cam, type Tileset } from './tiles'
 
 const K = 950 / (2 * Math.tan(Math.PI / 6))   // 세로 950px · FOV 60°
 /** eye 에서 at 을 보는 카메라의 순회 입력 */
@@ -83,5 +90,18 @@ describe('evict — 삼각형 예산 LRU', () => {
   it('예산 안이면 아무것도, 전부 필요하면 초과해도 유지', () => {
     expect(evict(c, none, 1500)).toEqual([])
     expect(evict(c, new Set(['A', 'B', 'C']), 0)).toEqual([])
+  })
+})
+
+describe('Tiles.start — 사이트·외피 로드 대기 중 dispose (수정 라운드 1, 케이스 B)', () => {
+  it('로드가 끝나도 죽은 씬엔 표시·순회 타이머를 걸지 않는다', async () => {
+    const scene = { begin: vi.fn(), setTileShown: vi.fn(), tileView: vi.fn(), addContent: vi.fn(), removeContent: vi.fn() } as unknown as Scene3D
+    const leaf = { boundingVolume: { box: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1] }, geometricError: 0 }
+    const json = { root: { ...leaf, content: { uri: 'site.glb' }, children: [{ ...leaf, content: { uri: 'b0.glb' }, extras: { globalId: 'B' } }] } }
+    const tiles = new Tiles(json, 'http://x/tileset.json', scene, () => ({ kind: 'element' as const }), () => undefined)
+    const started = tiles.start()   // 사이트·외피 load() 가 시작되고(GLTFLoader 목 microtask) await 로 들어간다
+    tiles.dispose()                 // 같은 동기 구간에서 언마운트 — await 가 이어지기 전에 disposed = true
+    await started
+    expect(scene.setTileShown).not.toHaveBeenCalled()   // 수정 전엔 여기서 호출되고 setInterval 까지 걸렸다
   })
 })
