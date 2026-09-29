@@ -6,7 +6,7 @@ type EventSourceLike = { addEventListener(k: string, f: () => void): void; close
 type Page = { hidden(): boolean; onChange(f: () => void): () => void }
 type Fn = (kind: string) => void
 const KINDS = ['status', 'work_order', 'job', 'resync']
-export const RETRY_MS = 5000
+export const RETRY_MS = 5000, RETRY_MAX_MS = 60_000
 const CLOSED = 2
 const shared = new Map<string, { fns: Set<Fn>; stop: () => void }>()
 
@@ -21,22 +21,22 @@ const browserPage: Page = {
 
 /** 모델별 EventSource 하나를 페이지 안에서 공유(참조 카운트) — 구독자가 0 이 되면 닫는다.
  *  - 일시 끊김: 브라우저가 알아서 재연결, 두 번째 open 부터 resync(놓친 이벤트 보정)
- *  - 영구 종료(재연결 응답이 502·429 등 → readyState 2): RETRY_MS 뒤 새로 만들고 첫 open 을 resync 로
+ *  - 영구 종료(재연결 응답이 502·429·404 등 → readyState 2): 5·10·20·40·60초(상한) 지수 백오프로 새로 만들고 첫 open 을 resync 로. open 되면 5초로 초기화
  *  - 숨은 탭: 연결을 닫고(HTTP/1.1 호스트당 6연결 절약·서버 구독자 감소) 보이면 다시 열어 resync */
 export function subscribe(modelId: string, fn: Fn, make: (url: string) => EventSourceLike = u => new EventSource(u) as unknown as EventSourceLike, page: Page = browserPage): () => void {
   let s = shared.get(modelId)
   if (!s) {
     const fns = new Set<Fn>()
-    let es: EventSourceLike | undefined, timer: ReturnType<typeof setTimeout> | undefined
+    let es: EventSourceLike | undefined, timer: ReturnType<typeof setTimeout> | undefined, fails = 0
     const open = (resync: boolean) => {
       const cur = make(`/api/models/${modelId}/stream`)
       for (const k of KINDS) cur.addEventListener(k, () => fns.forEach(f => f(k)))
       cur.addEventListener('error', () => {
         if (cur !== es || cur.readyState !== CLOSED) return   // 브라우저가 재연결 중이면 맡긴다
         cur.close(); es = undefined
-        timer = setTimeout(() => { timer = undefined; open(true) }, RETRY_MS)
+        timer = setTimeout(() => { timer = undefined; open(true) }, Math.min(RETRY_MS * 2 ** fails++, RETRY_MAX_MS))   // 삭제된 모델(404) 탭이 5초마다 치던 것 완화
       })
-      cur.onopen = () => { if (resync) fns.forEach(f => f('resync')); resync = true }
+      cur.onopen = () => { fails = 0; if (resync) fns.forEach(f => f('resync')); resync = true }
       es = cur
     }
     const close = () => { clearTimeout(timer); timer = undefined; es?.close(); es = undefined }

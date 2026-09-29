@@ -55,6 +55,23 @@ describe('subscribe — 영구 종료·숨은 탭 복구', () => {
     FakeES.made[1].emit('status'); expect(got).toEqual(['resync', 'status'])
     off(); vi.useRealTimers()
   })
+  it('연속 영구 종료는 5·10·20·40·60·60초 간격으로 다시 열고, open 되면 5초로 돌아간다', () => {
+    vi.useFakeTimers(); FakeES.made = []
+    const off = subscribe('m6', () => {}, make)
+    const fail = () => { const es = FakeES.made[FakeES.made.length - 1]; es.readyState = 2; es.emit('error') }
+    const gaps: number[] = []
+    for (let i = 0; i < 6; i++) {
+      fail()
+      const n = FakeES.made.length
+      let ms = 0
+      while (FakeES.made.length === n) { vi.advanceTimersByTime(1000); ms += 1000 }
+      gaps.push(ms)
+    }
+    expect(gaps).toEqual([5000, 10000, 20000, 40000, 60000, 60000])
+    FakeES.made[FakeES.made.length - 1].onopen?.(); fail()
+    vi.advanceTimersByTime(RETRY_MS); expect(FakeES.made).toHaveLength(8)
+    off(); vi.useRealTimers()
+  })
   it('마지막 해제는 대기 중인 재연결을 취소한다', () => {
     vi.useFakeTimers(); FakeES.made = []
     const off = subscribe('m4', () => {}, make)
