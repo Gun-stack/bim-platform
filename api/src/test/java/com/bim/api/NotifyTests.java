@@ -2,7 +2,9 @@ package com.bim.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -24,6 +26,7 @@ class NotifyTests {
 	@Autowired Notifier notifier;
 	@Autowired StatusService status;
 	@Autowired StreamController stream;
+	@Autowired MeterRegistry meters;
 
 	UUID mid, other;
 	final BlockingQueue<String[]> got = new LinkedBlockingQueue<>();
@@ -67,7 +70,9 @@ class NotifyTests {
 	void conversionProgressNotifies() throws InterruptedException {
 		long job = db.sql("INSERT INTO conversion_job (model_id) VALUES (:m) RETURNING id").param("m", mid).query(Long.class).single();
 		db.sql("UPDATE conversion_job SET progress = 40 WHERE id = :j").param("j", job).update();
-		assertThat(((Number) next("job").get("p")).intValue()).isEqualTo(40);
+		var e = next("job");
+		assertThat(((Number) e.get("p")).intValue()).isEqualTo(40);
+		assertThat(e.get("t")).isInstanceOf(Number.class);   // V10 — 진행률 알림도 트리거 시각
 	}
 
 	@Test
@@ -88,11 +93,27 @@ class NotifyTests {
 	@Test
 	void modelStatusChangeNotifies() throws InterruptedException {
 		db.sql("UPDATE model SET status = 'PROCESSING' WHERE id = :m").param("m", mid).update();
-		assertThat(next("job").get("s")).isEqualTo("PROCESSING");
+		var e = next("job");
+		assertThat(e.get("s")).isEqualTo("PROCESSING");
+		assertThat(e.get("t")).isInstanceOf(Number.class);   // V10
 	}
 
 	@Test
 	void unknownModelStreamIs404() {
 		assertThatThrownBy(() -> stream.stream(UUID.randomUUID())).isInstanceOf(ApiErrors.NotFound.class);
+	}
+
+	/** R2-3: payload 에 트리거 시각 t(ms), 알림마다 종류별 카운터·지연 타이머, 구독자 게이지. 다른 테스트의 늦은 알림이 섞일 수 있어 '이상'으로 본다 */
+	@Test
+	void payloadCarriesTriggerTimeAndMetersRecord() throws InterruptedException {
+		var c = meters.find("bim.notify.events").tag("kind", "status").counter();
+		double before = c == null ? 0 : c.count();
+		long lagBefore = meters.get("bim.notify.lag").timer().count();
+		db.sql("INSERT INTO op_event (model_id, kind, global_id, status) VALUES (:m, 'STATUS', 'SD', 'ALARM')").param("m", mid).update();
+		var e = next("status");
+		assertThat(((Number) e.get("t")).longValue()).isCloseTo(System.currentTimeMillis(), within(5_000L));   // DB 컨테이너 시계 ≈ 호스트
+		assertThat(meters.get("bim.notify.events").tag("kind", "status").counter().count()).isGreaterThanOrEqualTo(before + 1);
+		assertThat(meters.get("bim.notify.lag").timer().count()).isGreaterThanOrEqualTo(lagBefore + 1);
+		assertThat(meters.get("bim.sse.subscribers").gauge().value()).isGreaterThanOrEqualTo(1);   // seed() 의 구독
 	}
 }

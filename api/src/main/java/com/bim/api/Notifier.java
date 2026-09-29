@@ -1,7 +1,11 @@
 package com.bim.api;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -17,20 +21,29 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
-/** 실시간 푸시: DB 트리거의 pg_notify('bim', {m,k,g,s,p}) 를 풀 연결 하나로 LISTEN → 그 모델 구독자에게 (kind, json) 팬아웃.
+/** 실시간 푸시: DB 트리거의 pg_notify('bim', {m,k,g,s,p,t}) 를 풀 연결 하나로 LISTEN → 그 모델 구독자에게 (kind, json) 팬아웃.
  *  구독자 = SSE 어댑터(StreamController)·변환 진행률(ModelController.events)·테스트. sink 가 예외를 던지면(끊긴 SSE) 그 구독은 해제.
- *  연결이 끊기면 1→2→4…30초 백오프 재연결, 재연결 뒤 전원에게 resync(놓친 알림 — 화면이 전체 재조회). HEARTBEAT_MS 마다 hb(죽은 SSE 정리·프록시 유휴 타임아웃 방지) */
+ *  연결이 끊기면 1→2→4…30초 백오프 재연결, 재연결 뒤 전원에게 resync(놓친 알림 — 화면이 전체 재조회). HEARTBEAT_MS 마다 hb(죽은 SSE 정리·프록시 유휴 타임아웃 방지)
+ *  지표(R2-3): bim_sse_subscribers(구독자 수)·bim_notify_events_total{kind}(알림 수)·bim_notify_lag_seconds(트리거 t → dispatch) */
 @Component
 class Notifier implements SmartLifecycle {
 	private static final Logger log = LoggerFactory.getLogger(Notifier.class);
 	static final int HEARTBEAT_MS = 20_000;
 	private final DataSource ds;
+	private final MeterRegistry meters;
+	private final Timer lag;
 	private final Map<UUID, Set<BiConsumer<String, String>>> subs = new ConcurrentHashMap<>();
 	private volatile boolean running;
 	private volatile Thread thread;
 	private final CountDownLatch listening = new CountDownLatch(1);
 
-	Notifier(DataSource ds) { this.ds = ds; }
+	Notifier(DataSource ds, MeterRegistry meters) {
+		this.ds = ds;
+		this.meters = meters;
+		Gauge.builder("bim.sse.subscribers", this, Notifier::subscribers).description("Notifier 구독자 수 (SSE 스트림 + 변환 진행률)").register(meters);
+		lag = Timer.builder("bim.notify.lag").description("트리거 발생(payload t) → Notifier dispatch")
+			.publishPercentileHistogram().maximumExpectedValue(Duration.ofSeconds(10)).register(meters);
+	}
 
 	/** 구독. 반환된 Runnable 을 실행하면 해제. 추가·제거 모두 compute 안에서 — 빈 집합은 맵에서 빠지고(누수 없음), 제거와 추가가 엇갈려도 구독이 사라지지 않음 */
 	Runnable subscribe(UUID model, BiConsumer<String, String> sink) {
@@ -84,8 +97,11 @@ class Notifier implements SmartLifecycle {
 	private void dispatch(String json) {
 		var p = (Map<String, Object>) Json.parse(json);
 		var m = UUID.fromString((String) p.get("m"));
+		var k = (String) p.get("k");
+		meters.counter("bim.notify.events", "kind", k).increment();   // k 가 없으면 여기서 예외 → 위에서 격리(로그만)
+		if (p.get("t") instanceof Number t) lag.record(Math.max(0, System.currentTimeMillis() - t.longValue()), TimeUnit.MILLISECONDS);
 		var s = subs.get(m);
-		if (s != null) send(m, s, (String) p.get("k"), json);
+		if (s != null) send(m, s, k, json);
 	}
 
 	private void toAll(String kind, String data) { subs.forEach((m, s) -> send(m, s, kind, data)); }

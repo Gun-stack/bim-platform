@@ -14,5 +14,6 @@ s3:
   access-key: ${S3_ACCESS_KEY:minio}
   secret-key: ${S3_SECRET_KEY:minio123}
   bucket: bim
-management.endpoints.web.exposure.include: health
+management.endpoints.web.exposure.include: health,prometheus   # 외부에선 nginx 가 /actuator/ 를 404 — Prometheus 는 compose 내부망 api:8080 에서 수집
+"management.metrics.distribution.percentiles-histogram[http.server.requests]": true   # p50·p95·p99 는 Prometheus histogram_quantile 로(엔드포인트별·구간별 합산 가능)
 spring.web.error.include-message: always  # Boot 4 이름 (server.error.* 는 구 이름)
