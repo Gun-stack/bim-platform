@@ -248,7 +248,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const menuItems = (): MenuItem[] => {
     const n = selection.length, none = n === 0, label = n === 1 ? (byGid.get(selection[0])?.name ?? selection[0]) : `${n}개`
     return [
-      { icon: Maximize, label: none ? '전체 보기' : `맞춤: ${label}`, hint: 'F · dbl', onClick: () => scene.current?.fit() },
+      { icon: Maximize, label: none ? '전체 보기' : `맞춤: ${label}`, hint: 'F · dbl', onClick: fitSel },
       'sep',
       { icon: Focus, label: focus === 'ghost' ? '격리 해제' : '격리 (나머지 반투명)', hint: 'I', disabled: none && focus !== 'ghost', onClick: () => setFocus(focus === 'ghost' ? 'none' : 'ghost') },
       { icon: EyeOff, label: hidden.solo?.key === 'sel' ? '선택만 보기 해제' : '선택만 보기', hint: '⇧H', disabled: none && hidden.solo?.key !== 'sel', onClick: soloSelected },
@@ -265,10 +265,24 @@ export default function Viewer({ modelId }: { modelId: string }) {
     setMenu({ x: e.clientX, y: e.clientY })
   }
   const onSelect = (gids: string[], mode: SelectMode) => scene.current?.select(gids, mode === 'toggle' ? 'toggle' : 'set')
+  /** 선택에 카메라 맞춤 — 타일 모드는 그 층이 들어온 뒤에(레이스 방지: ensureLoaded 전엔 형상이 없어 fit() 이 건물 전체 상자로 대체된다) */
+  const fitSel = () => {
+    const s = scene.current, t = tiles.current
+    if (!s) return
+    if (!t) { s.fit(); return }
+    void t.ensureLoaded('sel', s.selected).then(() => { if (scene.current === s) s.fit() })
+  }
 
   const viewpoint = (): Viewpoint => { const s = scene.current!; const v = s.getView(); return { v: [...v.p, ...v.t], sel: s.selected.length ? s.selected : undefined, clip: clip ? clip.map(n => +n.toFixed(2)) : undefined } }
-  /** 작업지시용: 선택 요소가 있으면 먼저 그쪽으로 핏한 뒤 저장 — 홈 뷰가 저장되는 일 방지 */
-  const viewpointForWorkOrder = (): Viewpoint => { if (scene.current?.selected.length) scene.current.fit(); return viewpoint() }
+  /** 작업지시용: 선택 요소가 있으면 먼저 그쪽으로 핏한 뒤 저장 — 홈 뷰가 저장되는 일 방지. 타일 모드는 그 층을 받은 뒤 핏(레이스 방지) */
+  const viewpointForWorkOrder = async (): Promise<Viewpoint> => {
+    const s = scene.current
+    if (s?.selected.length) {
+      if (tiles.current) await tiles.current.ensureLoaded('sel', s.selected)
+      if (scene.current === s) s.fit()
+    }
+    return scene.current ? viewpoint() : {}
+  }
   const share = () => {   // 현재 카메라·선택·단면 → URL
     const s = scene.current; if (!s) return
     const vp = viewpoint(), p = new URLSearchParams({ v: vp.v!.join(',') })
@@ -292,7 +306,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const s = scene.current
     switch (a) {
       case 'home': s?.preset('home'); break
-      case 'fit': s?.fit(); break
+      case 'fit': fitSel(); break
       case 'front': s?.preset('front'); break
       case 'side': s?.preset('side'); break
       case 'top': s?.preset('top'); break
@@ -346,7 +360,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   return (
     <Group orientation="horizontal" style={{ height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
-        <LeftPanel model={model} stats={stats} tileMode={tileOn} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={() => scene.current?.fit()}
+        <LeftPanel model={model} stats={stats} tileMode={tileOn} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
           systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute} onTrace={trace}
             onSolo={(label, gids, key) => setHidden({ ...hidden, solo: hidden.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } })}
@@ -424,7 +438,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {/* 하단 툴바 — 플로팅(드래그 이동·위치 기억) */}
           <Floating id="toolbar" anchor={{ bottom: 8, left: '50%', transform: 'translateX(-50%)', gap: 2, padding: 4, borderRadius: T.radius }}>
             <Tool icon={Home} label="홈" keys="Home" onClick={() => scene.current?.preset('home')} />
-            <Tool icon={Maximize} label="선택 요소에 맞춤 (더블클릭)" keys="F" onClick={() => scene.current?.fit()} />
+            <Tool icon={Maximize} label="선택 요소에 맞춤 (더블클릭)" keys="F" onClick={fitSel} />
             <Tool icon={Grid2x2} label="평면" keys="7" onClick={() => scene.current?.preset('top')} />
             <Tool icon={RectangleHorizontal} label="정면" keys="1" onClick={() => scene.current?.preset('front')} />
             <Gap />

@@ -84,8 +84,8 @@ class ModelController {
 	void delete(@PathVariable UUID id) {
 		var m = find(id);
 		db.sql("DELETE FROM model WHERE id = :id").param("id", id).update();
-		for (Object k : new Object[] { m.get("ifcKey"), thumbKey(id) })
-			if (k != null) s3.deleteObject(b -> b.bucket(bucket).key((String) k));   // 없는 키 삭제는 S3 에서 성공
+		for (Object k : new Object[] { m.get("ifcKey"), m.get("glbKey"), thumbKey(id) })
+			if (k != null) s3.deleteObject(b -> b.bucket(bucket).key((String) k));   // 없는 키 삭제는 S3 에서 성공 — glbKey 는 glb/{id}/ 접두어 밖의 레거시 경로(glb/{id}.glb) 대비, 지금 경로는 아래 접두어 스윕이 처리
 		// glb/ 는 익명 읽기 접두어 — 남기면 계속 공개된다. lease 별 glb 와 tiles/{lease}/… 를 접두어로 한 번에
 		s3.listObjectsV2Paginator(b -> b.bucket(bucket).prefix("glb/" + id + "/")).contents()
 			.forEach(o -> s3.deleteObject(b -> b.bucket(bucket).key(o.key())));

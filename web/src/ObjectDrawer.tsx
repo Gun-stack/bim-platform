@@ -27,7 +27,7 @@ export default function ObjectDrawer({ modelId, gid, tick, reload, onClose }: { 
         <ObjectSummary modelId={modelId} detail={d} asset={obj.asset} nav={false} />
         <StatusEditor key={gid} modelId={modelId} e={d} reload={reloadAll} />
         <h4 style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '14px 0 6px', fontSize: 13 }}>자산 · 점검 · 작업지시</h4>
-        <FmPanel modelId={modelId} selection={[gid]} byGid={new Map([[gid, d]])} detail={d} assets={obj.assets} reload={reloadAll} viewpoint={() => ({})} />
+        <FmPanel modelId={modelId} selection={[gid]} byGid={new Map([[gid, d]])} detail={d} assets={obj.assets} reload={reloadAll} viewpoint={() => Promise.resolve({})} />
       </>}
     </aside>)
 }

@@ -7,7 +7,7 @@ import { T } from '../theme'
 /** 우측 "자산" 탭. 선택 요소 ↔ asset 연결, 점검·작업지시. 자산 목록은 모델 단위로 한 번 받아 globalId 로 찾는다. */
 export default function FmPanel({ modelId, selection, byGid, detail, assets, reload, viewpoint }: {
   modelId: string; selection: string[]; byGid: Map<string, ElementRow>; detail?: ElementDetail
-  assets: Asset[]; reload: () => void; viewpoint: () => Viewpoint
+  assets: Asset[]; reload: () => void; viewpoint: () => Promise<Viewpoint>
 }) {
   const [err, setErr] = useState<string>()
   const run = (p: Promise<unknown>) => { setErr(undefined); return p.then(reload).catch(e => setErr(e.message)) }
@@ -67,14 +67,14 @@ function Bulk({ selection, byGid, byElement, modelId, run, err }: { selection: s
   )
 }
 
-function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Promise<unknown>) => Promise<void>; err?: string; viewpoint: () => Viewpoint }) {
+function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Promise<unknown>) => Promise<void>; err?: string; viewpoint: () => Promise<Viewpoint> }) {
   const [d, setD] = useState<AssetDetail>()
   const load = useCallback(() => api<AssetDetail>(`/assets/${asset.id}`).then(setD), [asset.id])
   useEffect(() => { load() }, [load, asset.lastInspectedOn, asset.openWorkOrders])
   const [note, setNote] = useState(''); const [wo, setWo] = useState({ title: '', assignee: '', dueOn: '' }); const [showWo, setShowWo] = useState(false)
   const inspect = (result: 'OK' | 'DEFECT') => run(post(`/assets/${asset.id}/inspections`, { result, note: note || null })).then(() => setNote(''))
-  const createWo = () => run(post(`/assets/${asset.id}/work-orders`, { ...wo, dueOn: wo.dueOn || null, assignee: wo.assignee || null,
-    inspectionId: d?.inspections.find(i => i.result === 'DEFECT')?.id ?? null, viewpoint: viewpoint() })).then(() => { setWo({ title: '', assignee: '', dueOn: '' }); setShowWo(false) })
+  const createWo = () => viewpoint().then(vp => run(post(`/assets/${asset.id}/work-orders`, { ...wo, dueOn: wo.dueOn || null, assignee: wo.assignee || null,
+    inspectionId: d?.inspections.find(i => i.result === 'DEFECT')?.id ?? null, viewpoint: vp })).then(() => { setWo({ title: '', assignee: '', dueOn: '' }); setShowWo(false) }))
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -55,6 +55,7 @@ export class Scene3D {
   private original = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>()
   private visible: (gid: string, kind: Kind) => boolean = () => true
   private tileShown: (tile: string) => boolean = () => true   // 타일 모드: 순회기가 정한 타일 표시 여부. 단일 GLB 는 tile '' 하나라 항상 true
+  private tilesOn = false   // setTileShown 이 한 번이라도 불렸는가(=타일 모드) — thumbnail() 이 지금 순회기가 고른 것만이 아니라 받은 걸 전부 보이게 할지 판단
   private contents = new Map<string, THREE.Object3D>()        // 타일 id(단일 GLB = '') → 콘텐츠 루트
   private merged?: THREE.Group
   private mergedRanges: { mesh: THREE.Mesh; ranges: { start: number; end: number; gid: string }[] }[] = []
@@ -156,7 +157,8 @@ export class Scene3D {
       if (!m.isMesh) return
       // 프리미티브가 여럿인 노드는 GLTFLoader 가 자식 메시를 `GlobalId_0`, `_1` 로 이름 붙인다 → GlobalId 형식(22자)에 맞는 쪽을 취한다
       const gid = [m.name, m.parent?.name].find(n => GID.test(n ?? '')) ?? m.name
-      m.name = gid; m.userData.tile = tile; this.meshes.push(m); this.original.set(m, m.material)
+      m.name = gid; m.userData.tile = tile; m.visible = false   // apply()/setTileShown() 이 실제 표시를 정할 때까지 숨김 — 여럿이 순차로 도착하는 타일 모드에서 원본 재질이 잠깐 비치는 것 방지
+      this.meshes.push(m); this.original.set(m, m.material)
       const c = classify(gid), t = c.kind === 'element' ? tier(c.ifcClass) : 'equipment'
       this.kind.set(gid, c.kind); this.tiers.set(gid, t)
       if (c.kind === 'space') m.material = SPACE
@@ -181,7 +183,7 @@ export class Scene3D {
   }
 
   /** 타일 모드: 순회기가 정한 타일 표시 여부 → apply() 가시성에 AND (REPLACE 외피 숨김·해제된 층) */
-  setTileShown(fn: (tile: string) => boolean) { this.tileShown = fn; this.apply() }
+  setTileShown(fn: (tile: string) => boolean) { this.tileShown = fn; this.tilesOn = true; this.apply() }
 
   /** 모델 범위 확정 — 보조 그룹·near/far·홈 뷰. 단일 GLB 는 로드 직후, 타일 모드는 tileset 루트 상자로 콘텐츠보다 먼저 */
   begin(box: THREE.Box3) {
@@ -355,14 +357,18 @@ export class Scene3D {
     return c.toDataURL('image/jpeg', 0.7)
   }
 
-  /** 홈 카드 썸네일: 캔버스 크기·비율과 무관하게 w×h 에 건물 전체(홈 뷰)를 AO 켠 한 프레임으로. 한 태스크 안에서 크기·카메라를 원복해 화면 깜빡임 없음 */
+  /** 홈 카드 썸네일: 캔버스 크기·비율과 무관하게 w×h 에 건물 전체(홈 뷰)를 AO 켠 한 프레임으로. 한 태스크 안에서 크기·카메라를 원복해 화면 깜빡임 없음.
+   *  타일 모드는 그 순간 순회기가 고른 타일(가까우면 층, 멀면 외피)이 아니라 그때까지 받은 걸 전부 보여 — 안 받은 층·숨은 외피로 생기는 구멍 없이 찍는다 */
   thumbnail(w: number, h: number) {
     const v = this.dest(), cw = this.el.clientWidth, ch = this.el.clientHeight
     const resize = (x: number, y: number) => { this.renderer.setSize(x, y, false); this.pipeline.setSize(x, y); this.camera.aspect = x / y; this.camera.updateProjectionMatrix() }
+    const prevShown = this.tilesOn ? this.tileShown : undefined
+    if (prevShown) this.setTileShown(() => true)
     this.tickReveal(Infinity); resize(w, h); this.setView(this.fitView([], PRESET.home)); this.frame(performance.now(), true)
     const c = document.createElement('canvas'); c.width = w; c.height = h
     c.getContext('2d')!.drawImage(this.renderer.domElement, 0, 0, w, h)
     resize(cw, ch); this.setView(v)
+    if (prevShown) this.setTileShown(prevShown)
     return c.toDataURL('image/jpeg', 0.8)
   }
 
