@@ -3,6 +3,7 @@
 설정은 환경 변수 (기본값은 .env.example 참조). ifcopenshell 은 무거워서 실제로 변환할 때만 임포트한다 (테스트는 없이도 돈다)."""
 from __future__ import annotations   # 타입 힌트를 평가하지 않아 테스트 스텁(psycopg 없는 환경)에서도 임포트된다
 
+import io
 import logging
 import os
 import tempfile
@@ -16,7 +17,7 @@ import psycopg
 from minio import Minio
 from psycopg.types.json import Jsonb
 
-from . import convert as conv, extract, georef
+from . import convert as conv, extract, georef, tiles
 
 log = logging.getLogger("worker")
 DSN = f"postgresql://bim:{os.environ.get('DB_PASSWORD', 'bim')}@{os.environ.get('DB_HOST', 'localhost')}:5432/bim"
@@ -100,10 +101,37 @@ class Heartbeat:
                 log.warning("job %s heartbeat failed: %s", self.job_id, exc)
 
 
+def s3_client() -> Minio:
+    return Minio(S3, access_key=os.environ.get("S3_ACCESS_KEY", "minio"), secret_key=os.environ.get("S3_SECRET_KEY", "minio123"), secure=S3_SECURE)
+
+
+def publish_tiles(s3, glb_path: str, spatial, elems, prefix: str) -> list[str]:
+    """3D Tiles(R2-2) 를 만들어 prefix 아래 올린다. 반환 = 올린 키, 첫 번째가 tileset.json(마지막에 올림).
+    실패하면 올리다 만 것을 지우고 [] — 타일은 가속 수단이라 변환을 실패시키지 않는다(뷰어는 단일 GLB 로)"""
+    keys: list[str] = []
+    try:
+        with open(glb_path, "rb") as fh:
+            files = tiles.build(fh.read(), spatial, elems)
+        for name in sorted(files, key=lambda n: n == "tileset.json"):
+            data = files[name]
+            s3.put_object(BUCKET, prefix + name, io.BytesIO(data), len(data),
+                          content_type="application/json" if name.endswith(".json") else "model/gltf-binary")
+            keys.append(prefix + name)
+        return keys[-1:] + keys[:-1]
+    except Exception:
+        log.exception("3D Tiles 생성 실패 — 단일 GLB 만 공개")
+        for k in keys:
+            try:
+                s3.remove_object(BUCKET, k)
+            except Exception as cleanup_error:
+                log.warning("tile cleanup failed for %s: %s", k, cleanup_error)
+        return []
+
+
 def convert(conn: psycopg.Connection, job_id: int, model_id: str, lease_owner: str) -> None:
-    """잡 하나 처리. glb 는 lease 별 키로 올리고, DB 포인터 변경은 lease 가 아직 내 것일 때만 한 트랜잭션으로.
-    lease 를 잃었으면 LeaseLost — 이 버전의 glb 는 아무도 참조하지 않으므로 지운다."""
-    s3 = Minio(S3, access_key=os.environ.get("S3_ACCESS_KEY", "minio"), secret_key=os.environ.get("S3_SECRET_KEY", "minio123"), secure=S3_SECURE)
+    """잡 하나 처리. glb·타일은 lease 별 키로 올리고, DB 포인터 변경은 lease 가 아직 내 것일 때만 한 트랜잭션으로.
+    lease 를 잃었으면 LeaseLost — 이 버전의 glb·타일은 아무도 참조하지 않으므로 지운다."""
+    s3 = s3_client()
     ifc_key = conn.execute("SELECT ifc_key FROM model WHERE id=%s", (model_id,)).fetchone()[0]
     # A fenced-out worker may still finish native conversion. Never let it overwrite
     # the object referenced by a newer lease; only the winning DB transaction publishes this key.
@@ -128,6 +156,7 @@ def convert(conn: psycopg.Connection, job_id: int, model_id: str, lease_owner: s
         s3.fput_object(BUCKET, glb_key, glb, content_type="model/gltf-binary")
         spatial, elems = extract.spatial_tree(f), extract.elements(f)
         systems, conns = extract.systems(f), extract.connections(f)
+        tile_keys = publish_tiles(s3, glb, spatial, elems, f"glb/{model_id}/tiles/{lease_owner}/")   # glb/ 아래라 익명 읽기·nginx 경로 그대로
 
     try:
         with conn.transaction():  # 새 GLB와 메타데이터는 이 트랜잭션의 포인터 변경으로 함께 공개한다
@@ -165,19 +194,20 @@ def convert(conn: psycopg.Connection, job_id: int, model_id: str, lease_owner: s
             with conn.cursor() as cur:
                 cur.executemany("INSERT INTO connection (model_id, from_element_id, to_element_id) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
                                 [(model_id, eid[a], eid[b]) for a, b in conns if a in eid and b in eid])
-            conn.execute("UPDATE model SET status='READY', glb_key=%s, ifc_schema=%s, element_count=%s, map_conversion=%s, "
+            conn.execute("UPDATE model SET status='READY', glb_key=%s, tileset_key=%s, ifc_schema=%s, element_count=%s, map_conversion=%s, "
                          "footprint=CASE WHEN %s::text IS NULL THEN NULL ELSE ST_GeomFromText(%s, 4326) END WHERE id=%s",
-                         (glb_key, f.schema, len(elems), Jsonb(mc), fp, fp, model_id))
+                         (glb_key, tile_keys[0] if tile_keys else None, f.schema, len(elems), Jsonb(mc), fp, fp, model_id))
             conn.execute("UPDATE conversion_job SET status='DONE', progress=100, finished_at=now() WHERE id=%s AND lease_owner=%s",
                          (job_id, lease_owner))
     except LeaseLost:
-        # 포인터 변경 전에 lease 검사가 실패했으므로 이 버전은 어떤 model도 참조하지 않는다.
-        try:
-            s3.remove_object(BUCKET, glb_key)
-        except Exception as cleanup_error:
-            log.warning("unpublished GLB cleanup failed for %s: %s", glb_key, cleanup_error)
+        # 포인터 변경 전에 lease 검사가 실패했으므로 이 버전(glb·타일)은 어떤 model도 참조하지 않는다.
+        for key in [glb_key, *tile_keys]:
+            try:
+                s3.remove_object(BUCKET, key)
+            except Exception as cleanup_error:
+                log.warning("unpublished object cleanup failed for %s: %s", key, cleanup_error)
         raise
-    log.info("job %s done: %s, %d spatial, %d elements, %d systems, %d connections, georef=%s", job_id, f.schema, len(spatial), len(elems), len(systems), len(conns), geo["source"] if geo else None)
+    log.info("job %s done: %s, %d spatial, %d elements, %d systems, %d connections, %d tile files, georef=%s", job_id, f.schema, len(spatial), len(elems), len(systems), len(conns), len(tile_keys), geo["source"] if geo else None)
 
 
 def run_once(conn: psycopg.Connection) -> bool:
