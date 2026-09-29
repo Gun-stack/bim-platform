@@ -59,7 +59,8 @@ async function subscribers({ url, n }) {
             }
           }
         }
-      } catch { /* abort — 정상 종료 */ }
+      } catch (e) { if (!ac.signal.aborted) console.error('스트림 오류:', e.message) }
+      ready()   // :ready 없이 스트림이 끝나도(조기 종료·오류) main() 의 대기가 멈추지 않게
       if (!ac.signal.aborted) dropped++   // 측정 중 서버가 끊음
     })()
     return isReady
@@ -91,8 +92,8 @@ async function main() {
     for (const r of rs) for (let i = 0; i < h.length; i++) h[i] += r.h[i]
     const sum = k => rs.reduce((a, r) => a + r[k], 0), w = `${Math.ceil((Date.now() - readyAt) / 1000)}s`
     const prom = async q => {
-      try { const v = (await (await fetch(`${PROM}?query=${encodeURIComponent(q)}`)).json()).data.result[0]?.value[1]; return v == null || v === 'NaN' ? null : Number(v) }
-      catch { return null }   // obs 프로필이 꺼져 있음
+      try { const v = (await (await fetch(`${PROM}?query=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(5000) })).json()).data.result[0]?.value[1]; return v == null || v === 'NaN' ? null : Number(v) }
+      catch { return null }   // obs 프로필이 꺼져 있거나 5초 안에 응답 없음
     }
     const p = {
       cpu: await prom(`max_over_time(rate(process_cpu_time_ns_total[15s])[${w}:5s]) / 1e9`),   // API 코어 수(15초 평균의 최대)
