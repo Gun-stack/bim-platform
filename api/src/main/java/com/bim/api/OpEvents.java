@@ -24,4 +24,13 @@ final class OpEvents {
 			  FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element e ON e.id = a.element_id
 			 WHERE w.id = :w""").param("w", woId).update();
 	}
+
+	/** 정전 전환(ATS·발전기) 직후 — 요소를 직접 UPDATE 하던 경로라 이력도 알림도 없었다 */
+	static void power(JdbcClient db, UUID modelId, String source) {
+		db.sql("""
+			INSERT INTO op_event (model_id, kind, global_id, status, data)
+			SELECT :m, 'STATUS', global_id, properties->'Pset_BimStatus'->>'Status', jsonb_build_object('Source', :s)
+			  FROM element WHERE model_id = :m AND ifc_class IN ('IfcSwitchingDevice', 'IfcElectricGenerator')""")
+			.param("m", modelId).param("s", source).update();
+	}
 }

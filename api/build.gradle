@@ -27,7 +27,7 @@ dependencies {
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation platform('software.amazon.awssdk:bom:2.46.7')
 	implementation 'software.amazon.awssdk:s3'
-	runtimeOnly 'org.postgresql:postgresql'
+	implementation 'org.postgresql:postgresql'   // PGConnection.getNotifications (Notifier)
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-jdbc-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'

@@ -137,6 +137,7 @@ class StatusService {
 		if (!gen && !source.equals("UTILITY")) throw new ApiErrors.BadRequest("source=UTILITY|GENERATOR");
 		set(id, "IfcSwitchingDevice", Map.of("Status", gen ? "TRANSFERRED" : "NORMAL", "Source", source));
 		set(id, "IfcElectricGenerator", Map.of("Status", gen ? "RUNNING" : "STANDBY"));
+		OpEvents.power(db, id, source);
 		return powered(id, source);
 	}
 
