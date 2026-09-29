@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { api } from './api'
-import { READINGS } from './readings'
+import { READINGS, recentWindow } from './readings'
 import { hm, useEsc } from './ui'
 import { T } from './theme'
 
@@ -17,7 +17,7 @@ export default function TrendModal({ modelId, globalId, name, onClose }: { model
     const keys = new Map<string, S>()
     for (const p of pts ?? []) for (const [k, v] of Object.entries(p.data ?? {}))
       if (typeof v === 'number' && k !== 'UpdatedAt') (keys.get(k) ?? keys.set(k, []).get(k)!).push({ at: +new Date(p.at), v })
-    return [...keys.entries()].filter(([, s]) => s.length >= 2).sort((a, b) => (READINGS[a[0]]?.order ?? 5) - (READINGS[b[0]]?.order ?? 5))
+    return [...keys.entries()].map(([k, s]) => [k, recentWindow(s)] as const).filter(([, s]) => s.length >= 2).sort((a, b) => (READINGS[a[0]]?.order ?? 5) - (READINGS[b[0]]?.order ?? 5))
   }, [pts])
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

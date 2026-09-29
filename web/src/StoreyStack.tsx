@@ -18,12 +18,12 @@ export default function StoreyStack({ rows, storeys, teamOf, dead, team, storey,
     <div>
     <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end', flexWrap: 'wrap' }}>   {/* 아래 정렬 — 층 많은 동이 높게 서는 스카이라인 */}
       {buildings.map(b => { const list = storeys.filter(s => (s.building ?? '') === b); return (
-        <div key={b} style={{ display: 'grid', gridTemplateColumns: `${Math.round(40 * fs)}px repeat(${TEAMS.length}, ${cw}px) ${Math.round(22 * fs)}px`, gap: 2, alignItems: 'center', fontSize: T.fs.xs * fs }}>
+        <div key={b} style={{ display: 'grid', gridTemplateColumns: `minmax(${Math.round(40 * fs)}px, max-content) repeat(${TEAMS.length}, ${cw}px) ${Math.round(22 * fs)}px`, gap: 2, alignItems: 'center', fontSize: T.fs.xs * fs }}>
           <div style={{ gridColumn: `1 / span ${TEAMS.length + 2}`, fontWeight: T.fw.bold, color: T.ink[1], fontSize: T.fs.sm * fs, marginBottom: 2 }}>{b || '건물'}</div>
           <span />{TEAMS.map(t => <span key={t.key} title={t.name} style={{ textAlign: 'center', color: team === t.key ? t.color : T.ink[3] }}>{t.name[0]}</span>)}<span />
           {list.map(s => { const at = rows.filter(r => r.storey === s.name), n = at.filter(isAbn).length, on = storey === s.name; return [
             <button key={s.name} onClick={() => onPick(undefined, s.name)} title={on ? '전체 층 보기' : '이 층만 보기'}
-              style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', textAlign: 'right', paddingRight: 4, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: on ? T.fw.bold : T.fw.normal, color: on ? T.accent : T.ink[2] }}>{s.name}</button>,
+              style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', textAlign: 'right', paddingRight: 4, whiteSpace: 'nowrap', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: on ? T.fw.bold : T.fw.normal, color: on ? T.accent : T.ink[2] }}>{s.name}</button>,
             ...TEAMS.map(t => { const rs = at.filter(r => teamOf(r)?.key === t.key), lv = cellLevel(rs, dead), sel = on && team === t.key
               return <button key={s.name + t.key} disabled={lv === 'none'} onClick={() => onPick(t.key, s.name)}
                 title={`${s.name} · ${t.name} — ${WORD[lv]}${rs.length ? ` · 경보 ${rs.filter(r => r.status?.Status === 'ALARM').length} · 장애 ${rs.filter(r => r.status?.Status === 'FAULT').length} · 요소 ${rs.length}` : ''}`}

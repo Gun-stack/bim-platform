@@ -190,7 +190,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             {visibleTeams.map(t => { const rs = cell(st, t); return (
               <div key={st + t.key} style={{ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, padding: 6, minHeight: 44 }}>
                 {rs.map(r => <RowView key={r.globalId} r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} reload={load} />)}
-                {!rs.length && <div style={{ color: T.ink[3], fontSize: 12 * fs, padding: 4 }}>{mode === 'abnormal' ? '이상 없음' : '—'}</div>}
+                {!rs.length && mode !== 'abnormal' && <div style={{ color: T.ink[3], fontSize: 12 * fs, padding: 4 }}>—</div>}{/* 이상만: 빈 칸은 비워 둔다 — '이상 없음' 80칸 반복 대신 */}
               </div>) })}
           </div> })}
         </div>

@@ -66,3 +66,5 @@ export const readings = (st: Record<string, unknown> | null | undefined, name?: 
 /** 행 인라인용: 이력성(order ≥ 4: 점검일·발생시각) 제외 */
 export const inlineReadings = (st: Record<string, unknown> | null | undefined, name?: string | null) => readings(st, name).filter(x => x.order < 4)
 export const LEVEL_COLOR = { ok: T.ink[2], warn: T.warn, crit: T.crit } as const
+/** 트렌드 창: 마지막 점 기준 24시간 — 몇 주 전 점까지 한 시간축에 올리면 공백이 그래프를 먹는다 */
+export const recentWindow = <P extends { at: number }>(s: P[], hours = 24) => { const end = s.at(-1)?.at ?? 0; return s.filter(p => p.at >= end - hours * 3600_000) }
