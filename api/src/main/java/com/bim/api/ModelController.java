@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,6 +27,7 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 @RestController
 @RequestMapping("/api")
 class ModelController {
+	private static final Logger log = LoggerFactory.getLogger(ModelController.class);
 	private final JdbcClient db;
 	private final TransactionTemplate tx;
 	private final S3Client s3;
@@ -126,24 +130,35 @@ class ModelController {
 		emitter.send(SseEmitter.event().name("status").data(m));
 		if (DONE.contains((String) m.get("status"))) { emitter.complete(); return emitter; }
 		Runnable[] off = { () -> {} };
+		var done = new AtomicBoolean(false);   // 동시에 도착한 두 알림이 모두 DONE 을 보고 둘 다 complete() 하는 경쟁 방지 — 이 CAS 를 이긴 스레드만 종료 처리
 		// Notifier 의 LISTEN 스레드를 막지 않도록 DB 재조회·전송은 가상 스레드에서 — 실패하면 구독 해제 + emitter 종료
-		off[0] = notifier.subscribe(id, (kind, data) -> Thread.startVirtualThread(() -> onNotify(id, off[0], emitter, kind)));
+		off[0] = notifier.subscribe(id, (kind, data) -> Thread.startVirtualThread(() -> onNotify(id, off[0], emitter, kind, done)));
 		emitter.onCompletion(off[0]); emitter.onTimeout(off[0]); emitter.onError(t -> off[0].run());
 		var again = find(id);   // 첫 조회와 구독 사이에 끝났으면 알림이 다시 오지 않는다
-		if (DONE.contains((String) again.get("status"))) { emitter.send(SseEmitter.event().name("status").data(again)); off[0].run(); emitter.complete(); }
+		if (DONE.contains((String) again.get("status")) && done.compareAndSet(false, true)) {
+			emitter.send(SseEmitter.event().name("status").data(again)); off[0].run(); emitter.complete();
+		}
 		return emitter;
 	}
 
-	private void onNotify(UUID id, Runnable off, SseEmitter emitter, String kind) {
+	private void onNotify(UUID id, Runnable off, SseEmitter emitter, String kind, AtomicBoolean done) {
+		if (done.get()) return;   // 이미 종료 처리된 구독 — 뒤늦게 도착한 알림은 버린다
 		try {
 			if (kind.equals("hb")) { emitter.send(SseEmitter.event().comment("hb")); return; }
 			if (!kind.equals("job") && !kind.equals("resync")) return;
 			var now = find(id);
+			boolean finished = DONE.contains((String) now.get("status"));
+			if (finished && !done.compareAndSet(false, true)) return;   // 다른 스레드가 먼저 종료 처리 — 중복 complete() 방지
 			emitter.send(SseEmitter.event().name("status").data(now));
-			if (DONE.contains((String) now.get("status"))) { off.run(); emitter.complete(); }
-		} catch (IOException | RuntimeException e) {   // 전송 실패·모델 삭제 등
+			if (finished) { off.run(); emitter.complete(); }
+		} catch (IOException e) {   // 클라이언트 연결 종료로 추정되는 전송 실패
+			log.debug("model {} events 전송 실패", id, e);
 			off.run();
-			try { emitter.completeWithError(e); } catch (Exception ignore) {}
+			try { emitter.completeWithError(e); } catch (Exception ignore) {}   // 이미 닫힌 emitter — completeWithError 자체 실패는 무시(스트림은 어차피 종료)
+		} catch (RuntimeException e) {   // 모델 삭제 등
+			log.warn("model {} events 처리 중 예외", id, e);
+			off.run();
+			try { emitter.completeWithError(e); } catch (Exception ignore) {}   // 위와 동일 — 무시
 		}
 	}
 
