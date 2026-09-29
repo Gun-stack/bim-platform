@@ -14,6 +14,8 @@ import { T, num } from '../theme'
 export type Kind = 'element' | 'space' | 'opening'
 const GID = /^[0-9A-Za-z_$]{22}$/
 export type Stats = { calls: number; triangles: number; fps: number }
+/** GlobalId → 분류. 단일 GLB·타일 콘텐츠 공용 */
+export type Classify = (gid: string) => { kind: Kind; ifcClass?: string }
 // 선택: 색상 모드의 어떤 팔레트와도 겹치지 않는 마젠타, 반투명 + 항상 앞에(depthTest off) + 외곽선. 가려져 있어도 어디가 선택됐는지 보인다
 const HIGHLIGHT = new THREE.MeshBasicMaterial({ color: 0xff2d95, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide })
 const OUTLINE = new THREE.LineBasicMaterial({ color: 0xff2d95, depthTest: false })
@@ -29,7 +31,7 @@ const FIT_MIN_R = 3
 /** 격리: 집합 밖 요소는 반투명(GHOST). undefined 면 해제 */
 export type Focus = { gids: Set<string> } | undefined
 
-/** glb 한 개 = 씬 한 개. 노드 이름(GlobalId) 기준으로 분류·필터·픽킹. React 는 이 클래스만 호출한다. */
+/** 씬 하나 = 모델 하나(단일 GLB 또는 3D Tiles 콘텐츠 여럿). 노드 이름(GlobalId) 기준으로 분류·필터·픽킹. React 는 이 클래스(+ tiles.ts)만 호출한다. */
 export class Scene3D {
   private scene = new THREE.Scene()
   private camera: THREE.PerspectiveCamera
@@ -52,6 +54,8 @@ export class Scene3D {
   private xray = true
   private original = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>()
   private visible: (gid: string, kind: Kind) => boolean = () => true
+  private tileShown: (tile: string) => boolean = () => true   // 타일 모드: 순회기가 정한 타일 표시 여부. 단일 GLB 는 tile '' 하나라 항상 true
+  private contents = new Map<string, THREE.Object3D>()        // 타일 id(단일 GLB = '') → 콘텐츠 루트
   private merged?: THREE.Group
   private mergedRanges: { mesh: THREE.Mesh; ranges: { start: number; end: number; gid: string }[] }[] = []
   private picked = new Set<string>()
@@ -135,26 +139,64 @@ export class Scene3D {
     loop()
   }
 
-  async load(url: string, classify: (gid: string) => { kind: Kind; ifcClass?: string }) {
+  /** 단일 GLB: 콘텐츠 하나(tile '') + 모델 범위 + 등장 연출 */
+  async load(url: string, classify: Classify) {
     const gltf = await new GLTFLoader().loadAsync(url)
-    gltf.scene.traverse(o => {
+    this.addContent(gltf.scene, '', classify)
+    this.begin(new THREE.Box3().setFromObject(gltf.scene))
+    this.startReveal()
+  }
+
+  /** GLB 장면 하나를 등록 — 노드 이름(GlobalId)으로 분류·X-ray 층위·외곽선, 메시 userData.tile = tile. 단일 GLB 는 '' 하나, 타일 모드는 타일 uri 마다.
+   *  표시(재질·가시성) 반영은 호출자가: 단일 GLB 는 begin(), 타일은 setTileShown() */
+  addContent(root: THREE.Object3D, tile: string, classify: Classify) {
+    root.traverse(o => {
       const m = o as THREE.Mesh
       if (!m.isMesh) return
       // 프리미티브가 여럿인 노드는 GLTFLoader 가 자식 메시를 `GlobalId_0`, `_1` 로 이름 붙인다 → GlobalId 형식(22자)에 맞는 쪽을 취한다
       const gid = [m.name, m.parent?.name].find(n => GID.test(n ?? '')) ?? m.name
-      m.name = gid; this.meshes.push(m); this.original.set(m, m.material)
+      m.name = gid; m.userData.tile = tile; this.meshes.push(m); this.original.set(m, m.material)
       const c = classify(gid), t = c.kind === 'element' ? tier(c.ifcClass) : 'equipment'
       this.kind.set(gid, c.kind); this.tiers.set(gid, t)
       if (c.kind === 'space') m.material = SPACE
       if (t !== 'equipment') { const e = edgesOf(m.geometry); e.visible = this.xray; m.add(e); this.edges.set(m, e) }
     })
-    this.scene.add(gltf.scene); this.scene.add(this.measureGroup); this.scene.add(this.outlines); this.outlines.renderOrder = 9
-    this.box.setFromObject(gltf.scene)
+    this.scene.add(root); root.updateMatrixWorld(true); this.contents.set(tile, root)   // 외곽선·발광 오버레이가 matrixWorld 를 바로 읽는다
+  }
+
+  /** 타일 해제 — 장면에서 빼고 지오메트리·외곽선·그 GLB 의 재질을 GPU 에서 내린다. kind·tiers 는 남긴다(다시 받으면 같은 값). 표시 반영은 호출자가(setTileShown) */
+  removeContent(tile: string) {
+    const root = this.contents.get(tile); if (!root) return
+    this.contents.delete(tile); this.scene.remove(root)
+    const mats = new Set<THREE.Material>()
+    this.meshes = this.meshes.filter(m => {
+      if (m.userData.tile !== tile) return true
+      m.geometry.dispose(); this.edges.get(m)?.geometry.dispose(); this.edges.delete(m)
+      for (const x of [this.original.get(m)!].flat()) mats.add(x)
+      this.original.delete(m)
+      return false
+    })
+    mats.forEach(x => x.dispose())
+  }
+
+  /** 타일 모드: 순회기가 정한 타일 표시 여부 → apply() 가시성에 AND (REPLACE 외피 숨김·해제된 층) */
+  setTileShown(fn: (tile: string) => boolean) { this.tileShown = fn; this.apply() }
+
+  /** 모델 범위 확정 — 보조 그룹·near/far·홈 뷰. 단일 GLB 는 로드 직후, 타일 모드는 tileset 루트 상자로 콘텐츠보다 먼저 */
+  begin(box: THREE.Box3) {
+    this.scene.add(this.measureGroup); this.scene.add(this.outlines); this.outlines.renderOrder = 9
+    this.box.copy(box)
     const diag = this.box.getSize(new THREE.Vector3()).length() || 100
     this.camera.near = Math.max(0.01, diag / 2000); this.camera.far = diag * 20; this.camera.updateProjectionMatrix()   // GTAO 는 깊이로 위치를 복원 — near/far 비를 모델 크기에 맞춰 정밀도 확보
     this.setView(this.fitView([], PRESET.home))   // 첫 화면은 즉시
     this.apply()
-    this.startReveal()
+  }
+
+  /** 타일 순회기 입력 — 눈 위치·절두체·SSE 계수 k(화면 높이 px / (2·tan(fov/2)))·변화 감지 서명 */
+  tileView() {
+    const c = this.camera; c.updateMatrixWorld()
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse))
+    return { eye: c.position.clone(), frustum, k: this.el.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(c.fov) / 2)), sig: `${c.matrixWorld.elements.join()}|${c.aspect}|${this.el.clientHeight}` }
   }
 
   /** 표시 조건 교체 → 즉시 반영 */
@@ -187,7 +229,7 @@ export class Scene3D {
       }
       this.scene.add(this.merged)
     }
-    for (const m of this.meshes) m.visible = on ? false : this.visible(m.name, this.kind.get(m.name)!)
+    for (const m of this.meshes) m.visible = on ? false : this.visible(m.name, this.kind.get(m.name)!) && this.tileShown(m.userData.tile)
   }
 
   /** 선택. set = 교체, toggle = 추가/제거 */
@@ -230,7 +272,7 @@ export class Scene3D {
 
   /** 오버레이 재구성 — 표시 조건(층 필터·숨김)을 따른다. 병합 모드는 원본 메시가 전부 숨김이라 m.visible 대신 visible() */
   private refreshGlow() {
-    const shown = (m: THREE.Mesh) => this.visible(m.name, this.kind.get(m.name) ?? 'element')
+    const shown = (m: THREE.Mesh) => this.visible(m.name, this.kind.get(m.name) ?? 'element') && this.tileShown(m.userData.tile)
     this.pulse.set(this.meshes.filter(m => this.pulseOn.has(m.name) && !this.picked.has(m.name) && shown(m)).map(m => ({ mesh: m, key: this.pulseOn.get(m.name)!, color: this.pulseOn.get(m.name)! })))
     const f = this.flowOn
     this.flow.set(f ? this.meshes.filter(m => f.depth.has(m.name) && shown(m)).map(m => ({ mesh: m, key: f.depth.get(m.name)!, color: f.color })) : [])
@@ -484,7 +526,7 @@ export class Scene3D {
     for (const m of this.meshes) {
       if (this.picked.has(m.name)) { const l = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 20), OUTLINE); l.matrixAutoUpdate = false; l.matrix.copy(m.matrixWorld); l.renderOrder = 9; this.outlines.add(l) }
       const gid = m.name, kind = this.kind.get(gid)!, inFocus = !this.focusSet || this.focusSet.gids.has(gid)
-      m.visible = this.visible(gid, kind)
+      m.visible = this.visible(gid, kind) && this.tileShown(m.userData.tile)
       const x = this.xray ? xrayMat(this.tiers.get(gid) ?? 'equipment') : undefined   // X-ray 는 원본 재질 자리만 대신한다
       m.material = this.picked.has(gid) ? HIGHLIGHT : !inFocus ? GHOST : gid === this.focusSpace ? FOCUS_SPACE : kind === 'space' ? SPACE
         : this.colors ? (this.colors.has(gid) ? this.colorMat(this.colors.get(gid)!) : this.ghostOthers ? (x ?? GHOST) : this.colorMat(0x8b9199)) : x ?? this.original.get(m)!   // 색 없음: 채색 요소보다 눌리는 회색. 계통·상태 색의 반투명 배경은 건축이면 X-ray 재질
