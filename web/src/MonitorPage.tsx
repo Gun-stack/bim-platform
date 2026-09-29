@@ -10,6 +10,8 @@ import { patchStatus } from './statusApi'
 import { isQuiet, statusUi, WO_STATUS, type WoStatus } from './status'
 import { KEY_EQUIP, isAbn, overdue, rank, storeyClipZ, teamStats, worst, type Ev, type Row, type StatRow, type Storey } from './monitor'
 import { Section } from './Section'
+import StoreyStack from './StoreyStack'
+import EventBars, { type Hour } from './EventBars'
 import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
 import { setHashParam, useHashQuery } from './useHashQuery'
@@ -36,17 +38,18 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
   const [trend, setTrend] = useState<{ globalId: string; name: string | null } | null>(null)   // 계측 트렌드 모달
-  const [sec, toggleSec] = useSections('monitor.sections', { teams: true, todo: true, key: true, grid: true, stats: false })
+  const [sec, toggleSec] = useSections('monitor.sections', { stack: true, teams: true, todo: true, key: true, grid: true, stats: false })
+  const [timeline, setTimeline] = useState<Hour[]>([])   // 24시간 발생 막대
   const [stats, setStats] = useState<StatRow[]>([])   // 경보 통계 — 섹션이 열려 있을 때만 갱신
   const [flash, setFlash] = useState<Set<string>>(new Set()); const prevAbn = useRef<Set<string> | null>(null)
   const [sound, setSound] = useState(() => { try { return localStorage.getItem('monitor.sound') === '1' } catch { return false } })   // 관제실 상시 설정 — 세션 넘어 유지
   const soundRef = useRef(false); useEffect(() => { soundRef.current = sound; try { localStorage.setItem('monitor.sound', sound ? '1' : '0') } catch { /* 저장 불가 환경 */ } }, [sound])
-  const load = useCallback(() => Promise.all([api<{ power: string; rows: Row[] }>(`/models/${modelId}/monitor`), api<{ unpowered: string[] }>(`/models/${modelId}/power`).catch(() => ({ unpowered: [] as string[] })), api<Ev[]>(`/models/${modelId}/monitor/events`).catch(() => [] as Ev[])])
-    .then(([d, pw, ev]) => {
+  const load = useCallback(() => Promise.all([api<{ power: string; rows: Row[] }>(`/models/${modelId}/monitor`), api<{ unpowered: string[] }>(`/models/${modelId}/power`).catch(() => ({ unpowered: [] as string[] })), api<Ev[]>(`/models/${modelId}/monitor/events`).catch(() => [] as Ev[]), api<Hour[]>(`/models/${modelId}/monitor/timeline?hours=24`).catch(() => [] as Hour[])])
+    .then(([d, pw, ev, tl]) => {
       const abn = new Set<string>(d.rows.filter(isAbn).map(r => r.globalId))
       if (prevAbn.current) { const fresh = [...abn].filter(g => !prevAbn.current!.has(g)); if (fresh.length) { setFlash(new Set(fresh)); setTimeout(() => setFlash(new Set()), 4000); if (soundRef.current) beep() } }
       prevAbn.current = abn
-      setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setEvents(ev); setTick(new Date()) }), [modelId])
+      setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setEvents(ev); setTimeline(tl); setTick(new Date()) }), [modelId])
   useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId, load])
   useEffect(() => { if (sec.stats) api<StatRow[]>(`/models/${modelId}/monitor/stats?days=${days}`).then(setStats).catch(() => {}) }, [modelId, days, sec.stats, tick])
 
@@ -80,16 +83,24 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
     elec: () => `변압기 ${val('TR-1', 'LoadPercent') ?? '—'}% · 발전기 ${statusUi(String(val('EG-1', 'Status')))?.label ?? '—'} · 태양광 ${val('PV-1', 'OutputKW') ?? '—'}kW`,
   } as Record<string, () => string>)[t.key]?.()
   const tot = { alarm: rows.filter(r => r.status?.Status === 'ALARM').length, fault: rows.filter(r => r.status?.Status === 'FAULT').length, wo: rows.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), dead: unpowered.size, noAsset: rows.filter(r => !r.assetId).length, unassigned: rows.filter(r => r.openWorkOrders && !r.woAssignee).length, reading: rows.filter(r => !isAbn(r) && worst(r) !== 'ok').length, due: rows.filter(overdue).length }
+  const shown = mode === 'abnormal' ? storeys.filter(st => visibleTeams.some(t => cell(st, t).length)) : storeys   // '이상만'이면 빈 층 행 생략 — "이상 없음" 칸 반복 대신
   const abnByStorey = (st: string) => rows.filter(r => r.storey === st && isAbn(r)).length
   // 총계 바 숫자 클릭 → 그것들이 보이는 곳으로 (같은 화면은 펼치고 스크롤)
   const todoRef = useRef<HTMLDivElement>(null)
   const goTodo = () => { if (!sec.todo) toggleSec('todo'); requestAnimationFrame(() => todoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
+  const gridRef = useRef<HTMLDivElement>(null)
+  /** 건물 단면 칸·층 클릭 → 격자 필터. 같은 것을 다시 누르면 해제. 칸은 격자로 스크롤 */
+  const pick = (t: string | undefined, st: string) => {
+    const same = storeyF === st && (t === undefined || team === t)
+    setStoreyF(same ? undefined : st); if (t) setTeam(same ? undefined : t)
+    if (!same && t) { if (!sec.grid) toggleSec('grid'); requestAnimationFrame(() => gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
+  }
   const goEvents = () => { if (!sec.grid) toggleSec('grid'); requestAnimationFrame(() => document.querySelector('.monitor-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
   const storeyClip = (st: string) => { const [z0, z1] = storeyClipZ(storeyList, st); return `#/models/${modelId}?clip=-999,999,${(z0 - 0.3).toFixed(1)},${(z1 - 0.05).toFixed(1)},-999,999` }   // 씬은 Y-up(GLB) — 높이는 clip[2..3]. 섹션 박스의 층 버튼과 같은 축
   const fs = kiosk ? 1.25 : 1
 
   return (
-    <main style={{ fontFamily: 'system-ui', fontSize: 13 * fs, padding: kiosk ? '14px 18px' : '20px 24px', paddingRight: sel && !kiosk ? 460 : undefined, minHeight: '100vh', background: T.bg.base }}>   {/* 페이지=base, 카드=surface — 다른 화면과 같은 돌출 계층. 객체 패널(440px)이 떠 있으면 그만큼 비워 최근 이벤트 열이 가려지지 않게 */}
+    <main style={{ fontFamily: 'system-ui', fontSize: 13 * fs, padding: kiosk ? '14px 18px' : '20px 24px', paddingRight: kiosk ? 18 : sel ? 460 : 24, minHeight: '100vh', background: T.bg.base }}>   {/* 페이지=base, 카드=surface — 다른 화면과 같은 돌출 계층. 객체 패널(440px)이 떠 있으면 그만큼 비워 최근 이벤트 열이 가려지지 않게 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
         <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>설비 모니터링</span></h1>
         <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: T.ink[2], cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} /> 알림음</label>
@@ -114,8 +125,18 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         {power === 'GENERATOR' && (kiosk ? <b style={{ color: T.warn }} title="발전기 절체 중">정전 · 무전원 {tot.dead}</b>
           : <a className="stat-link" href={`#/models/${modelId}`} title="발전기 절체 중 — 3D 뷰어 상태판에서 복전" style={{ color: T.warn, fontWeight: 600 }}>정전 · 무전원 {tot.dead}</a>)}
         {tot.noAsset > 0 && !kiosk && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(load)} style={{ ...btn, marginLeft: 'auto' }} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록">자산 일괄 등록 (미등록 {tot.noAsset})</button>}
-        <button className="stat-link" onClick={goEvents} title="최근 이벤트 목록으로" style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto', color: T.ink[2], fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? hms(events[0].at) : '—'}</button>
+        <span style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto' }}><EventBars data={timeline} fs={fs} /></span>
+        <button className="stat-link" onClick={goEvents} title="최근 이벤트 목록으로" style={{ color: T.ink[2], fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? hms(events[0].at) : '—'}</button>
       </div>
+
+      {/* 첫 화면 2단: 왼쪽 건물 단면(어디), 오른쪽 분야·조치 필요(무엇) — 좁으면 아래로 접힌다 */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div style={{ flex: '0 0 auto' }}>
+      <Section title="건물 단면" count="층 × 분야 — 색은 설비 상태" open={sec.stack} onToggle={() => toggleSec('stack')} pad={12}>
+        <StoreyStack rows={rows} storeys={storeyList} teamOf={teamOf} dead={g => unpowered.has(g)} team={team} storey={storeyF} onPick={pick} fs={fs} />
+      </Section>
+      </div>
+      <div style={{ flex: '1 1 600px', minWidth: 0 }}>
 
       <Section title="분야 현황" count={team ? `${TEAMS.find(t => t.key === team)!.name}만 표시 — 클릭 해제` : undefined} open={sec.teams} onToggle={() => toggleSec('teams')} pad={10}>
       <div style={{ display: 'flex', gap: 12 }}>
@@ -140,6 +161,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: T.ink[3], fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} reload={load} /></div>)}
             {todo.length > 12 && <div style={{ color: T.ink[2], fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
         </Section></div>) })()}
+      </div></div>
 
       {/* 2) 핵심 장비 — 팀을 골랐을 때 그 팀의 원천 장비를 카드로 (격자 순서와 무관하게 늘 같은 자리) */}
       {team && (() => { const t = TEAMS.find(x => x.key === team)!; const keys = KEY_EQUIP[team] ?? []; const eq = keys.map(k => rows.find(r => r.name?.startsWith(k))).filter(Boolean) as Row[]; return eq.length ? (
@@ -154,13 +176,13 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           </div>
         </Section>) : null })()}
 
-      <Section title="층 × 분야 전체 현황" count={`${storeys.length}개 층 · ${visibleTeams.length}개 분야${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open={sec.grid} onToggle={() => toggleSec('grid')} pad={10}
+      <div ref={gridRef}><Section title="층 × 분야 전체 현황" count={`${storeys.length}개 층 · ${visibleTeams.length}개 분야${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open={sec.grid} onToggle={() => toggleSec('grid')} pad={10}
         right={<span style={{ display: 'inline-flex', border: `1px solid ${T.bg.line}`, borderRadius: 6, overflow: 'hidden', fontSize: 12 * fs }}>
           {([['abnormal', '이상만'], ['equipment', '요소'], ['all', '전체']] as const).map(([k, l]) => <button key={k} onClick={() => setMode(k)} style={{ padding: '3px 9px', border: 0, cursor: 'pointer', background: mode === k ? T.accent : T.bg.surface, color: mode === k ? T.bg.base : T.ink[2], fontSize: 'inherit' }}>{l}</button>)}</span>}>
       <div className="monitor-body" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}><div style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleTeams.length}, minmax(210px, 1fr))`, gap: 10, minWidth: 64 + visibleTeams.length * 220 }}>
           <div /> {visibleTeams.map(t => <div key={t.key} style={{ fontWeight: 600, color: t.color, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: t.color, flexShrink: 0, display: 'inline-block' }} /> {t.name}</div>)}
-          {storeys.map(st => { const n = abnByStorey(st); return <div key={st} style={{ display: 'contents' }}>
+          {shown.map(st => { const n = abnByStorey(st); return <div key={st} style={{ display: 'contents' }}>
             <div style={{ paddingTop: 8 }}>
               <div onClick={() => setStoreyF(storeyF === st ? undefined : st)} title={storeyF === st ? '전체 층 보기' : '이 층만 보기'} style={{ fontWeight: 600, fontSize: 15 * fs, color: storeyF === st ? T.accent : T.ink[1], cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>{st}{n > 0 && <span style={{ fontSize: T.fs.xs * fs, background: T.crit, color: T.bg.base, borderRadius: 999, padding: '0 5px', fontWeight: 600 }}>{n}</span>}</div>
               {!kiosk && <a href={storeyClip(st)} title="뷰어에서 이 층 단면" style={{ color: T.ink[3], fontSize: 11 * fs, textDecoration: 'none' }}>단면</a>}
@@ -171,7 +193,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
                 {!rs.length && <div style={{ color: T.ink[3], fontSize: 12 * fs, padding: 4 }}>{mode === 'abnormal' ? '이상 없음' : '—'}</div>}
               </div>) })}
           </div> })}
-        </div></div>
+        </div>
+        {shown.length < storeys.length && <div style={{ color: T.ink[3], fontSize: 12 * fs, padding: '8px 4px' }}>이상 없는 층 {storeys.length - shown.length}개 생략 — '요소'·'전체'에서 모두 보기</div>}</div>
 
         {/* 최근 이벤트 — 격자는 '지금'만 보여주므로 '언제 무슨 일이' 는 여기 */}
         <div className="monitor-events" style={{ width: kiosk ? 400 : 300, flexShrink: 0,   /* 벽면에선 '최근 무슨 일'이 격자보다 자주 읽힌다 */ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, padding: '8px 10px', position: 'sticky', top: SHELL_H + 12, maxHeight: `calc(100vh - ${SHELL_H + 24}px)`, overflow: 'auto' }}>
@@ -187,7 +210,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
             </a>) })}
         </div>
       </div>
-      </Section>
+      </Section></div>
 
       {/* 경보 통계 — 이력(op_event)이 있어서 나오는 것. 격자는 '지금', 여기는 '얼마나 자주·얼마나 오래' */}
       {(() => { const ts = teamStats(stats), total = stats.reduce((n, r) => n + r.alarms + r.faults, 0), recurring = stats.filter(r => r.alarms + r.faults >= 2).slice(0, 8); return (
@@ -231,14 +254,14 @@ function RowView({ r, modelId, dead, fresh, fs, onTrend, reload }: { r: Row; mod
   const abnormal = isAbn(r); const rs = inlineReadings(r.status, r.name); const all = readings(r.status, r.name)
   const ack = typeof r.status?.AckAt === 'string' ? r.status.AckAt : undefined   // 경보 확인 — 상태 전이 시 서버 패치가 지운다(statusPatchFor)
   return (
-    <a data-gid={r.globalId} href={`#/models/${modelId}/monitor${selQ(r.globalId)}`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 객체 패널 · 3D 아이콘: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
+    <a data-gid={r.globalId} href={`#/models/${modelId}/monitor${selQ(r.globalId)}`} title={`${r.ifcClass} · ${r.zone ?? r.storey}${r.assetTag ? ` · 자산 ${r.assetTag}` : ''}${all.length ? '\n' + all.map(x => `${x.label} ${x.text}`).join(' · ') : ''}\n클릭: 객체 패널 · 3D 아이콘: 뷰어에서 구역 강조`} className={fresh ? 'fresh' : undefined}
        style={{ display: 'block', padding: '3px 6px', borderRadius: T.radius, textDecoration: 'none', color: T.ink[1], fontSize: 12 * fs, background: abnormal ? (s === 'ALARM' ? T.critSoft : T.warnSoft) : dead ? T.bg.raised : worst(r) === 'crit' ? T.critSoft : worst(r) === 'warn' ? T.warnSoft : 'transparent', opacity: dead ? 0.7 : abnormal && ack ? 0.8 : 1 }}>
       <span style={{ display: 'grid', gridTemplateColumns: '10px minmax(60px, 1fr) minmax(0, auto) auto', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: st?.color ?? T.bg.line }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.zone && <span style={{ color: T.ink[2], marginLeft: 4 }}>{r.zone.split('-').pop()}</span>}</span>
         <span style={{ color: T.ink[2], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {r.openWorkOrders ? <b onClick={e => { e.preventDefault(); e.stopPropagation(); location.hash = `#/models/${modelId}/fm?sel=${encodeURIComponent(r.globalId)}` }} style={{ color: r.woAssignee ? T.accent : T.warn, cursor: 'pointer', fontWeight: 400 }} title={`작업지시 ${r.openWorkOrders}건 — 클릭: 작업지시 보드로`}>작업지시 {r.woAssignee ?? '미배정'}{r.woDueOn ? ` ~${day(r.woDueOn).slice(5)}` : ''}</b>
-            : r.assetTag ? r.assetTag : ''}
+            : ''}{/* 자산 태그는 행 title·객체 패널에 — 좁은 칸에서 이름이 잘리지 않게 */}
           {r.lastResult === 'DEFECT' && !r.openWorkOrders ? <b style={{ color: T.crit, marginLeft: 4 }}>결함</b> : ''}
           {overdue(r) ? <b style={{ color: T.warn, marginLeft: 4 }} title={`다음 점검 ${day(r.nextDueOn!)} 지남`}>점검 지연</b> : ''}</span>
         <b style={{ color: quiet ? T.ink[2] : st?.color ?? T.ink[3], fontWeight: quiet ? 400 : 600, minWidth: 28, textAlign: 'right', whiteSpace: 'nowrap' }}>{st?.label ?? ''}

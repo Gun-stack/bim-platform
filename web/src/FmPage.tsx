@@ -43,6 +43,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const isSoon = (a: Asset) => a.status === 'ACTIVE' && !!a.nextDueOn && day(a.nextDueOn) <= plusDays(30)   // 지연 포함 — "이번 달 점검할 것"
   const soon = assets.filter(isSoon).length
   const filtered = assets.filter(a => (!acat || a.category === acat) && (!ast || a.storey === ast) && (!aod || isOverdue(a)) && (!aup || isSoon(a)) && (!aq || [a.tag, a.elementName].some(x => x?.toLowerCase().includes(aq.toLowerCase()))))
+  const [limit, setLimit] = useState(PAGE)   // 자산 대장은 100행씩 — 1천 행 넘는 모델도 첫 렌더가 가볍게
+  useEffect(() => setLimit(PAGE), [aq, acat, ast, aod, aup])   // 필터가 바뀌면 처음 100행부터
   const filteredAssets = aup ? [...filtered].sort((a, b) => day(a.nextDueOn!).localeCompare(day(b.nextDueOn!))) : filtered   // 예정 보기는 날짜순
 
 
@@ -90,7 +92,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
         <div style={{ border: `1px solid ${T.bg.line}`, borderRadius: T.radius, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 120px 80px 130px', gap: 8, padding: '8px 14px', background: T.bg.raised, color: T.ink[2], fontSize: 12 }}>
           <span>태그</span><span>분류</span><span>층</span><span>연결 요소</span><span>상태</span><span>최근 점검</span><span>다음 점검</span><span>작업지시</span><span /></div>
-        {filteredAssets.map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 120px 80px 130px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: `1px solid ${T.bg.line}` }}>
+        {filteredAssets.slice(0, limit).map(a => <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '120px 130px 70px 1fr 80px 110px 120px 80px 130px', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: `1px solid ${T.bg.line}` }}>
           <b>{a.tag}</b><span title={a.category ?? ''}>{ifcKo(a.category)}</span><span style={{ color: T.ink[2] }}>{a.storey ?? '—'}{a.zone ? <span style={{ color: T.ink[3] }}> {a.zone.split('-').pop()}</span> : ''}</span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: a.globalId ? T.ink[1] : T.ink[2] }} title={a.elementName ?? ''}>{a.globalId ? a.elementName : '(모델에 없음)'}</span>
           <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? T.ink[2] : T.crit }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '사용 중지', RETIRED: '폐기' }[a.status]}</span>
@@ -107,6 +109,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <span style={{ display: 'flex', justifyContent: 'flex-end' }}><NavLinks modelId={modelId} gid={a.globalId} style={{ fontSize: 12 }} /></span>
         </div>)}
         {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 모니터링의 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}
+        {filteredAssets.length > limit && <button onClick={() => setLimit(l => l + PAGE)} style={{ ...btn, display: 'flex', justifyContent: 'center', width: '100%', borderRadius: 0, border: 0, borderTop: `1px solid ${T.bg.line}`, padding: 10, color: T.accent }}>더 보기 (+{Math.min(PAGE, filteredAssets.length - limit)} · 남은 {filteredAssets.length - limit})</button>}
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>조건에 맞는 자산이 없습니다.</div>}
         </div>
       </Section>
@@ -119,3 +122,4 @@ export default function FmPage({ modelId }: { modelId: string }) {
 const Stat = ({ label, value, sub }: { label: string; value: number; sub: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, minWidth: 160 }}>
     <div><div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div><div style={{ fontSize: 12, color: T.ink[2] }}>{label} · {sub}</div></div></div>)
+const PAGE = 100

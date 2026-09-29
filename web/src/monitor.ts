@@ -41,3 +41,11 @@ export const storeyClipZ = (list: Storey[], name: string): [number, number] => {
   const above = list.filter(e => e.building === s.building && e.z > s.z).sort((a, b) => a.z - b.z)[0]
   return [s.z, above ? above.z : s.z + 3.5]
 }
+/** 건물 단면 히트맵 한 칸(층 × 분야)의 등급 — 행들의 최고 긴급도로. 경보 → crit, 장애·오프라인·절체·무전원·계측 위험 → warn.
+ *  작업지시·결함·점검 지연은 칸 색을 바꾸지 않는다(색은 설비 상태에만 — 할 일은 '조치 필요' 목록이 말한다) */
+export type Level = 'crit' | 'warn' | 'ok' | 'none'
+export const cellLevel = (rows: Row[], dead: (gid: string) => boolean = () => false): Level => {
+  if (!rows.length) return 'none'
+  const min = Math.min(...rows.map(r => rank(r, dead(r.globalId))))
+  return min === 0 ? 'crit' : min <= 2 ? 'warn' : 'ok'
+}

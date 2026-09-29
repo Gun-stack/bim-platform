@@ -41,7 +41,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   const elRow = (e: ElementRow): Row => ({ key: 'e:' + e.globalId, gid: e.globalId, label: e.name ?? '(이름 없음)', sub: ifcKo(e.ifcClass) + (e.spatialNodeId != null && storeyOf.get(e.spatialNodeId) ? ' · ' + storeyOf.get(e.spatialNodeId) : ''), icon: classIcon(e.ifcClass), count: 0,
     hidden: hidden.gids.has(e.globalId) || hidden.classes.has(e.ifcClass), solo: hidden.solo?.key === 'e:' + e.globalId, gids: () => [e.globalId] })
   const spRow = (n: SpatialNode): Row => {
-    const g = desc(n); return { badge: g.reduce((k, g) => k + (abnormal.has(g) ? 1 : 0), 0), key: 'n:' + n.id, label: n.name ?? '(이름 없음)', sub: n.ifcClass.replace('Ifc', '') + (n.elevation != null ? ` ${n.elevation.toFixed(2)}m` : ''), icon: classIcon(n.ifcClass), count: g.length,
+    const g = desc(n); return { badge: g.reduce((k, g) => k + (abnormal.has(g) ? 1 : 0), 0), key: 'n:' + n.id, label: n.name ?? '(이름 없음)', sub: n.ifcClass === 'IfcBuildingStorey' ? (n.elevation != null ? `EL ${n.elevation >= 0 ? '+' : ''}${n.elevation.toFixed(2)}` : '') : n.ifcClass.replace('Ifc', '') + (n.elevation != null ? ` ${n.elevation.toFixed(2)}m` : ''), icon: classIcon(n.ifcClass), count: g.length,
       hidden: hidden.nodes.has(n.id), solo: hidden.solo?.key === 'n:' + n.id, gids: () => g,
       children: () => [...(childrenOf.get(n.id) ?? []).map(spRow), ...(byNode.get(n.id) ?? []).map(elRow)] }
   }

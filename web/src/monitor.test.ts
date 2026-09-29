@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAbn, overdue, rank, storeyClipZ, teamStats, type Row, type StatRow, type Storey } from './monitor'
+import { cellLevel, isAbn, overdue, rank, storeyClipZ, teamStats, type Row, type StatRow, type Storey } from './monitor'
 
 const row = (p: Partial<Row>): Row => ({ globalId: 'g', ifcClass: 'IfcPump', name: 'WP-1', storey: 'B1', zone: null, elevation: 0, building: null, systems: [], status: null, assetId: null, assetTag: null, assetStatus: 'ACTIVE', lastResult: null, openWorkOrders: 0, ...p })
 
@@ -56,4 +56,15 @@ describe('storeyClipZ — 층 단면 상한은 같은 동의 다음 층', () => 
   it('P1F: 표고가 같은 본동 1F 가 아니라 P2F 까지', () => expect(storeyClipZ(list, 'P1F')).toEqual([0, 3]))
   it('같은 동 최상층은 +3.5', () => expect(storeyClipZ(list, 'P3F')).toEqual([6, 9.5]))
   it('동 정보가 없는 모델(실무 IFC)은 전체를 한 동으로', () => expect(storeyClipZ([{ name: 'L1', z: 0, building: null }, { name: 'L2', z: 4, building: null }], 'L1')).toEqual([0, 4]))
+})
+
+describe('cellLevel — 건물 단면 히트맵 칸', () => {
+  it('경보 → crit, 장애·무전원·계측 위험 → warn, 그 외 요소 → ok, 요소 없음 → none', () => {
+    expect(cellLevel([row({ status: { Status: 'ALARM' } }), row({})])).toBe('crit')
+    expect(cellLevel([row({ status: { Status: 'FAULT' } })])).toBe('warn')
+    expect(cellLevel([row({ globalId: 'd' })], g => g === 'd')).toBe('warn')
+    expect(cellLevel([row({ status: { Status: 'NORMAL', LoadPercent: 97 } })])).toBe('warn')
+    expect(cellLevel([row({ openWorkOrders: 2 }), row({ nextDueOn: '2000-01-01' })])).toBe('ok')   // 작업지시·지연은 칸 색을 안 바꾼다(조치 필요 목록에서)
+    expect(cellLevel([])).toBe('none')
+  })
 })
