@@ -8,6 +8,7 @@ import FmBoard from './FmBoard'
 import { setHashParam, useHashQuery } from './useHashQuery'
 import { AlertToast, useAlerts } from './useAlerts'
 import ObjectDrawer from './ObjectDrawer'
+import { useStream } from './stream'
 import { T } from './theme'
 import NavLinks from './NavLinks'
 
@@ -29,7 +30,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- 진입 시 1회: 지연 딥링크면 자산 대장으로 스크롤
   useEffect(() => { if (hq.has('due')) requestAnimationFrame(() => assetsRef.current?.scrollIntoView({ block: 'start' })) }, [])
   const reload = useCallback(() => Promise.all([api<Asset[]>(`/models/${modelId}/assets`), api<WorkOrder[]>(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
-  const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 5초 폴링 — 이상 배너 + 전역 경보 토스트
+  useStream(modelId, ['work_order'], reload)   // 경보가 만든 작업지시가 칸반에 바로 뜬다
+  const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 상태 구독(서버 푸시) — 이상 배너 + 전역 경보 토스트
   useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
 
   // 딥링크: ?wo={id} → 보드 펼침 + 카드 하이라이트/Drawer, ?sel={gid} → 객체 패널(작업지시 목록 포함) + 자산 대장 필터

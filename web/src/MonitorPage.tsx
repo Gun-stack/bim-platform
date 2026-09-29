@@ -15,9 +15,10 @@ import EventBars, { type Hour } from './EventBars'
 import { useSections } from './useSections'
 import { readings, inlineReadings, LEVEL_COLOR } from './readings'
 import { setHashParam, useHashQuery } from './useHashQuery'
+import { useStream } from './stream'
 import { T } from './theme'
 
-/** #/models/{id}/monitor — 건물 요약 → 팀 KPI → 팀 × 층 격자 + 최근 이벤트. 5초 자동 갱신. ?kiosk=1 은 관제실 벽면용 */
+/** #/models/{id}/monitor — 건물 요약 → 팀 KPI → 팀 × 층 격자 + 최근 이벤트. 서버 푸시로 갱신. ?kiosk=1 은 관제실 벽면용 */
 type Mode = 'abnormal' | 'equipment' | 'all'
 
 export default function MonitorPage({ modelId }: { modelId: string }) {
@@ -50,7 +51,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       if (prevAbn.current) { const fresh = [...abn].filter(g => !prevAbn.current!.has(g)); if (fresh.length) { setFlash(new Set(fresh)); setTimeout(() => setFlash(new Set()), 4000); if (soundRef.current) beep() } }
       prevAbn.current = abn
       setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setEvents(ev); setTimeline(tl); setTick(new Date()) }), [modelId])
-  useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [modelId, load])
+  useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); load() }, [modelId, load])
+  useStream(modelId, ['status', 'work_order'], load)
   useEffect(() => { if (sec.stats) api<StatRow[]>(`/models/${modelId}/monitor/stats?days=${days}`).then(setStats).catch(() => {}) }, [modelId, days, sec.stats, tick])
 
   // ?sel={gid} 딥링크: 해당 행으로 스크롤 + 4초 플래시 (기존 .fresh 재사용). 현재 필터에 안 잡히는 행이면 '전체' 모드로
@@ -104,7 +106,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
         <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>설비 모니터링</span></h1>
         <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: T.ink[2], cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} /> 알림음</label>
-        <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 * fs }}>갱신 {hms(tick)} · 5초</span>
+        <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 * fs }}>갱신 {hms(tick)} · 실시간</span>
         {(() => { const q = new URLSearchParams(hq); if (kiosk) q.delete('kiosk'); else q.set('kiosk', '1'); const url = `#/models/${modelId}/monitor${q.size ? '?' + q.toString() : ''}`
           return kiosk ? <a href={url} style={{ color: T.ink[3], fontSize: 12 * fs, textDecoration: 'none' }}>키오스크 해제</a>
             : <a href={url} title="벽면 모드 — 내비 숨김 · 글자 확대 · 이상만" style={btn}>키오스크</a> })()}

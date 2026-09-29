@@ -5,10 +5,11 @@ import { api, type StatusRow } from './api'
 import { isAbnormal, statusHex, statusLabel } from './status'
 import { T } from './theme'
 import NavLinks from './NavLinks'
+import { useStream } from './stream'
 
 const isAbn = (r: StatusRow) => isAbnormal(r.status.Status)
 
-/** 상태 5초 폴링 + 새 ALARM/FAULT 감지 — 어느 화면에서든 경보 인지 (MonitorPage 는 자기 데이터로 같은 diff 를 한다) */
+/** 상태 구독(서버 푸시, 60초 안전망) + 새 ALARM/FAULT 감지 — 어느 화면에서든 경보 인지 (MonitorPage 는 자기 데이터로 같은 diff 를 한다) */
 export function useAlerts(modelId: string) {
   const [rows, setRows] = useState<StatusRow[]>([])
   const [fresh, setFresh] = useState<StatusRow[]>([])   // 새로 발생한 경보 — 토스트로, 8초 후 자동 소거
@@ -23,7 +24,8 @@ export function useAlerts(modelId: string) {
     setRows(rs)
   }).catch(() => {}), [modelId])
   // oxlint-disable-next-line react/set-state-in-effect -- 모델 변경 시 이전 모델의 토스트 제거
-  useEffect(() => { prev.current = null; setFresh([]); reload(); const t = setInterval(reload, 5000); return () => clearInterval(t) }, [reload])
+  useEffect(() => { prev.current = null; setFresh([]); reload() }, [reload])
+  useStream(modelId, ['status'], reload)
   const dismiss = useCallback((r: StatusRow) => setFresh(f => f.filter(x => x !== r)), [])
   return { rows, abnormal: rows.filter(isAbn), fresh, dismiss, reload }
 }
