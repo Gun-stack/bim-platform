@@ -214,3 +214,5 @@ flowchart LR
 | IFC 추출 (계통·연결·포트) | `ifc-worker/worker/extract.py` | `tests/test_ports.py` |
 | 변환 잡 루프·lease | `ifc-worker/worker/main.py` | RECOVER SQL 은 api 의 `ConversionJobIntegrationTests` 가 이 파일을 읽어 검증 |
 | 3D Tiles 분할·백필 | `ifc-worker/worker/tiles.py` · `backfill.py` → 뷰어 `web/src/viewer/tiles.ts` | `tests/test_tiles.py` · `tiles.test.ts` — tileset 상자 Z-up, 뷰어 Y-up |
+| 관측성 지표·대시보드 | `api/…/Notifier.java`(구독자·알림 수·이벤트 지연) · `V10__notify_time.sql`(payload `t`) · `obs/prometheus.yml` · `obs/grafana/`(데이터소스·`dashboards/bim.json`) | `docker compose --profile obs up -d` → Grafana 127.0.0.1:3001. `/actuator/prometheus` 는 내부망만(nginx 404) |
+| 부하 측정 | `load/run.sh`(한 판·되돌리기) · `status-burst.js`(k6) · `sse-clients.mjs`(SSE 구독자·집계) | `sse-clients.test.mjs` — 분위수·표 한 행 |

@@ -59,3 +59,13 @@
 - 분산 추적(OpenTelemetry)·로그 수집(Loki) — 단일 인스턴스
 - 워커 메트릭 — 변환 소요는 conversion_job 시각으로 충분
 - 알림 규칙(Alertmanager)
+
+## 9. 구현 결정 (계획·실측)
+
+- 요청 퍼센타일: 앱 계산 분위수 대신 `percentiles-histogram` 버킷 → `histogram_quantile` — 엔드포인트·구간 합산 가능
+- API CPU: `process_cpu_time_ns_total` 변화율(코어 수) — `process_cpu_usage` 는 순간값
+- 대시보드 JVM 패널 둘(스레드·힙) — 단위가 다름. 요청률·p95 에서 SSE(`/stream`·`/events`) 제외 — 연결 수명이라 지연 왜곡
+- SSE 구독자 스크립트: 워커 스레드당 200개 — 한 스레드 1,000개·초당 200건이면 부하기가 먼저 포화(CPU 0.9)
+- 되돌리기: 상태 PATCH 대신 요소 `Pset_BimStatus` 스냅숏 SQL 복원 + 구간 STATUS 이벤트 삭제 — 파생값(FACP·주차 집계)·UpdatedAt 까지 그대로, 작업지시 규칙 재실행 없음
+- 끊긴 SSE 구독 정리가 하트비트 몇 회 뒤(약 66 s) — 구독자 게이지로 발견. `run.sh` 가 판 사이에 대기, 즉시 정리는 다음 단계
+- Grafana 프로비저닝은 하위 디렉터리째 마운트 — 파일 하나 마운트는 편집기가 바꿔 쓰면 끊기고, provisioning 전체 마운트는 plugins·alerting 없음 오류

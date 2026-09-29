@@ -138,11 +138,12 @@ flowchart LR
   S3 -- GLB --> WEB
 ```
 
-- Docker Compose: `web`, `api`, `ifc-worker`, `postgis`, `minio`
+- Docker Compose: `web`, `api`, `ifc-worker`, `postgis`, `minio` (+ profile `demo`: `sim`·`tunnel`, `obs`: `prometheus`·`grafana`)
 - 브라우저는 SSE로 변환 진행률 수신. GLB의 IFC GlobalId 노드 ↔ API 요소 데이터 연결
 - 실시간 푸시: DB 트리거 pg_notify → API Notifier(LISTEN 하나) → 모델별 SSE. 워커가 쓰는 변환 진행률도 같은 경로
 - 3D Tiles: 워커가 변환 직후 GLB 를 대지 → 동 외피 → 층 타일로 분할해 `glb/{model}/tiles/`(같은 익명 읽기·nginx 경로), GLB 와 같은 트랜잭션에서 공개. 뷰어 자체 순회기(의존성 없음)가 층을 받고 해제. 선택·딥링크·추적·펄스·포커스는 그 층을 받아 고정. 요소 3,000 이상 기본, `?tiles=0|1`
-- 탭 여러 개 운영 시 앞단 프록시는 HTTP/2 권장 — HTTP/1.1 은 호스트당 6연결, 열린 탭마다 SSE 1개 점유. 숨은 탭은 스트림 닫음, 다시 보이면 재연결·재조회
+- 탭 여러 개 운영 시 앞단 프록시는 HTTP/2 권장 — HTTP/1.1 은 호스트당 6연결, 열린 탭마다 SSE 1개 점유. 숨은 탭은 스트림 닫음, 다시 보이면 재연결·재조회. 삭제된 모델의 스트림(404) 재시도는 5·10·20·40·60초
+- 관측성: Micrometer → `/actuator/prometheus`(compose 내부망·호스트 127.0.0.1 만, nginx 404) → Prometheus 5초 → Grafana 대시보드(요청률·p95·이벤트 지연·SSE 구독자·알림률·DB 풀·JVM·CPU). 알림 payload 의 트리거 시각 `t` 가 지연 기준
 - 🗺️ 탐색형 다이어그램([Archify](https://github.com/tt-a1i/archify) 생성, 상단 바 오른쪽 링크):
   - 운영 흐름 [web/public/flow.html](web/public/flow.html) — 업로드→변환→운영→작업지시 4개 뷰. 원본 [docs/flow.archify.json](docs/flow.archify.json)
   - 아키텍처 [web/public/architecture.html](web/public/architecture.html) — 요청 경로·변환 파이프라인·GLB 전달 3개 뷰. 원본 [docs/architecture.archify.json](docs/architecture.archify.json)
@@ -192,7 +193,7 @@ project ─ model ─ element ─ asset ─┬─ inspection
 - **Data / Storage:** PostgreSQL 16, PostGIS 3.4, MinIO
 - **IFC Worker:** Python 3.13, IfcOpenShell 0.8.5, psycopg, pyproj
 - **Frontend:** React 19, TypeScript, Vite, Three.js, MapLibre GL. 디자인 토큰 한 표(`theme.ts`)로 다크 관제실 테마, 색은 상태·분야에만
-- **Quality / Ops:** JUnit 5, Testcontainers, Python unittest, Vitest, oxlint, GitHub Actions, Docker Compose, nginx
+- **Quality / Ops:** JUnit 5, Testcontainers, Python unittest, Vitest, oxlint, GitHub Actions, Docker Compose, nginx, Micrometer·Prometheus·Grafana, k6
 
 ## 규모 측정
 
@@ -237,6 +238,21 @@ project ─ model ─ element ─ asset ─┬─ inspection
 - 정제: 화면 공간 오차 16 px(동 오차 = 대지 대각선/20) — 홈 뷰에서 모든 동이 층까지, 멀리 빠지면 외피. 층 타일 삼각형 예산 100만 초과 시 안 보이는·오래된 층부터 해제
 - 50 Mbps: 헤드리스 Chrome 네트워크 에뮬레이션(지연 20 ms), 캐시 끔
 
+| 부하 (R2-3) — 초당 PATCH (달성) | SSE 구독자 | PATCH p95 | PATCH 실패 | 이벤트 지연 p50 · p95 · p99 (종단) | 서버 지연 p95 | 누락 | API CPU 최대 (코어) | DB 풀 대기 최대 |
+|---|---|---|---|---|---|---|---|---|
+| 20 (20.0) | 100 | 7 ms | 0.0 % | 10 · 15 · 17 ms | 8 ms | 0.00 % | 0.2 | 0 |
+| 100 (100.0) | 500 | 3 ms | 0.0 % | 7 · 11 · 13 ms | 4 ms | 0.00 % | 0.8 | 0 |
+| 200 (173.5) | 1000 | 4965 ms | 0.0 % | 45 · 123 · 170 ms | 118 ms | 0.00 % | 2.4 | 856 |
+
+- 부하: `load/run.sh R M` — k6(compose 망에서 api:8080 직접, nginx 레이트 리밋 우회)가 열린 작업지시가 있는 감지기 14개에 `PATCH …/status` 초당 R건 60초, Node 워커 스레드(200개씩)가 SSE 구독자 M개. 끝나면 요소 상태 스냅숏 복원·부하 이벤트 삭제
+- 종단 지연 = 구독자 수신 − 트리거 시각 `t`(V10, `clock_timestamp()`). 서버 지연 = `t` → Notifier dispatch(`bim_notify_lag_seconds`). 누락 = 1 − 받은 이벤트 / (성공 PATCH × 구독자)
+- 한계: 초당 200 × 구독자 1,000 — PATCH p95 4,965 ms·달성 173.5/s(< 0.95R) → PATCH 마다 가상 건물 파생값(`StatusService.demoAggregates` — FACP·주차 집계 행 UPDATE)이 같은 행을 잠가 직렬화. 근거: DB 대기 대부분 `Lock:transactionid`·`Lock:tuple`(FACP UPDATE 앞 대기열), DB 풀 대기 최대 856, API CPU 2.4 / 10코어
+  - 같은 초당 200 에 구독자 10 이면 PATCH p95 3 ms·잠금 대기 없음 — 구독자 1,000 팬아웃이 같은 MacBook(부하기·Docker 포트 포워딩 포함)을 채워 잠금 구간이 길어진 것(연결 점유 1.4 → 57 ms). 데모 모델 전용 단일 행(FACP·PCS·DISP 각 1행) 병목, 이벤트 전달은 누락 0 %·종단 p95 123 ms 유지
+- 끊긴 SSE 정리 66 s — 서버는 하트비트(20초) 전송이 실패해야 구독을 뺀다. SSE 구독자 게이지로 처음 드러남
+- 환경: 부하기(k6·Node)와 API 가 같은 MacBook(Docker VM 10코어) — 절대값보다 시나리오 간 추세
+
+![Grafana — 부하 시나리오 동안 요청률·p95·이벤트 지연·SSE 구독자·DB 풀·CPU](images/15-grafana.png)
+
 ## 빠른 실행
 
 ```bash
@@ -245,6 +261,7 @@ docker compose up -d --build --wait
 ```
 
 - 웹 화면: [http://localhost:5173](http://localhost:5173)
+- 관측성: `docker compose --profile obs up -d` → Grafana [http://localhost:3001](http://localhost:3001)(익명 보기, 대시보드 BIM API)·Prometheus 127.0.0.1:9090. 부하 한 판 `load/run.sh <초당 PATCH> <SSE 구독자>`
 - `.env.example`은 로컬 데모용. 외부 공개 시 `.env`의 `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD` → nginx가 화면·API·glb 전부에 Basic 인증(단일 계정. 계정별 권한은 다음 단계)
 - TLS는 앞단 리버스 프록시 몫. api·DB·MinIO 는 127.0.0.1 바인딩
 - 홈의 **1분 둘러보기** — 대표 건물로 모니터링 → 경보 위치 → 계통 흐름 → 작업지시 → 다른 건물. 읽기 전용 딥링크라 공개 데모에서도 동작
@@ -289,6 +306,7 @@ python3 samples/gen/bms_sim.py <modelId>        # 상태 API 시뮬레이터 (�
 (cd ifc-worker && python3 -m unittest discover -s tests)
 (cd web && npm ci && npm run lint && npm test && npm run build)
 (cd samples/gen && python3 -m unittest test_mep_plan)
+node --test load/sse-clients.test.mjs   # 부하 집계(분위수·표 한 행)
 docker compose exec ifc-worker python -m worker.backfill   # 기존 모델에 3D Tiles 붙이기 (재업로드 없이)
 ```
 
@@ -308,6 +326,8 @@ api/          Spring Boot API, DB migration, 통합 테스트
 ifc-worker/   IFC 변환·추출 워커와 lease/retry·포트 연결 테스트
 web/          React UI, Three.js 뷰어, 모니터링·시설관리·지도
 samples/      IFC 안내, 가상 건물 생성기(gen_mep.py·mep_plan.py), BMS 시뮬레이터
+obs/          Prometheus 수집·Grafana 데이터소스·대시보드 (compose profile obs)
+load/         부하 측정 — k6 상태 PATCH·SSE 구독자·한 판 실행과 되돌리기
 docs/         화면 설계서, 다이어그램 원본(archify), 설계·구현 계획서
 images/       README 스크린샷·GIF
 compose.yaml  로컬 실행 환경
@@ -318,6 +338,6 @@ compose.yaml  로컬 실행 환경
 
 - **되는 것** — IFC2x3/IFC4 업로드·변환, 계통 추적·정전 시나리오, 운영 상태·이력·트렌드·통계, 경보 확인, 자산·점검 주기·작업지시 자동 생성, COBie/BCF 내보내기, 실무 IFC 포트 연결·계통 유도·클래스 복원
 - **첫인상 개선(09-28~29)** — X-ray 3D 렌더(AO·외곽선·경보 발광·계통 흐름·카메라 전환·등장 연출), 공통 상단 바·건물 운영 현황 홈(3D 썸네일), 건물 단면 히트맵·24시간 발생 막대, 공개 데모 모드·1분 둘러보기
-- **기술 심화(09-29~30)** — 실시간 푸시(LISTEN/NOTIFY → SSE), 초대형 모델 3D Tiles(층 타일 스트리밍)
-- **다음** — 타일 압축(meshopt)·층 안 LOD, COBie 정식 xlsx, 계정별 권한 관리(지금은 nginx Basic 단일 계정), 외부 공개 배포 구성(TLS·도메인)
+- **기술 심화(09-29~30)** — 실시간 푸시(LISTEN/NOTIFY → SSE), 초대형 모델 3D Tiles(층 타일 스트리밍), 관측성(Prometheus·Grafana)·부하 측정(k6·SSE 구독자 최대 1,000개)
+- **다음** — 가상 건물 파생값 집계를 PATCH 트랜잭션 밖으로(단일 행 잠금 직렬화 해소), 끊긴 SSE 즉시 정리, 타일 압축(meshopt)·층 안 LOD, COBie 정식 xlsx, 계정별 권한 관리(지금은 nginx Basic 단일 계정), 외부 공개 배포 구성(TLS·도메인)
 - **입력 한계로 둔 것** — IFC2x3 전기 모델은 회로 연결 미출력 → 추적 불가(Clinic Electrical, 포트 0)
