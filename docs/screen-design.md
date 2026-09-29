@@ -191,7 +191,7 @@ flowchart LR
 | 무엇 | 파일 | 비고 |
 |---|---|---|
 | 라우팅·상단 바·홈 | `web/src/App.tsx` · `Shell.tsx` · `Home.tsx` · `summary.ts` | 해시 라우팅 (`#/models/{id}`, `/monitor`, `/fm`, `#/map`), 화면은 모델 id 로 key. 썸네일 `GET·PUT /api/models/{id}/thumbnail` |
-| 3D 뷰어 | `web/src/viewer/Viewer.tsx` + `scene.ts`(Three) · `NavCube.ts` · `chrome.tsx`(플로팅·툴바) · `Props.tsx`(속성 표) · `LeftPanel.tsx` · `SystemPanel.tsx` · `FmPanel.tsx` · `StatusEditor.tsx` · `ColorPanel.tsx` | 딥링크 `?v= sel= clip= focus= wo= fm=` |
+| 3D 뷰어 | `web/src/viewer/Viewer.tsx` + `scene.ts`(Three) · `NavCube.ts` · `chrome.tsx`(플로팅·툴바) · `Props.tsx`(속성 표) · `LeftPanel.tsx` · `SystemPanel.tsx` · `FmPanel.tsx` · `StatusEditor.tsx` · `ColorPanel.tsx` · `tiles.ts`(3D Tiles 순회기) | 딥링크 `?v= sel= clip= focus= wo= fm= tiles=` |
 | 설비 모니터링 | `web/src/MonitorPage.tsx` (화면) + `monitor.ts` (순수 로직: 우선순위 `rank`·점검 지연·핵심 장비·경보 통계 팀 합계 `teamStats`) | `monitor.test.ts` 가 순서·합계를 고정 |
 | 시설관리 | `web/src/FmPage.tsx` (대장) + `FmBoard.tsx` (칸반) | |
 | 지도 | `web/src/MapPage.tsx` | |
@@ -213,3 +213,4 @@ flowchart LR
 | COBie·BCF 내보내기 | `api/…/ExportController.java` | |
 | IFC 추출 (계통·연결·포트) | `ifc-worker/worker/extract.py` | `tests/test_ports.py` |
 | 변환 잡 루프·lease | `ifc-worker/worker/main.py` | RECOVER SQL 은 api 의 `ConversionJobIntegrationTests` 가 이 파일을 읽어 검증 |
+| 3D Tiles 분할·백필 | `ifc-worker/worker/tiles.py` · `backfill.py` → 뷰어 `web/src/viewer/tiles.ts` | `tests/test_tiles.py` · `tiles.test.ts` — tileset 상자 Z-up, 뷰어 Y-up |

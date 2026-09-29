@@ -123,7 +123,7 @@
 - **장애에 강한 DB 잡 큐** — PostgreSQL `FOR UPDATE SKIP LOCKED` + lease owner·heartbeat·재시도. 메시지 브로커 없이 중복 실행·중단 작업 관리
 - **방향성 MEP 그래프** — IFC 계통과 요소 연결(`IfcRelConnectsElements`, 실무 IFC의 `IfcRelConnectsPorts` 포함) 저장. 재귀 CTE로 상류 원천·하류 영향 범위 추적. 같은 구조로 일반·비상전원 정전 영향 계산
 - **운영 상태에서 업무로 연결** — JSONB 상태 병합 API + 상위 원인 설비 경보 억제·열린 작업지시 재사용·완료 직후 재발 처리 규칙. 상태·작업지시 변경은 op_event 이력 → 이벤트 목록·계측 트렌드·경보 통계(에피소드·MTTR·재발)·경보 확인 시각의 단일 원천
-- **BIM 3D 탐색** — Three.js 요소 선택·검색, 속성·계통 트리, 단면(층 버튼), 측정, 격리, 색상화, 다중 선택, 뷰포인트 공유, 재질별 병합 렌더
+- **BIM 3D 탐색** — Three.js 요소 선택·검색, 속성·계통 트리, 단면(층 버튼), 측정, 격리, 색상화, 다중 선택, 뷰포인트 공유, 재질별 병합 렌더, 대형 모델 3D Tiles 스트리밍(층 타일·화면 공간 오차·삼각형 예산 LRU)
 - **BIM과 FMS 수명주기 분리** — IFC 연결 없는 자산도 관리. 재변환해도 자산·점검·작업 이력 보존. COBie(CSV zip)·BCF 2.1(topic·viewpoint) 내보내기
 
 ## 아키텍처
@@ -141,6 +141,7 @@ flowchart LR
 - Docker Compose: `web`, `api`, `ifc-worker`, `postgis`, `minio`
 - 브라우저는 SSE로 변환 진행률 수신. GLB의 IFC GlobalId 노드 ↔ API 요소 데이터 연결
 - 실시간 푸시: DB 트리거 pg_notify → API Notifier(LISTEN 하나) → 모델별 SSE. 워커가 쓰는 변환 진행률도 같은 경로
+- 3D Tiles: 워커가 변환 직후 GLB 를 대지 → 동 외피 → 층 타일로 분할해 `glb/{model}/tiles/`(같은 익명 읽기·nginx 경로), GLB 와 같은 트랜잭션에서 공개. 뷰어 자체 순회기(의존성 없음)가 층을 받고 해제. 선택·딥링크·추적·펄스·포커스는 그 층을 받아 고정. 요소 3,000 이상 기본, `?tiles=0|1`
 - 탭 여러 개 운영 시 앞단 프록시는 HTTP/2 권장 — HTTP/1.1 은 호스트당 6연결, 열린 탭마다 SSE 1개 점유. 숨은 탭은 스트림 닫음, 다시 보이면 재연결·재조회
 - 🗺️ 탐색형 다이어그램([Archify](https://github.com/tt-a1i/archify) 생성, 상단 바 오른쪽 링크):
   - 운영 흐름 [web/public/flow.html](web/public/flow.html) — 업로드→변환→운영→작업지시 4개 뷰. 원본 [docs/flow.archify.json](docs/flow.archify.json)
@@ -167,6 +168,7 @@ project ─ model ─ element ─ asset ─┬─ inspection
 | 운영 정보는 IFC 밖에 저장 | 설계 원본과 운영 이력 분리. 재변환에도 FMS 데이터 보존 |
 | 상태 변경을 이력으로 append | 현재값만으론 "언제부터 이랬나"에 답 불가. 트렌드·통계·확인 시각의 단일 원천 |
 | 화면 이동은 전부 해시 딥링크 | 공유·북마크 가능, 씬 재로드 없음. 새 기능도 `?sel=` 체계 재사용 |
+| 3D Tiles 자체 분할·순회기 | 노드 = 요소(GlobalId) 그대로 층 GLB 로 — 선택·추적·펄스·X-ray 체계가 타일에서도 동일. 외부 런타임·압축(meshopt·Draco)은 의존성·재질 체계 이중화 |
 
 ## 도메인 관점
 
@@ -204,20 +206,36 @@ project ─ model ─ element ─ asset ─┬─ inspection
 | Clinic Electrical (전기, IFC2x3) | 6 MB | 2,118 | 8.3 s | 26 MB | 3.4 s | 5,055 |
 | 가상 건물 (IFC4, 기본) | 2.3 MB | 1,613 | 0.9 s | 12.8 MB | 1.0~1.7 s | 1,808 (병합 미측정) |
 | 가상 건물 대형 (IFC4, `--floors 20 --annex 2 --density high`) | 7.2 MB | 5,269 | 2.6 s | 48.9 MB | 2.0~3.8 s | 5,609 → 30 |
+| 가상 건물 초대형 (IFC4, `--floors 40 --annex 2 --density high`) | 14.3 MB | 9,909 | 8 s | 97.6 MB · 타일 53개 | 1.7 s | 11,242 |
 
 - 대형 가상 건물 생성 시간(`gen_mep.py`, 워커 컨테이너 내부): 34.2 s
+- 초대형 가상 건물 생성 시간: 305.8 s
 
 먼저 막히는 곳 셋과 조치:
 
 - **모니터링 API가 자산 수에 비례** — 자산 566개 모델에서 130 ms. `EXPLAIN` 결과 inspection·work_order FK 열에 인덱스 없음 → 자산마다 seq scan(서브플랜 loops=566×4). FK 인덱스 4개로 **23 ms**(쿼리 415 → 16 ms)
 - **GLB 전송량** — 36 MB 는 로컬 0.2 s, 인터넷에선 병목. glTF 바이너리가 gzip 에 잘 눌림(36 → 5 MB) → nginx `model/gltf-binary` 압축. 전송 **7.3 MB**. Draco/meshopt 는 다음 단계
 - **draw calls** — 요소당 메시 하나라 4~5천. "병합 렌더"가 재질별로 합쳐 **3~30 개**. 단 4천 메시 병합에 9 s, 픽킹은 병합 범위 역추적으로 유지. 기본 끔(선택·격리 잦은 편집 화면), 관제 벽면처럼 보기만 할 때 켬
-- 요소 목록 API(527 KB / 29 ms)·공간 트리·계통 조회는 이 규모에서 병목 아님. 10만 요소·수백 MB 급은 3D Tiles·스트리밍 로드가 필요한 다른 문제 — 범위 밖
+- 요소 목록 API(527 KB / 29 ms)·공간 트리·계통 조회는 이 규모에서 병목 아님. 초대형(1만 요소)의 첫 화면·근접 메모리는 3D Tiles(아래 표). 10만 요소 급 요소 목록·트리는 다음 문제
 
 | 실시간 푸시 (R2-1) | 폴링(5초) | 푸시(LISTEN/NOTIFY → SSE) |
 |---|---|---|
 | 경보 반영 지연 (10회 평균 · 최대) | 2751 ms · 4686 ms | 433 ms · 453 ms |
 | 유휴 API 요청 (3화면 · 1분) | 72 | 8 |
+
+| 3D Tiles (R2-2) — 초대형 9,909 요소 | 단일 GLB | 타일 (대지·외피 → 층) |
+|---|---|---|
+| 전송 (gzip) | 23.6 MB 한 번 | 첫 화면 0.3 MB + 층 26.4 MB |
+| 첫 화면 · 무제한 | 1713 ms | 1151 ms |
+| 첫 화면 · 50 Mbps | 5506 ms | 1158 ms |
+| 정제 완료 · 50 Mbps | 7551 ms | 6372 ms |
+| 홈 뷰 삼각형 · 지오메트리 · JS 힙 | 3,254,478 · 10,581 · 452 MB | 3,254,478 · 11,717 · 241 MB (타일 52/52) |
+| 기계실 근접 삼각형 · 지오메트리 · JS 힙 | 781,746 · 10,581 · 427 MB | 778,954 · 2,447 · 153 MB (타일 24/52) |
+| fps 정지 · 회전 (헤드리스, 참고) | 14 · 24 | 24 · 38 |
+
+- 타일: 워커가 GLB 를 GlobalId 노드 단위로 대지(잔여)·동 외피(건축)·층 GLB 로 분할, 재테셀레이션 없음. 첫 화면 = tileset + 대지 + 외피
+- 정제: 화면 공간 오차 16 px(동 오차 = 대지 대각선/20) — 홈 뷰에서 모든 동이 층까지, 멀리 빠지면 외피. 층 타일 삼각형 예산 100만 초과 시 안 보이는·오래된 층부터 해제
+- 50 Mbps: 헤드리스 Chrome 네트워크 에뮬레이션(지연 20 ms), 캐시 끔
 
 ## 빠른 실행
 
@@ -257,6 +275,7 @@ docker compose --profile demo stop sim tunnel       # 공개 종료
 docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen ifc-worker:/tmp/gen
 docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py mep-building.ifc'                                 # 기본: 지상 10층 + 주차타워
 docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py large.ifc --floors 20 --annex 2 --density high'  # 대형
+docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py mep-xlarge.ifc --floors 40 --annex 2 --density high'  # 초대형 (3D Tiles 기준)
 docker compose cp ifc-worker:/tmp/gen/mep-building.ifc samples/
 python3 samples/gen/bms_sim.py <modelId>        # 상태 API 시뮬레이터 (경보·계측·복구). --name mep-building.ifc --pool 8 로 이름 조회·경보 대상 고정
 ```
@@ -270,10 +289,11 @@ python3 samples/gen/bms_sim.py <modelId>        # 상태 API 시뮬레이터 (�
 (cd ifc-worker && python3 -m unittest discover -s tests)
 (cd web && npm ci && npm run lint && npm test && npm run build)
 (cd samples/gen && python3 -m unittest test_mep_plan)
+docker compose exec ifc-worker python -m worker.backfill   # 기존 모델에 3D Tiles 붙이기 (재업로드 없이)
 ```
 
 - `#/` — 건물 운영 현황(모델 카드·썸네일·경보·작업지시 합계)과 IFC 업로드
-- `#/models/{id}` — 3D 뷰어 (`?sel=` 선택, `?focus=1` 경보 포커스, `?trace=up|down` 계통 추적, `?clip=` 단면, `?v=` 카메라, `?wo=` 작업지시 뷰포인트) · 단축키 안내 `?`
+- `#/models/{id}` — 3D 뷰어 (`?sel=` 선택, `?focus=1` 경보 포커스, `?trace=up|down` 계통 추적, `?clip=` 단면, `?v=` 카메라, `?wo=` 작업지시 뷰포인트, `?tiles=0|1` 타일 강제 끔·켬) · 단축키 안내 `?`
 - `#/models/{id}/monitor` — 설비 모니터링 (`?team= storey= mode= days=` 필터, `?kiosk=1` 벽면 모드)
 - `#/models/{id}/fm` — 자산 대장·작업지시 보드 (`?wo=` 카드, `?due=1` 지연 자산, `?assignee=none` 미배정)
 - `#/map` — GIS 지도
@@ -298,5 +318,6 @@ compose.yaml  로컬 실행 환경
 
 - **되는 것** — IFC2x3/IFC4 업로드·변환, 계통 추적·정전 시나리오, 운영 상태·이력·트렌드·통계, 경보 확인, 자산·점검 주기·작업지시 자동 생성, COBie/BCF 내보내기, 실무 IFC 포트 연결·계통 유도·클래스 복원
 - **첫인상 개선(09-28~29)** — X-ray 3D 렌더(AO·외곽선·경보 발광·계통 흐름·카메라 전환·등장 연출), 공통 상단 바·건물 운영 현황 홈(3D 썸네일), 건물 단면 히트맵·24시간 발생 막대, 공개 데모 모드·1분 둘러보기
-- **다음** — 대규모 모델용 3D Tiles(대형 가상 건물이 기준선), COBie 정식 xlsx, 계정별 권한 관리(지금은 nginx Basic 단일 계정), 외부 공개 배포 구성(TLS·도메인)
+- **기술 심화(09-29~30)** — 실시간 푸시(LISTEN/NOTIFY → SSE), 초대형 모델 3D Tiles(층 타일 스트리밍)
+- **다음** — 타일 압축(meshopt)·층 안 LOD, COBie 정식 xlsx, 계정별 권한 관리(지금은 nginx Basic 단일 계정), 외부 공개 배포 구성(TLS·도메인)
 - **입력 한계로 둔 것** — IFC2x3 전기 모델은 회로 연결 미출력 → 추적 불가(Clinic Electrical, 포트 0)
