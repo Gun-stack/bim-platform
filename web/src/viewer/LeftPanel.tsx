@@ -19,8 +19,8 @@ export const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', '
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
-export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel, statusBoard, abnormal, onFit }: {
-  model?: Model; stats: Stats; spatial: SpatialNode[]; elements: ElementRow[]
+export default function LeftPanel({ model, stats, tileMode, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel, statusBoard, abnormal, onFit }: {
+  model?: Model; stats: Stats; tileMode: boolean; spatial: SpatialNode[]; elements: ElementRow[]
   hidden: Hidden; setHidden: (h: Hidden) => void; opts: Opts; setOpts: (f: (o: Opts) => Opts) => void
   selected: Set<string>; onSelect: (gids: string[], mode: SelectMode) => void; onContext: (e: React.MouseEvent, gids: string[]) => void
   systemPanel?: ReactNode; statusBoard?: ReactNode; abnormal: Map<string, string>; onFit: () => void   // abnormal: gid → ALARM|FAULT (트리 배지)
@@ -106,7 +106,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     <aside style={{ height: '100%', display: 'flex', flexDirection: 'column', fontSize: 13, background: T.bg.raised }}>
       <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${T.bg.line}` }}>
         <div style={{ fontWeight: 600, fontSize: T.fs.lg, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={model?.name}>{model?.name ?? '…'}</div>
-        <div style={{ color: T.ink[3], fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · ${stats.fps} fps`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}{abnormal.size > 0 && <b style={{ color: T.crit, marginLeft: 6 }}>· 이상 {abnormal.size}</b>}</div>
+        <div style={{ color: T.ink[3], fontSize: 12 }} title={`렌더: ${stats.calls} draw calls · ${stats.triangles.toLocaleString()} 삼각형 · 지오메트리 ${stats.geometries.toLocaleString()} · ${stats.fps} fps${stats.tiles ? ` · 타일 ${stats.tiles.loaded}/${stats.tiles.total}${stats.tiles.pending ? ` (+${stats.tiles.pending})` : ''}` : ''}`}>{model?.ifcSchema} · 층 {spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').length} · 요소 {model?.elementCount?.toLocaleString()}{abnormal.size > 0 && <b style={{ color: T.crit, marginLeft: 6 }}>· 이상 {abnormal.size}</b>}</div>
       </div>
 
       {statusBoard}
@@ -114,7 +114,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
         <Toggle icon={Square} label="개구부 표시 · O" on={opts.openings} onClick={() => flipOpt('openings')} />
         <Toggle icon={Box} label="공간(구역) 표시 · Z" on={opts.spaces} onClick={() => flipOpt('spaces')} />
         <Toggle icon={Grid3x3} label="그리드 (평면·간격은 캔버스 좌하단) · G" on={opts.grid} onClick={() => flipOpt('grid')} />
-        <Toggle icon={Combine} label="병합 렌더 (성능) · R" on={opts.merged} onClick={() => flipOpt('merged')} />
+        <Toggle icon={Combine} label={tileMode ? '병합 렌더 — 타일 모드에선 꺼짐 (층 타일이 따로 들어오고 나가 합쳐 둘 수 없음)' : '병합 렌더 (성능) · R'} on={opts.merged && !tileMode} disabled={tileMode} onClick={() => flipOpt('merged')} />
         <Toggle icon={ScanEye} label="X-ray — 건축 반투명·외곽선 (끄면 원본 재질) · X" on={opts.xray} onClick={() => flipOpt('xray')} />
         <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕) · B" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }} />
         <span style={{ flex: 1 }} />

@@ -13,7 +13,8 @@ import NavLinks from '../NavLinks'
 import { day, useEsc } from '../ui'
 import FmPanel, { StatusBadge } from './FmPanel'
 import StatusEditor from './StatusEditor'
-import { Scene3D, type Kind, type Stats, type View } from './scene'
+import { Scene3D, type Classify, type Kind, type Stats, type View } from './scene'
+import { Tiles, tileMode } from './tiles'
 import LeftPanel, { STRUCT, type Hidden, type Opts, type SelectMode } from './LeftPanel'
 import ColorPanel from './ColorPanel'
 import ContextMenu, { type MenuItem } from './ContextMenu'
@@ -39,7 +40,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
   // 표시 옵션 저장은 LeftPanel 버튼 클릭 시(flipOpt) — focusOn 등 프로그램적 변경이 사용자 저장값을 덮지 않게
   const [opts, setOpts] = useState<Opts>(() => { const d: Opts = { openings: false, spaces: true, merged: false, grid: true, xray: true }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.opts') ?? '{}') } } catch { return d } })
   const [hidden, setHidden] = useState<Hidden>(() => { let s = false; try { s = localStorage.getItem('viewer.structHidden') === '1' } catch { /* 저장 불가 환경 */ } return { nodes: new Set(), classes: new Set(s ? STRUCT : []), gids: new Set() } })   // 구조체 숨김 기억
-  const [stats, setStats] = useState<Stats>({ calls: 0, triangles: 0, fps: 0 })
+  const [stats, setStats] = useState<Stats>({ calls: 0, triangles: 0, fps: 0, geometries: 0 })
+  const tiles = useRef<Tiles>(undefined)          // 타일 모드일 때만 (R2-2)
+  const [tileOn, setTileOn] = useState(false)
   const [err, setErr] = useState<string>()
   const [clip, setClip] = useState<number[] | null>(null)   // [xmin,xmax,ymin,ymax,zmin,zmax]
   const [measuring, setMeasuring] = useState(false)
@@ -72,7 +75,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.preset('home')   // 건물 전체가 보이는 홈 뷰 — 어느 층·어느 구역인지 한눈에 (길찾기용, 줌인하지 않음)
     const st = statusRows.find(r => r.globalId === gid)?.status.Status
     setFocusInfo({ gid, name: el.name ?? gid, zone: space?.name ?? undefined, storey: storey?.name ?? undefined, status: st, spaceGid: space?.globalId })
-    s.setMarker(gid, STATUS[st ?? '']?.color ?? num(T.crit))
+    const mark = () => { if (scene.current?.selected.includes(gid)) scene.current.setMarker(gid, STATUS[st ?? '']?.color ?? num(T.crit)) }   // 비콘은 요소 형상이 있어야 — 타일 모드면 그 층을 받은 뒤
+    if (tiles.current) void tiles.current.ensureLoaded('sel', [gid]).then(mark); else mark()
   }
   const focusRef = useRef(focusOn); focusRef.current = focusOn
   useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); setFocus('none'); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])   // 다른 요소를 고르면 포커스 모드(격리·비콘)도 해제 — 배너 X 와 동일
@@ -121,7 +125,19 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const el = canvas.current   // cleanup 에서 ref 대신 이 변수를 쓴다
     const s = new Scene3D(el); scene.current = s; firstVp.current = true
     s.onPick = setSelection
-    s.load(model.glbUrl, gid => { const e = byGid.get(gid); return { kind: e ? 'element' : spaceGids.has(gid) ? 'space' : 'opening', ifcClass: e?.ifcClass } }).then(() => {
+    const classify: Classify = gid => { const e = byGid.get(gid); return { kind: e ? 'element' : spaceGids.has(gid) ? 'space' : 'opening', ifcClass: e?.ifcClass } }
+    // 타일 모드(R2-2): 요소 → 층 GlobalId 는 API spatial 조상으로. 공간(IfcSpace) 형상은 자기 노드부터
+    const byId = new Map(spatial.map(n => [n.id, n])), nodeOf = new Map(spatial.map(n => [n.globalId, n.id]))
+    const storeyOf = (gid: string) => { let n = byId.get(byGid.get(gid)?.spatialNodeId ?? nodeOf.get(gid) ?? -1); while (n && n.ifcClass !== 'IfcBuildingStorey') n = n.parentId == null ? undefined : byId.get(n.parentId); return n?.globalId }
+    const single = () => { setTileOn(false); return s.load(model.glbUrl!, classify) }
+    const on = tileMode(model.tilesetUrl, model.elementCount ?? 0, new URLSearchParams(location.hash.split('?')[1] ?? '').get('tiles'))
+    setTileOn(on)
+    const ready = on
+      ? fetch(model.tilesetUrl!).then(r => { if (!r.ok) throw new Error(`tileset ${r.status}`); return r.json() })
+        .then(j => { const t = new Tiles(j, new URL(model.tilesetUrl!, location.href).href, s, classify, storeyOf); tiles.current = t; return t.start() })
+        .catch(e => { console.warn('tileset 실패 — 단일 GLB 로', e); tiles.current = undefined; return single() })
+      : single()
+    ready.then(() => {
       setBounds(s.bounds()); setLoaded(true)   // 뷰포인트 복원은 아래 딥링크 effect 가 (최초 + hashchange 재적용)
     }).catch(e => setErr(String(e)))
     let pending = false   // 호버 툴팁: 프레임당 1회
@@ -137,8 +153,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
     el.addEventListener('pointermove', onMove)
     s.onContext = (x, y) => setMenu({ x, y })
     s.onMeasure = m => setMeasures(ms => [...ms, m])
-    const t = setInterval(() => setStats(s.stats()), 500)
-    return () => { clearInterval(t); el.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null; setLoaded(false) }
+    const t = setInterval(() => setStats({ ...s.stats(), tiles: tiles.current?.count() }), 500)
+    return () => { clearInterval(t); tiles.current?.dispose(); tiles.current = undefined; el.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null; setLoaded(false) }
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.glbUrl, elements.length])
 
@@ -184,7 +200,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
     return () => clearTimeout(t)
   }, [loaded, modelId])
   useEffect(() => { if (loaded) scene.current?.setXray(opts.xray) }, [opts.xray, loaded])   // 병합보다 먼저 — 병합이 X-ray 재질로 묶이게
-  useEffect(() => { if (loaded) scene.current?.setMerged(opts.merged) }, [opts.merged, loaded])   // loaded 의존: 마운트 땐 씬이 없어 저장된 merged 가 버려졌다 — 로드 뒤 다시 적용
+  useEffect(() => { if (loaded) scene.current?.setMerged(opts.merged && !tileOn) }, [opts.merged, loaded, tileOn])   // loaded 의존: 마운트 땐 씬이 없어 저장된 merged 가 버려졌다 — 로드 뒤 다시 적용. 타일 모드는 병합 끔(층이 들어오고 나간다)
+  useEffect(() => { if (loaded) void tiles.current?.ensureLoaded('sel', selection) }, [selection, loaded])   // 트리 선택·딥링크 ?sel — 그 층 타일을 받아 고정
   // 단일 선택 → URL ?sel= (replaceState: hashchange 가 안 나 딥링크 effect 재실행 없음) + 독 알림 + 0.7초 뒤 3D 스냅샷(핏/포커스 카메라가 자리잡은 뒤).
   // loaded 가드: 딥링크 effect 가 ?sel= 을 먼저 소비한 뒤에만 URL 을 다시 쓴다. focus 만 지워 다음 "3D 위치" 클릭이 새 해시가 되게 (v/clip/wo/fm 은 유지)
   useEffect(() => {
@@ -279,7 +296,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       case 'struct': flipStruct(); break
       case 'openings': flipOpt('openings'); break
       case 'spaces': flipOpt('spaces'); break
-      case 'merged': flipOpt('merged'); break
+      case 'merged': if (!tileOn) flipOpt('merged'); break
       case 'xray': flipOpt('xray'); break
       case 'clip': if (bounds) setClip(clip ? null : bounds.min.flatMap((m, i) => [m, bounds.max[i]])); break
       case 'measure': setMeasuring(m => !m); break
@@ -301,8 +318,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
   const storeys = spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0))
   const abnormal = useMemo(() => new Map(statusRows.filter(r => isAbnormal(r.status.Status)).map(r => [r.globalId, r.status.Status!])), [statusRows])
-  useEffect(() => { scene.current?.setPulse(new Map([...abnormal].map(([g, st]) => [g, STATUS[st]?.color ?? num(T.crit)]))) }, [abnormal, loaded])   // 경보=빨강·장애=주황 발광
-  useEffect(() => { scene.current?.setFlow(route?.nodes.map(n => ({ gid: n.globalId, depth: n.depth })) ?? [], route?.direction ?? 'down', route?.direction === 'up' ? num(T.accent) : num(T.ok)) }, [route, loaded])   // 추적 경로 흐름
+  useEffect(() => {   // 경보=빨강·장애=주황 발광. 타일 모드면 그 층들을 받아 고정 — 멀리서도 펄스가 보이게
+    scene.current?.setPulse(new Map([...abnormal].map(([g, st]) => [g, STATUS[st]?.color ?? num(T.crit)])))
+    if (loaded) void tiles.current?.ensureLoaded('pulse', [...abnormal.keys()])
+  }, [abnormal, loaded])
+  useEffect(() => {   // 추적 경로 흐름. 타일 모드면 경로가 지나는 층을 받아 고정
+    scene.current?.setFlow(route?.nodes.map(n => ({ gid: n.globalId, depth: n.depth })) ?? [], route?.direction ?? 'down', route?.direction === 'up' ? num(T.accent) : num(T.ok))
+    if (loaded) void tiles.current?.ensureLoaded('trace', route?.nodes.map(n => n.globalId) ?? [])
+  }, [route, loaded])
   const selAsset = selection.length === 1 ? assetByGid.get(selection[0]) : undefined
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- 자산 id·열린 작업지시 수가 바뀔 때만
   useEffect(() => { if (!selAsset) { setAssetDetail(undefined); return } api<AssetDetail>(`/assets/${selAsset.id}`).then(setAssetDetail).catch(() => setAssetDetail(undefined)) }, [selAsset?.id, selAsset?.openWorkOrders])
@@ -314,7 +337,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   return (
     <Group orientation="horizontal" style={{ height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
-        <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={() => scene.current?.fit()}
+        <LeftPanel model={model} stats={stats} tileMode={tileOn} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={() => scene.current?.fit()}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
           systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute} onTrace={trace}
             onSolo={(label, gids, key) => setHidden({ ...hidden, solo: hidden.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } })}
@@ -433,7 +456,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {tab === 'props' && <>
           {!selection.length && <p style={{ color: T.ink[2] }}>요소를 클릭하면 속성이 표시됩니다. <span onClick={() => setShowKeys(true)} style={{ color: T.ink[3], cursor: 'pointer' }} title="? 키">단축키 ?</span></p>}
           {selection.length === 1 && detail && !('properties' in detail) && <p style={{ color: T.ink[2] }}>{detail.kind === 'space' ? '공간(구역) 형상입니다. 구역 정보는 왼쪽 공간 트리에서 확인하세요.' : '개구부 형상입니다 (요소 아님).'}</p>}
-          {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && <p style={{ color: T.warn, fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
+          {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && (tiles.current?.settled(detail.globalId) ?? true) && <p style={{ color: T.warn, fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
           {selection.length === 1 && detail && 'properties' in detail && <><StatusEditor key={detail.globalId} modelId={modelId} e={detail} reload={reloadStatus} /><Props e={detail} /></>}
           {selection.length > 1 && <MultiProps selection={selection} byGid={byGid} details={details} />}
           </>}

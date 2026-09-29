@@ -13,7 +13,7 @@ import { T, num } from '../theme'
 
 export type Kind = 'element' | 'space' | 'opening'
 const GID = /^[0-9A-Za-z_$]{22}$/
-export type Stats = { calls: number; triangles: number; fps: number }
+export type Stats = { calls: number; triangles: number; fps: number; geometries: number; tiles?: { loaded: number; total: number; pending: number } }
 /** GlobalId → 분류. 단일 GLB·타일 콘텐츠 공용 */
 export type Classify = (gid: string) => { kind: Kind; ifcClass?: string }
 // 선택: 색상 모드의 어떤 팔레트와도 겹치지 않는 마젠타, 반투명 + 항상 앞에(depthTest off) + 외곽선. 가려져 있어도 어디가 선택됐는지 보인다
@@ -150,6 +150,7 @@ export class Scene3D {
   /** GLB 장면 하나를 등록 — 노드 이름(GlobalId)으로 분류·X-ray 층위·외곽선, 메시 userData.tile = tile. 단일 GLB 는 '' 하나, 타일 모드는 타일 uri 마다.
    *  표시(재질·가시성) 반영은 호출자가: 단일 GLB 는 begin(), 타일은 setTileShown() */
   addContent(root: THREE.Object3D, tile: string, classify: Classify) {
+    this.removeContent(tile)   // 같은 타일 id 를 다시 추가할 때 이전 루트가 새지 않게
     root.traverse(o => {
       const m = o as THREE.Mesh
       if (!m.isMesh) return
@@ -245,7 +246,7 @@ export class Scene3D {
   /** Tab 순환: 보이는 요소(element)를 glb 순서로 다음(+1)/이전(-1) 선택. 단일 선택이 아니면 처음/끝부터. 카메라는 그대로 */
   cycle(dir: 1 | -1) {
     const gids: string[] = []; const seen = new Set<string>()
-    for (const m of this.meshes) { const g = m.name; if (!seen.has(g) && this.kind.get(g) === 'element' && this.visible(g, 'element')) { seen.add(g); gids.push(g) } }
+    for (const m of this.meshes) { const g = m.name; if (!seen.has(g) && this.kind.get(g) === 'element' && this.visible(g, 'element') && this.tileShown(m.userData.tile)) { seen.add(g); gids.push(g) } }
     if (!gids.length) return
     const cur = this.picked.size === 1 ? gids.indexOf([...this.picked][0]) : -1
     const i = cur < 0 ? (dir > 0 ? 0 : gids.length - 1) : (cur + dir + gids.length) % gids.length
@@ -489,7 +490,7 @@ export class Scene3D {
     this.frame()  // 탭이 숨겨져 rAF 가 멈춰도 수치는 최신으로
     const now = performance.now()
     if (now - this.fpsAt > 500) { this.fps = Math.round(this.frames * 1000 / (now - this.fpsAt)); this.frames = 0; this.fpsAt = now }
-    return { calls: this.pipeline.calls, triangles: this.pipeline.triangles, fps: this.fps }
+    return { calls: this.pipeline.calls, triangles: this.pipeline.triangles, fps: this.fps, geometries: this.renderer.info.memory.geometries }
   }
 
   /** 키보드: Escape = 선택 해제. 연속 키(WASD·QE·방향키·±·Shift)는 Set 에 담아 fly() 가 프레임마다 본다. 입력란·Ctrl/Cmd/Alt 조합은 무시. 단발 액션 키는 Viewer 가 처리 */
