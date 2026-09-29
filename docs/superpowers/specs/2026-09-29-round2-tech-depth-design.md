@@ -38,7 +38,7 @@
 ### API — 리스너 1개 + 팬아웃
 
 - `Notifier` (신규)
-  - 풀 밖 전용 JDBC 연결 하나(`DriverManager`, 같은 URL·계정) → `LISTEN bim`
+  - Hikari 풀 연결 하나를 계속 점유(풀 크기 11 — 기본 10 + LISTEN 1, 테스트 컨테이너·재연결이 같은 설정 공유) → `LISTEN bim`
   - 가상 스레드 루프: `PGConnection.getNotifications(10s)` → payload 파싱 → 모델별 구독자에게 전송
   - 연결 끊김: 1→2→4…최대 30초 백오프 재연결. 재연결 후 첫 루프에 구독자 전원에게 `resync` 이벤트(놓친 사이 전체 재조회 신호)
   - 구독자: `ConcurrentHashMap<UUID, Set<SseEmitter>>`, 송신 실패·완료·타임아웃 시 제거

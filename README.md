@@ -141,6 +141,7 @@ flowchart LR
 - Docker Compose: `web`, `api`, `ifc-worker`, `postgis`, `minio`
 - 브라우저는 SSE로 변환 진행률 수신. GLB의 IFC GlobalId 노드 ↔ API 요소 데이터 연결
 - 실시간 푸시: DB 트리거 pg_notify → API Notifier(LISTEN 하나) → 모델별 SSE. 워커가 쓰는 변환 진행률도 같은 경로
+- 탭 여러 개 운영 시 앞단 프록시는 HTTP/2 권장 — HTTP/1.1 은 호스트당 6연결, 열린 탭마다 SSE 1개 점유. 숨은 탭은 스트림 닫음, 다시 보이면 재연결·재조회
 - 🗺️ 탐색형 다이어그램([Archify](https://github.com/tt-a1i/archify) 생성, 상단 바 오른쪽 링크):
   - 운영 흐름 [web/public/flow.html](web/public/flow.html) — 업로드→변환→운영→작업지시 4개 뷰. 원본 [docs/flow.archify.json](docs/flow.archify.json)
   - 아키텍처 [web/public/architecture.html](web/public/architecture.html) — 요청 경로·변환 파이프라인·GLB 전달 3개 뷰. 원본 [docs/architecture.archify.json](docs/architecture.archify.json)
