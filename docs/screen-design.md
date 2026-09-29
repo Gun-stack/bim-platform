@@ -9,7 +9,7 @@
 |---|---|---|
 | 건물 운영 현황(홈) | `#/` | 합계(모델·요소·경보·장애·열린 작업지시) + 모델 카드(3D 썸네일·운영 칩) → 세 화면 진입. IFC 업로드(버튼·페이지 드롭) → 변환 진행률(SSE). 앱의 현관 |
 | 3D 뷰어 | `#/models/{id}` | 공간 탐색의 중심 — 요소 선택 → 요약 카드, 계통 추적, 정전 시나리오, 경보 포커스, 측정·단면 |
-| 설비 모니터링 | `#/models/{id}/monitor` | "지금 건물이 어떤가"에 답하는 관제 화면. 5초 갱신. `?kiosk=1` 벽면 모드 |
+| 설비 모니터링 | `#/models/{id}/monitor` | "지금 건물이 어떤가"에 답하는 관제 화면. 서버 푸시(SSE, 60초 안전망). `?kiosk=1` 벽면 모드 |
 | 시설관리 | `#/models/{id}/fm` | "무엇을 처리할 것인가"의 업무 화면 — 작업지시 칸반 + 자산 대장 |
 | GIS 지도 | `#/map` | 여러 건물의 부지 풋프린트. 단지 관점 진입점(보조) |
 
@@ -19,7 +19,7 @@
 
 모든 이동은 해시 쿼리 딥링크(`?sel=&focus=1`, `?sel=&trace=down`, `?wo=`, `?clip=`)이고 뷰어는 씬 재로드 없이 재적용한다.
 홈의 **1분 둘러보기**(09-29)는 이 딥링크만 이어 붙인 읽기 전용 투어 — 모니터링 → 경보 포커스 → 계통 추적 → 작업지시 → 홈. 공개 데모(`DEMO_PUBLIC=1`, 파괴적 쓰기 403)에서도 동작.
-전역 경보 토스트(5초 폴링)는 어느 화면에서든 세 화면으로 점프하는 우회로다.
+전역 경보 토스트(서버 푸시, SSE, 60초 안전망)는 어느 화면에서든 세 화면으로 점프하는 우회로다.
 
 ```mermaid
 flowchart TB
@@ -197,7 +197,7 @@ flowchart LR
 | 지도 | `web/src/MapPage.tsx` | |
 | 계측 트렌드 | `web/src/TrendModal.tsx` | 모니터링·뷰어 공용 |
 | **객체 맥락** | `web/src/context.ts`(`?sel=` 링크·최근·스냅샷 캐시) · `useObject.ts` · `ObjectSummary.tsx` · `ObjectDrawer.tsx` · `ObjectDock.tsx` · `viewer/scene.ts snapshot()` | `context.test.ts` |
-| 전역 경보 토스트 | `web/src/useAlerts.tsx` | 5초 폴링 + diff |
+| 전역 경보 토스트 | `web/src/useAlerts.tsx` | 서버 푸시(SSE, 60초 안전망) + diff |
 | **디자인 토큰** | `web/src/theme.ts` (+ `index.css` 사본, `theme.test.ts`) | 배경 4·잉크 3·강조·상태 3+soft·팀 5·축·반지름·글자 크기·굵기·그림자. TSX 는 `T`, CSS 는 `var()` |
 | **상태 → 라벨·색** | `web/src/status.ts` | 모든 화면 공용 (`STATUS`, `statusLabel`, `statusHex`, `WO_STATUS`) |
 | **팀 ↔ 계통 매핑** | `web/src/teams.ts` | 조명제어반→전기팀 예외 포함 |

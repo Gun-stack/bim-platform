@@ -140,6 +140,7 @@ flowchart LR
 
 - Docker Compose: `web`, `api`, `ifc-worker`, `postgis`, `minio`
 - 브라우저는 SSE로 변환 진행률 수신. GLB의 IFC GlobalId 노드 ↔ API 요소 데이터 연결
+- 실시간 푸시: DB 트리거 pg_notify → API Notifier(LISTEN 하나) → 모델별 SSE. 워커가 쓰는 변환 진행률도 같은 경로
 - 🗺️ 탐색형 다이어그램([Archify](https://github.com/tt-a1i/archify) 생성, 상단 바 오른쪽 링크):
   - 운영 흐름 [web/public/flow.html](web/public/flow.html) — 업로드→변환→운영→작업지시 4개 뷰. 원본 [docs/flow.archify.json](docs/flow.archify.json)
   - 아키텍처 [web/public/architecture.html](web/public/architecture.html) — 요청 경로·변환 파이프라인·GLB 전달 3개 뷰. 원본 [docs/architecture.archify.json](docs/architecture.archify.json)
@@ -211,6 +212,11 @@ project ─ model ─ element ─ asset ─┬─ inspection
 - **GLB 전송량** — 36 MB 는 로컬 0.2 s, 인터넷에선 병목. glTF 바이너리가 gzip 에 잘 눌림(36 → 5 MB) → nginx `model/gltf-binary` 압축. 전송 **7.3 MB**. Draco/meshopt 는 다음 단계
 - **draw calls** — 요소당 메시 하나라 4~5천. "병합 렌더"가 재질별로 합쳐 **3~30 개**. 단 4천 메시 병합에 9 s, 픽킹은 병합 범위 역추적으로 유지. 기본 끔(선택·격리 잦은 편집 화면), 관제 벽면처럼 보기만 할 때 켬
 - 요소 목록 API(527 KB / 29 ms)·공간 트리·계통 조회는 이 규모에서 병목 아님. 10만 요소·수백 MB 급은 3D Tiles·스트리밍 로드가 필요한 다른 문제 — 범위 밖
+
+| 실시간 푸시 (R2-1) | 폴링(5초) | 푸시(LISTEN/NOTIFY → SSE) |
+|---|---|---|
+| 경보 반영 지연 (10회 평균 · 최대) | 2751 ms · 4686 ms | 433 ms · 453 ms |
+| 유휴 API 요청 (3화면 · 1분) | 72 | 8 |
 
 ## 빠른 실행
 
