@@ -247,7 +247,7 @@ project ─ model ─ element ─ asset ─┬─ inspection
 - 부하: `load/run.sh R M` — k6(compose 망에서 api:8080 직접, nginx 레이트 리밋 우회)가 열린 작업지시가 있는 감지기 14개에 `PATCH …/status` 초당 R건 60초, Node 워커 스레드(200개씩)가 SSE 구독자 M개. 끝나면 요소 상태 스냅숏 복원·부하 이벤트 삭제
 - 종단 지연 = 구독자 수신 − 트리거 시각 `t`(V10, `clock_timestamp()`). 서버 지연 = `t` → Notifier dispatch(`bim_notify_lag_seconds`). 누락 = 1 − 받은 이벤트 / (성공 PATCH × 구독자)
 - 한계: 초당 200 × 구독자 1,000 — PATCH p95 4,965 ms·달성 173.5/s(< 0.95R) → PATCH 마다 가상 건물 파생값(`StatusService.demoAggregates` — FACP·주차 집계 행 UPDATE)이 같은 행을 잠가 직렬화. 근거: DB 대기 대부분 `Lock:transactionid`·`Lock:tuple`(FACP UPDATE 앞 대기열), DB 풀 대기 최대 856, API CPU 2.4 / 10코어
-  - 같은 초당 200 에 구독자 10 이면 PATCH p95 3 ms·잠금 대기 없음 — 구독자 1,000 팬아웃이 같은 MacBook(부하기·Docker 포트 포워딩 포함)을 채워 잠금 구간이 길어진 것(연결 점유 1.4 → 57 ms). 데모 모델 전용 단일 행(FACP·PCS·DISP 각 1행) 병목, 이벤트 전달은 누락 0 %·종단 p95 123 ms 유지
+  - 같은 초당 200 에 구독자 10 이면 PATCH p95 3 ms·잠금 대기 없음 — 구독자 1,000 팬아웃이 같은 MacBook(부하기·Docker 포트 포워딩 포함)을 채워 잠금 구간이 길어진 것(연결 점유 1.4 → 57 ms). 데모 모델 전용 단일 행(FACP·PCS·DISP 각 1행) 병목, 이벤트 전달은 누락 0 %·종단 p95 123 ms 유지(`t` 이후 기준 — 풀·행 잠금 대기인 PATCH p95 5 s 는 `t` 이전이라 제외, 화면 반영은 그만큼 늦음)
 - 끊긴 SSE 정리 66 s — 서버는 하트비트(20초) 전송이 실패해야 구독을 뺀다. SSE 구독자 게이지로 처음 드러남
 - 환경: 부하기(k6·Node)와 API 가 같은 MacBook(Docker VM 10코어) — 절대값보다 시나리오 간 추세
 

@@ -13,7 +13,8 @@ psql() { docker compose exec -T postgis psql -U bim -d bim -v ON_ERROR_STOP=1 -q
 subs() { curl -sf localhost:8080/actuator/prometheus | awk '/^bim_sse_subscribers/ {print int($2)}'; }   # api 포트는 호스트 127.0.0.1 — nginx(/actuator/ 404)를 거치지 않는다
 
 # 시뮬레이터가 상태를 계속 흔들면 부하 측정·되돌리기가 오염된다 — 평소엔 꺼져 있다
-docker compose ps --services --status running | grep -qx sim && { echo "sim 실행 중 — docker compose --profile demo stop sim" >&2; exit 1; }
+# grep -q 는 조기 종료 → pipefail 아래 SIGPIPE(141)로 가드가 빠질 수 있어 -q 대신 /dev/null
+docker compose ps --services --status running | grep -x sim >/dev/null && { echo "sim 실행 중 — docker compose --profile demo stop sim" >&2; exit 1; }
 
 PROJ=$(curl -sf $API/projects | jq -r '.[0].id')
 MID=$(curl -sf "$API/projects/$PROJ/models" | jq -r --arg n "$NAME" 'first(.[] | select(.name == $n and .status == "READY") | .id) // empty')
@@ -26,6 +27,14 @@ T0=$(psql -c 'SELECT now()')
 psql -c "COPY (SELECT id, properties->'Pset_BimStatus' FROM element WHERE model_id = '$MID' AND jsonb_exists(properties, 'Pset_BimStatus')) TO STDOUT" > "$OUT/snapshot.tsv"
 echo "기록 $OUT · 시작 시각 $T0 — 중단되면 이 SQL 로 손으로 되돌릴 수 있다: $OUT/restore.sql" >&2
 
+# 복원 전 API 대기열 비우기: 풀 대기 0·사용 중 ≤ 1(Notifier LISTEN 이 하나 점유) 까지 최대 30초 — 늦게 커밋되는 PATCH 가 복원을 덮지 않게
+drain() {
+  for _ in $(seq 30); do
+    curl -sf localhost:8080/actuator/prometheus | awk '/^hikaricp_connections_pending/ {p=$2} /^hikaricp_connections_active/ {a=$2} END {exit !(p == 0 && a <= 1)}' && return 0
+    sleep 1
+  done
+  echo "API 대기열이 30초 안에 비지 않음 — 그대로 되돌린다" >&2
+}
 # 되돌리기: 스냅숏 복원 + 그 사이 STATUS 이벤트 삭제 + 열린 탭 재동기화. 한 트랜잭션(restore.sql 로도 남겨 재실행 가능) · 두 번 부르면 조용히 무시
 restore() {
   [ "$RESTORED" = 1 ] && return 0
@@ -37,14 +46,16 @@ restore() {
     echo "SELECT pg_notify('bim', json_build_object('m','$MID','k','resync')::text);"
     echo 'COMMIT;'
   } > "$OUT/restore.sql"
-  psql < "$OUT/restore.sql" || true
-  echo "되돌림: 요소 상태(스냅숏 $(wc -l < "$OUT/snapshot.tsv" | tr -d ' ')행)·$T0 이후 STATUS 이벤트 삭제 (기록 $OUT)" >&2
+  if psql < "$OUT/restore.sql"; then
+    echo "되돌림: 요소 상태(스냅숏 $(wc -l < "$OUT/snapshot.tsv" | tr -d ' ')행)·$T0 이후 STATUS 이벤트 삭제 (기록 $OUT)" >&2
+  else echo "되돌리기 실패 — 손으로 다시: docker compose exec -T postgis psql -U bim -d bim < $OUT/restore.sql" >&2; fi
 }
 # 중단 시 정리: SSE node 프로세스·k6 컨테이너를 명시적으로 멈춘 뒤(둘 다 살아있을 때만) 되돌린다 — set -e 아래에서도 모든 줄이 실패를 허용해야 한다
 cleanup() {
   trap - EXIT INT TERM HUP
   if [ -n "$SSE" ]; then kill "$SSE" 2>/dev/null || true; wait "$SSE" 2>/dev/null || true; fi
-  docker stop -t 30 "$K6N" >/dev/null 2>&1 || true   # k6 는 진행 중인 요청을 커밋한 뒤 정상 종료
+  docker stop -t 30 "$K6N" >/dev/null 2>&1 || true   # k6 쪽 요청은 멈추지만 API 대기열(풀·행 잠금)은 계속 커밋될 수 있다 — 아래 복원 전 대기가 비운다
+  drain
   restore
 }
 trap cleanup EXIT
@@ -58,7 +69,7 @@ docker run --rm --name "$K6N" --network "$NET" -v "$PWD/load:/load:ro" -v "$OUT:
 kill -TERM $SSE; wait $SSE || true; GONE=$SECONDS
 tail -1 "$OUT/sse.log" >&2
 
-restore   # 끊긴 구독 정리(최대 3분) 전에 바로 되돌려서 그 사이 창을 좁힌다 — 여기부턴 트랩 불필요
+drain; restore   # 끊긴 구독 정리(최대 3분) 전에 바로 되돌려서 그 사이 창을 좁힌다 — 여기부턴 트랩 불필요
 trap - EXIT INT TERM HUP
 
 # 끊긴 SSE 는 서버가 하트비트(20초) 몇 번 뒤에야 정리한다 — 다음 판의 팬아웃에 섞이지 않게 시작 전 수로 돌아올 때까지(최대 3분)
