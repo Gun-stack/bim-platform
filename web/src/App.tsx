@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react'
 import ObjectDock from './ObjectDock'
 import Home from './Home'
 import Shell, { SHELL_H, type Screen } from './Shell'
+import Tour from './Tour'
 import { T } from './theme'
 const Viewer = lazy(() => import('./viewer/Viewer'))
 const FmPage = lazy(() => import('./FmPage'))
@@ -23,5 +24,6 @@ export default function App() {
   return <>{!kiosk && <Shell modelId={m?.[1]} screen={(m?.[2] ?? '') as Screen} />}
     <Suspense fallback={<main style={{ minHeight: `calc(100vh - ${SHELL_H}px)`, display: 'grid', placeItems: 'center', fontFamily: 'system-ui', color: T.ink[2] }}><Loader2 className="spin" /> 불러오는 중…</main>}>{page}</Suspense>
     {/* 맥락 독: 모델 화면 셋 공통, 벽면(kiosk) 제외 */}
-    {m && !kiosk && <ObjectDock modelId={m[1]} route={(m[2] ?? '') as '' | '/monitor' | '/fm'} />}</>
+    {m && !kiosk && <ObjectDock modelId={m[1]} route={(m[2] ?? '') as '' | '/monitor' | '/fm'} />}
+    {!kiosk && <Tour />}</>
 }

@@ -151,6 +151,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     firstVp.current = false
     if (vp.clip) setClip(vp.clip)
     if (vp.sel) { const sel = vp.sel.split(','); s.select(sel); if (vp.focus) setTimeout(() => focusRef.current(sel[0]), 300) }   // byGid·spatial 준비 후
+    const tr = hq.get('trace'); if (vp.sel && (tr === 'up' || tr === 'down')) setTimeout(() => traceRef.current(tr), 400)   // ?trace=down — 둘러보기·공유 링크에서 추적까지 (선택이 state 에 반영된 뒤)
   }, [loaded, hq])
 
   useEffect(() => {   // 트리 눈 토글 + 표시 옵션 → 표시 조건
@@ -257,6 +258,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const inSystem = systemsMeta.some(s => (sysMembers.get(s.id) ?? []).some(m => m.globalId === gid))
     return api<Route>(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}${inSystem ? '' : '&scope=all'}`).then(setRoute).catch(() => setRoute(undefined))
   }
+  const traceRef = useRef(trace); traceRef.current = trace
   const act = useRef<(a: Action) => void>(() => {})
   const flipOpt = (k: keyof Opts) => { const n = { ...opts, [k]: !opts[k] }; try { localStorage.setItem('viewer.opts', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } setOpts(n) }   // LeftPanel flipOpt 와 같은 저장 규칙
   const flipStruct = () => { const on = STRUCT.every(c => hidden.classes.has(c)), cls = new Set(hidden.classes); for (const c of STRUCT) { if (on) cls.delete(c); else cls.add(c) } setHidden({ ...hidden, classes: cls }); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }   // LeftPanel 구조체 토글과 동일

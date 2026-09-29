@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Building2, Loader2, Trash2, Upload } from 'lucide-react'
+import { Building2, Loader2, PlayCircle, Trash2, Upload } from 'lucide-react'
 import { api, post, type Model } from './api'
 import { summary } from './summary'
+import { useDemo } from './demo'
+import { startTour } from './tourSteps'
 import { SHELL_H } from './Shell'
 import { badge, btn, btnPrimary, dateTime } from './ui'
 import { T } from './theme'
@@ -14,6 +16,7 @@ export default function Home() {
   const [drag, setDrag] = useState(false)
   const [busy, setBusy] = useState(false)
   const file = useRef<HTMLInputElement>(null)
+  const demo = useDemo()   // 공개 데모: 업로드·삭제 숨김 (nginx 가 어차피 403)
 
   // 프로젝트 하나로 시작
   useEffect(() => {
@@ -54,14 +57,16 @@ export default function Home() {
   const kpi = (label: string, n: number, color?: string) => <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}><span style={{ color: T.ink[2], fontSize: T.fs.sm }}>{label}</span><b style={{ fontSize: T.fs.xl, color: n && color ? color : T.ink[1] }}>{n.toLocaleString()}</b></span>
 
   return (
-    <main onDragEnter={e => { if (e.dataTransfer.types.includes('Files')) setDrag(true) }} style={{ fontFamily: 'system-ui', fontSize: T.fs.md, minHeight: `calc(100vh - ${SHELL_H}px)`, boxSizing: 'border-box' }}>
+    <main onDragEnter={e => { if (!demo && e.dataTransfer.types.includes('Files')) setDrag(true) }} style={{ fontFamily: 'system-ui', fontSize: T.fs.md, minHeight: `calc(100vh - ${SHELL_H}px)`, boxSizing: 'border-box' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap', marginBottom: 18 }}>
           <h1 style={{ margin: 0, fontSize: 20 }}>건물 운영 현황</h1>
           {kpi('모델', s.models)}{kpi('요소', s.elements)}{kpi('경보', s.alarms, T.crit)}{kpi('장애', s.faults, T.warn)}{kpi('열린 작업지시', s.openWorkOrders, T.accent)}
           {converting && <span style={{ color: T.accent, fontSize: T.fs.sm, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Loader2 size={13} className="spin" /> 변환 중</span>}
-          <button onClick={() => file.current?.click()} disabled={!pid || busy} style={{ ...btnPrimary, marginLeft: 'auto', padding: '6px 12px' }} title="IFC2x3 · IFC4 · IFC4x3 — 최대 500MB, 여러 개 가능. 페이지 어디에나 끌어다 놓아도 된다">
-            {busy ? <Loader2 size={14} className="spin" /> : <Upload size={14} />} IFC 업로드</button>
+          <button onClick={() => startTour()} disabled={!models.some(m => m.status === 'READY')} title="대표 건물로 모니터링 → 경보 위치 → 계통 흐름 → 작업지시 (읽기 전용)" style={{ ...(demo ? btnPrimary : btn), marginLeft: 'auto', padding: '6px 12px' }}><PlayCircle size={14} /> 1분 둘러보기</button>
+          {demo ? <span title="공개 데모에서는 업로드·삭제가 막혀 있다. 경보 확인·작업지시 이동 같은 체험은 열려 있다" style={{ color: T.ink[2], fontSize: T.fs.sm }}>공개 데모 · 읽기 위주</span>
+          : <button onClick={() => file.current?.click()} disabled={!pid || busy} style={{ ...btnPrimary, padding: '6px 12px' }} title="IFC2x3 · IFC4 · IFC4x3 — 최대 500MB, 여러 개 가능. 페이지 어디에나 끌어다 놓아도 된다">
+            {busy ? <Loader2 size={14} className="spin" /> : <Upload size={14} />} IFC 업로드</button>}
           <input ref={file} type="file" accept=".ifc" multiple onChange={e => { if (e.target.files) upload(e.target.files); e.target.value = '' }} style={{ display: 'none' }} />
         </div>
         {err && <p style={{ color: T.crit, margin: '0 0 12px' }}>{err}</p>}
@@ -70,7 +75,7 @@ export default function Home() {
               <Upload size={30} color={T.accent} /><b style={{ color: T.ink[1] }}>IFC 파일을 끌어다 놓거나 클릭해서 선택</b>
               <span style={{ fontSize: T.fs.sm }}>변환 후 3D·모니터링·시설관리로 볼 수 있다 — <code>samples/</code> 에 예제가 있다</span></div>
           : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-              {models.map(m => <Card key={m.id} m={m} onRetry={() => retry(m.id)} onRemove={() => remove(m)} />)}
+              {models.map(m => <Card key={m.id} m={m} onRetry={() => retry(m.id)} onRemove={demo ? undefined : () => remove(m)} />)}
             </div>}
       </div>
       {drag && <div onDragOver={e => e.preventDefault()} onDragLeave={() => setDrag(false)} onDrop={e => { e.preventDefault(); setDrag(false); upload(e.dataTransfer.files) }}
@@ -80,7 +85,7 @@ export default function Home() {
   )
 }
 
-function Card({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove: () => void }) {
+function Card({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemove?: () => void }) {
   const [thumb, setThumb] = useState(true)   // 썸네일 없음(404) → 자리표시
   const ready = m.status === 'READY', running = m.status === 'UPLOADED' || m.status === 'PROCESSING'
   const one = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const
@@ -110,7 +115,7 @@ function Card({ m, onRetry, onRemove }: { m: Model; onRetry: () => void; onRemov
           <a href={`#/models/${m.id}/monitor`} style={btn}>모니터링</a>
           <a href={`#/models/${m.id}/fm`} style={btn}>시설관리</a></div>}
       </div>
-      {m.status !== 'PROCESSING' && <button onClick={onRemove} title="모델 삭제" aria-label="모델 삭제" className="row-trash" style={{ position: 'absolute', right: 8, bottom: 12, padding: 6, border: 0, borderRadius: T.radius, background: 'transparent', cursor: 'pointer', color: T.ink[2], display: 'inline-flex' }}><Trash2 size={14} /></button>}
+      {m.status !== 'PROCESSING' && onRemove && <button onClick={onRemove} title="모델 삭제" aria-label="모델 삭제" className="row-trash" style={{ position: 'absolute', right: 8, bottom: 12, padding: 6, border: 0, borderRadius: T.radius, background: 'transparent', cursor: 'pointer', color: T.ink[2], display: 'inline-flex' }}><Trash2 size={14} /></button>}
     </article>
   )
 }

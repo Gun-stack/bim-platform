@@ -75,9 +75,30 @@ services:
     environment:
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}         # 둘 다 채우면 화면·API 에 Basic 인증 (외부 데모 배포용). 비우면 열림
       BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
+      DEMO_PUBLIC: ${DEMO_PUBLIC:-}                 # 1 이면 공개 데모 — 업로드·삭제 등 파괴적 쓰기 403 (web/docker-entrypoint.d/20-demo-public.sh)
     depends_on:
       api: { condition: service_healthy }
 
+  # ── 공개 데모 (docker compose --profile demo up -d) ─────────────────────────
+  # BMS 시뮬레이터 상시 구동: 감지기 8개 풀·10초 간격. 모델은 이름으로 찾는다(재업로드로 id 가 바뀌어도 그대로)
+  sim:
+    profiles: [demo]
+    image: python:3.13-alpine   # 표준 라이브러리만 — 워커 이미지(ifcopenshell) 빌드 불필요
+    entrypoint: ["python", "-u", "/gen/bms_sim.py"]
+    command: ["--name", "mep-building.ifc", "--api", "http://api:8080/api", "--interval", "10", "--pool", "8"]
+    volumes: ["./samples/gen:/gen:ro"]
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+
+  # Cloudflare quick tunnel: 계정 없이 https://*.trycloudflare.com 임의 URL → web. URL 은 `docker compose logs tunnel | grep trycloudflare`
+  # 외부 공개 전 .env 에 DEMO_PUBLIC=1 (필요하면 BASIC_AUTH_*) 를 먼저 둘 것
+  tunnel:
+    profiles: [demo]
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "--url", "http://web:80"]
+    depends_on: [web]
+    restart: unless-stopped
 
 volumes:
   pgdata:

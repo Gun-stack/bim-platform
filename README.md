@@ -222,6 +222,23 @@ docker compose up -d --build --wait
 - 웹 화면: [http://localhost:5173](http://localhost:5173)
 - `.env.example`은 로컬 데모용. 외부 공개 시 `.env`의 `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD` → nginx가 화면·API·glb 전부에 Basic 인증(단일 계정. 계정별 권한은 다음 단계)
 - TLS는 앞단 리버스 프록시 몫. api·DB·MinIO 는 127.0.0.1 바인딩
+- 홈의 **1분 둘러보기** — 대표 건물로 모니터링 → 경보 위치 → 계통 흐름 → 작업지시 → 다른 건물. 읽기 전용 딥링크라 공개 데모에서도 동작
+
+<details>
+<summary>공개 데모 — Cloudflare Tunnel · 쓰기 차단 · BMS 시뮬레이터 상시</summary>
+
+```bash
+echo 'DEMO_PUBLIC=1' >> .env                        # 업로드·삭제·재시도·썸네일/배치 PUT 을 403 으로 (조회·경보 확인·작업지시 이동은 열림)
+docker compose --profile demo up -d --wait          # + sim(감지기 8개 풀·10초) + tunnel(quick tunnel)
+docker compose logs tunnel | grep trycloudflare     # 공개 URL (https://*.trycloudflare.com, 재기동마다 바뀜)
+docker compose --profile demo stop sim tunnel       # 공개 종료
+```
+
+- quick tunnel 은 계정 불필요·임의 URL. 고정 도메인은 Cloudflare 계정의 named tunnel 토큰으로 `cloudflared tunnel run --token …`
+- 공개 모드 판정: nginx 가 `GET /api/config` → `{"demo":true}` 를 직접 응답(평소엔 404) → 홈이 업로드·삭제를 숨김
+- 썸네일은 쓰기라 공개 전에 각 모델을 뷰어로 한 번씩 열어 만들어 둘 것
+- Basic 인증(`BASIC_AUTH_*`)과 함께 켤 수 있음
+</details>
 
 <details>
 <summary>샘플 IFC 생성과 BMS 이벤트 시뮬레이션</summary>
@@ -234,7 +251,7 @@ docker compose exec ifc-worker rm -rf /tmp/gen && docker compose cp samples/gen 
 docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py mep-building.ifc'                                 # 기본: 지상 10층 + 주차타워
 docker compose exec ifc-worker sh -c 'cd /tmp/gen && python gen_mep.py large.ifc --floors 20 --annex 2 --density high'  # 대형
 docker compose cp ifc-worker:/tmp/gen/mep-building.ifc samples/
-python3 samples/gen/bms_sim.py <modelId>        # 상태 API 시뮬레이터 (경보·계측·복구)
+python3 samples/gen/bms_sim.py <modelId>        # 상태 API 시뮬레이터 (경보·계측·복구). --name mep-building.ifc --pool 8 로 이름 조회·경보 대상 고정
 ```
 </details>
 
@@ -249,7 +266,7 @@ python3 samples/gen/bms_sim.py <modelId>        # 상태 API 시뮬레이터 (�
 ```
 
 - `#/` — 건물 운영 현황(모델 카드·썸네일·경보·작업지시 합계)과 IFC 업로드
-- `#/models/{id}` — 3D 뷰어 (`?sel=` 선택, `?focus=1` 경보 포커스, `?clip=` 단면, `?v=` 카메라, `?wo=` 작업지시 뷰포인트) · 단축키 안내 `?`
+- `#/models/{id}` — 3D 뷰어 (`?sel=` 선택, `?focus=1` 경보 포커스, `?trace=up|down` 계통 추적, `?clip=` 단면, `?v=` 카메라, `?wo=` 작업지시 뷰포인트) · 단축키 안내 `?`
 - `#/models/{id}/monitor` — 설비 모니터링 (`?team= storey= mode= days=` 필터, `?kiosk=1` 벽면 모드)
 - `#/models/{id}/fm` — 자산 대장·작업지시 보드 (`?wo=` 카드, `?due=1` 지연 자산, `?assignee=none` 미배정)
 - `#/map` — GIS 지도

@@ -1,10 +1,11 @@
 """BMS 시뮬레이터: 상태 API 를 주기적으로 쳐서 모니터·뷰어가 살아 움직이게 한다.
 실행: python3 samples/gen/bms_sim.py <modelId> [--api http://localhost:8080/api] [--interval 3] [--ticks 0(무한)]
+     또는 --name mep-building.ifc (이름으로 모델 조회) · --pool 8 (경보·장애 대상 감지기를 시드 고정 8개로 — 상시 구동 시 작업지시가 풀 크기 안에서 재사용)
 매 틱: 수위·부하 드리프트, 가끔 감지기 경보(몇 틱 뒤 복구)·장애, 펌프 운전 전환, 드물게 정전→복전. 실제 BMS 연동은 같은 PATCH 를 친다.
 """
 import argparse, json, random, time, urllib.request as u, urllib.parse as p
 
-ap = argparse.ArgumentParser(); ap.add_argument("model"); ap.add_argument("--api", default="http://localhost:8080/api"); ap.add_argument("--interval", type=float, default=3); ap.add_argument("--ticks", type=int, default=0); ap.add_argument("--seed", type=int)
+ap = argparse.ArgumentParser(); ap.add_argument("model", nargs="?"); ap.add_argument("--name"); ap.add_argument("--pool", type=int, default=0); ap.add_argument("--api", default="http://localhost:8080/api"); ap.add_argument("--interval", type=float, default=3); ap.add_argument("--ticks", type=int, default=0); ap.add_argument("--seed", type=int)
 a = ap.parse_args(); random.seed(a.seed)
 
 def call(method, path, body=None):
@@ -12,9 +13,15 @@ def call(method, path, body=None):
     return json.load(u.urlopen(req))
 def patch(gid, body): return call("PATCH", f"/models/{a.model}/elements/{p.quote(gid)}/status", body)
 
+if not a.model:   # --name: 첫 프로젝트에서 이름이 같은 READY 모델 (재업로드로 id 가 바뀌어도 compose 설정은 그대로)
+    pid = call("GET", "/projects")[0]["id"]
+    a.model = next(m["id"] for m in call("GET", f"/projects/{pid}/models") if m["name"] == a.name and m["status"] == "READY")
 rows = call("GET", f"/models/{a.model}/status")
 by = lambda cls: [r for r in rows if r["ifcClass"] == cls]
 sensors, pumps, boards = by("IfcSensor"), by("IfcPump") + by("IfcFan") + by("IfcChiller"), by("IfcElectricDistributionBoard")
+if a.pool:   # 감지기 우선으로 고정 풀 — 주차면 센서 '경보'는 어색하고, 전 센서 무작위면 작업지시가 끝없이 는다
+    det = sorted([r for r in sensors if "감지기" in (r["name"] or "")] or sensors, key=lambda r: r["globalId"])
+    sensors = random.Random(7).sample(det, k=min(a.pool, len(det)))
 tanks = [r for r in by("IfcTank") if "LevelPercent" in r["status"]]   # 수위 있는 탱크만 (가스 용기 제외)
 comms = [r for r in rows if r["status"].get("Status") == "ONLINE"]
 state = {r["globalId"]: dict(r["status"]) for r in rows}
