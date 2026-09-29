@@ -1,0 +1,8 @@
+# compose profile obs — api 의 /actuator/prometheus 를 compose 내부망에서 5초마다 (외부에선 nginx 가 /actuator/ 를 404)
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['api:8080']

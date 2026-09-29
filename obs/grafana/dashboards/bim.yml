@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: bim
+    type: file
+    options:
+      path: /etc/grafana/provisioning/dashboards   # 이 디렉터리의 *.json. 디렉터리째 마운트 — 파일 하나만 마운트하면 편집기가 파일을 바꿔 쓸 때 컨테이너 쪽이 끊긴다

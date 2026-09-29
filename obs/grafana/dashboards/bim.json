@@ -1,0 +1,98 @@
+{
+  "uid": "bim-api",
+  "title": "BIM API",
+  "description": "R2-3 관측성 — 요청·실시간 푸시(Notifier)·DB 풀·JVM. SSE(/stream·/events)는 연결 수명이라 요청률·p95 에서 뺀다",
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "엔드포인트별 요청률",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{uri!~\"/actuator.*|.*/(stream|events)\"}[$__rate_interval]))", "legendFormat": "{{method}} {{uri}}" }
+      ]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "엔드포인트별 p95",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, method, uri) (rate(http_server_requests_seconds_bucket{uri!~\"/actuator.*|.*/(stream|events)\"}[$__rate_interval])))", "legendFormat": "{{method}} {{uri}}" }
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "이벤트 지연 (트리거 → dispatch)",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(bim_notify_lag_seconds_bucket[$__rate_interval])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(bim_notify_lag_seconds_bucket[$__rate_interval])))", "legendFormat": "p95" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(bim_notify_lag_seconds_bucket[$__rate_interval])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "SSE 구독자",
+      "gridPos": { "x": 0, "y": 7, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "bim_sse_subscribers", "legendFormat": "구독자" }
+      ]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "종류별 알림률",
+      "gridPos": { "x": 8, "y": 7, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (kind) (rate(bim_notify_events_total[$__rate_interval]))", "legendFormat": "{{kind}}" }
+      ]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "DB 풀 (Hikari)",
+      "gridPos": { "x": 16, "y": 7, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "hikaricp_connections_active", "legendFormat": "active" },
+        { "refId": "B", "expr": "hikaricp_connections_pending", "legendFormat": "pending" },
+        { "refId": "C", "expr": "hikaricp_connections_max", "legendFormat": "max" }
+      ]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "JVM 스레드 (플랫폼)",
+      "gridPos": { "x": 0, "y": 14, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "jvm_threads_live_threads", "legendFormat": "live" }
+      ]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "JVM 힙",
+      "gridPos": { "x": 8, "y": 14, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(jvm_memory_used_bytes{area=\"heap\"})", "legendFormat": "used" },
+        { "refId": "B", "expr": "sum(jvm_memory_max_bytes{area=\"heap\"} > 0)", "legendFormat": "max" }
+      ]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "프로세스 CPU (코어)",
+      "gridPos": { "x": 16, "y": 14, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 1 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "rate(process_cpu_time_ns_total[$__rate_interval]) / 1e9", "legendFormat": "api" },
+        { "refId": "B", "expr": "system_cpu_count", "legendFormat": "가용 코어" }
+      ]
+    }
+  ]
+}

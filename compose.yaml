@@ -100,6 +100,30 @@ services:
     depends_on: [web]
     restart: unless-stopped
 
+  # ── 관측성 (docker compose --profile obs up -d) ───────────────────────────
+  # Prometheus 가 api:8080/actuator/prometheus 를 compose 내부망에서 5초마다 — 외부 nginx 는 /actuator/ 404. 둘 다 호스트 127.0.0.1 만
+  prometheus:
+    profiles: [obs]
+    image: prom/prometheus:v3.15.0
+    volumes: ["./obs/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["127.0.0.1:9090:9090"]
+
+  # 익명 Viewer, 데이터소스·대시보드(obs/grafana/)는 프로비저닝 — 디렉터리째 마운트(파일 하나 마운트는 편집기가 바꿔 쓰면 끊긴다). 편집은 admin/admin 로그인
+  grafana:
+    profiles: [obs]
+    image: grafana/grafana:13.2.3
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/bim.json
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"   # 기동 시 플러그인 다운로드 안 함(사내망 TLS 가로채기·오프라인)
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./obs/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./obs/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports: ["127.0.0.1:3001:3000"]
+
 volumes:
   pgdata:
   minio:
