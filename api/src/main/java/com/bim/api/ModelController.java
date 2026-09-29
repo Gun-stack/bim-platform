@@ -78,14 +78,17 @@ class ModelController {
 		return find(id);
 	}
 
-	/** 모델 삭제: DB 는 CASCADE(요소·공간·계통·자산·점검·작업지시·잡), S3 는 source.ifc + glb. S3 실패는 무시하지 않고 500 — 행은 이미 지워졌으므로 로그로 남긴다. */
+	/** 모델 삭제: DB 는 CASCADE(요소·공간·계통·자산·점검·작업지시·잡), S3 는 source.ifc + 썸네일 + glb/{id}/ 아래 전부(glb·3D Tiles). S3 실패는 무시하지 않고 500 — 행은 이미 지워졌으므로 로그로 남긴다. */
 	@DeleteMapping("/models/{id}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	void delete(@PathVariable UUID id) {
 		var m = find(id);
 		db.sql("DELETE FROM model WHERE id = :id").param("id", id).update();
-		for (Object k : new Object[] { m.get("ifcKey"), m.get("glbKey"), thumbKey(id) })
+		for (Object k : new Object[] { m.get("ifcKey"), thumbKey(id) })
 			if (k != null) s3.deleteObject(b -> b.bucket(bucket).key((String) k));   // 없는 키 삭제는 S3 에서 성공
+		// glb/ 는 익명 읽기 접두어 — 남기면 계속 공개된다. lease 별 glb 와 tiles/{lease}/… 를 접두어로 한 번에
+		s3.listObjectsV2Paginator(b -> b.bucket(bucket).prefix("glb/" + id + "/")).contents()
+			.forEach(o -> s3.deleteObject(b -> b.bucket(bucket).key(o.key())));
 	}
 
 	/** 홈 카드 썸네일(뷰어가 첫 로드 때 렌더해 올린다). 없으면 404 — 카드는 자리표시로 */
@@ -164,7 +167,7 @@ class ModelController {
 
 	private static final Set<String> DONE = Set.of("READY", "FAILED");
 	private static final String SELECT = """
-		SELECT m.id, m.name, m.status, m.ifc_schema "ifcSchema", m.glb_key "glbKey", m.ifc_key "ifcKey",
+		SELECT m.id, m.name, m.status, m.ifc_schema "ifcSchema", m.glb_key "glbKey", m.tileset_key "tilesetKey", m.ifc_key "ifcKey",
 		       m.element_count "elementCount", m.created_at "createdAt",
 		       ST_AsGeoJSON(m.footprint)::text footprint, m.map_conversion::text "mapConversion",
 		       j.status "jobStatus", j.progress, j.attempts, j.error,
@@ -177,6 +180,7 @@ class ModelController {
 
 	private Map<String, Object> withGlbUrl(Map<String, Object> m) {
 		if (m.get("glbKey") != null) m.put("glbUrl", "/files/" + bucket + "/" + m.get("glbKey"));
+		if (m.get("tilesetKey") != null) m.put("tilesetUrl", "/files/" + bucket + "/" + m.get("tilesetKey"));   // 3D Tiles(R2-2) — 같은 glb/ 익명 읽기·nginx 경로
 		for (var k : List.of("footprint", "mapConversion")) if (m.get(k) instanceof String s) m.put(k, Json.parse(s));
 		return m;
 	}

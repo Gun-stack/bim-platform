@@ -86,6 +86,12 @@ class NotifyTests {
 	}
 
 	@Test
+	void modelStatusChangeNotifies() throws InterruptedException {
+		db.sql("UPDATE model SET status = 'PROCESSING' WHERE id = :m").param("m", mid).update();
+		assertThat(next("job").get("s")).isEqualTo("PROCESSING");
+	}
+
+	@Test
 	void unknownModelStreamIs404() {
 		assertThatThrownBy(() -> stream.stream(UUID.randomUUID())).isInstanceOf(ApiErrors.NotFound.class);
 	}
