@@ -29,6 +29,7 @@ import org.springframework.stereotype.Component;
 class Notifier implements SmartLifecycle {
 	private static final Logger log = LoggerFactory.getLogger(Notifier.class);
 	static final int HEARTBEAT_MS = 20_000;
+	static final int POLL_MS = 1_000;   // 알림 대기 한 번의 상한 — 종료 시 이 안에 running 을 보고 연결을 정상 반납(stop 의 join)
 	private final DataSource ds;
 	private final MeterRegistry meters;
 	private final Timer lag;
@@ -65,7 +66,14 @@ class Notifier implements SmartLifecycle {
 			if (!listening.await(10, TimeUnit.SECONDS)) log.warn("notifier 첫 LISTEN 이 10초 안에 걸리지 않음 — 계속 진행");
 		} catch (InterruptedException e) { Thread.currentThread().interrupt(); }
 	}
-	@Override public void stop() { running = false; if (thread != null) thread.interrupt(); }
+	// 루프가 POLL_MS 안에 스스로 빠져 연결을 풀에 정상 반납하도록 기다린다 — 예전엔 풀 종료가 대기 중인 연결을 닫아 Hikari 'marked as broken' WARN
+	@Override public void stop() {
+		running = false;
+		var t = thread;
+		if (t == null) return;
+		try { if (!t.join(Duration.ofSeconds(2))) t.interrupt(); }   // 재연결 백오프 대기(최대 30초) 중이면 깨운다
+		catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+	}
 	@Override public boolean isRunning() { return running; }
 
 	private void loop() {
@@ -79,7 +87,7 @@ class Notifier implements SmartLifecycle {
 				PGConnection pg = c.unwrap(PGConnection.class);
 				long hb = System.currentTimeMillis();
 				while (running) {
-					PGNotification[] ns = pg.getNotifications(HEARTBEAT_MS / 2);
+					PGNotification[] ns = pg.getNotifications(POLL_MS);
 					// 잘못된 payload(수동 NOTIFY 등) 하나가 리스너 스레드를 죽이지 않도록 알림 단위로 격리
 					if (ns != null) for (var n : ns) try { dispatch(n.getParameter()); } catch (RuntimeException e) { log.warn("notifier payload 무시: {}", n.getParameter(), e); }
 					if (System.currentTimeMillis() - hb >= HEARTBEAT_MS) { toAll("hb", null); hb = System.currentTimeMillis(); }
