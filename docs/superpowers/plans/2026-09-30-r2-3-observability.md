@@ -364,7 +364,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: Task 1 지표 이름(위 표)
-- Produces: Prometheus `http://localhost:9090`(`/api/v1/query`·`/api/v1/targets`, job `api`), Grafana `http://localhost:3000` 익명 Viewer, 대시보드 `/d/bim-api`(uid `bim-api`, 9패널), 데이터소스 uid `prom`
+- Produces: Prometheus `http://localhost:9090`(`/api/v1/query`·`/api/v1/targets`, job `api`), Grafana `http://localhost:3001`(호스트 3001 → 컨테이너 3000) 익명 Viewer, 대시보드 `/d/bim-api`(uid `bim-api`, 9패널), 데이터소스 uid `prom`
 
 - [ ] **Step 1: 이미지 pull**
 
@@ -549,7 +549,7 @@ volumes:
     volumes:
       - ./obs/grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - ./obs/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-    ports: ["127.0.0.1:3000:3000"]
+    ports: ["127.0.0.1:3001:3000"]
 
 volumes:
 ```
@@ -560,8 +560,8 @@ Run:
 ```bash
 cd /Users/hubilon_map/orca/projects/bim-platform && docker compose --profile obs config --services | sort | tr '\n' ' '; echo && docker compose --profile obs up -d --no-build prometheus grafana && sleep 15
 curl -s localhost:9090/api/v1/targets | jq -r '.data.activeTargets[] | "\(.labels.job) \(.health) \(.lastError)"'
-curl -s localhost:3000/api/dashboards/uid/bim-api | jq -r '.dashboard.title, (.dashboard.panels | length), .meta.provisioned'
-curl -s localhost:3000/api/datasources/uid/prom | jq -r '"\(.name) \(.url)"'
+curl -s localhost:3001/api/dashboards/uid/bim-api | jq -r '.dashboard.title, (.dashboard.panels | length), .meta.provisioned'
+curl -s localhost:3001/api/datasources/uid/prom | jq -r '"\(.name) \(.url)"'
 jq -r '.panels[].targets[].expr' obs/grafana/dashboards/bim.json | sed 's/\$__rate_interval/1m/g' | while read -r q; do curl -s localhost:9090/api/v1/query --data-urlencode "query=$q" | jq -r .status; done | sort | uniq -c
 docker compose logs grafana | grep -c 'level=error'
 docker compose ps --format '{{.Service}} {{.Status}}' | sort
@@ -1096,14 +1096,14 @@ Expected: `ready 1000/1000 (… ms, 워커 5)`. 계획 작성 중 임시 스택(
 1. 멈춘 시나리오(또는 "(c) 까지 한계 신호 없음")와 그 판의 신호 값
 2. 근거: 그 판 표 행의 `API CPU 최대`(가용 `system_cpu_count` 대비)·`DB 풀 대기 최대`, `$SP/r2-3-waits-*.txt` 에서 가장 많은 대기(`Lock:transactionid`·`Lock:tuple` = 행 잠금 경합, `CPU:-` = DB 연산, `Client:ClientRead` = 앱 쪽 대기)와 api·postgis 컨테이너 CPU %
 3. 병목 한 구절 — 판단 규칙: DB 행 잠금 대기가 가장 많으면 "PATCH 마다 가상 건물 파생값(`StatusService.demoAggregates` — FACP·주차 집계 행 UPDATE)이 같은 행을 잠가 직렬화", DB 풀 대기 > 0 이고 DB 대기가 적으면 "DB 풀(10 + LISTEN 1)", API CPU ≈ 가용 코어면 "API CPU(구독자 × 이벤트 팬아웃 전송)", postgis CPU 가 가장 높으면 "DB CPU". nginx 는 우회했으므로 후보가 아니다
-대시보드에서 같은 구간을 열어(`http://localhost:3000`, 시간 범위 now-20m) DB 풀·CPU·이벤트 지연 패널이 위 판단과 맞는지 확인
+대시보드에서 같은 구간을 열어(`http://localhost:3001`, 시간 범위 now-20m) DB 풀·CPU·이벤트 지연 패널이 위 판단과 맞는지 확인
 
 - [ ] **Step 7: 대시보드 촬영** — `$SP/grafana-shot.mjs`
 
 ```js
-// Grafana 대시보드 촬영(R2-3) — node grafana-shot.mjs <출력 png> [base=http://localhost:3000] [from=now-15m]
+// Grafana 대시보드 촬영(R2-3) — node grafana-shot.mjs <출력 png> [base=http://localhost:3001] [from=now-15m]
 import puppeteer from '/Users/hubilon_map/orca/projects/bim-platform/web/node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js'
-const [out, base = 'http://localhost:3000', from = 'now-15m'] = process.argv.slice(2)
+const [out, base = 'http://localhost:3001', from = 'now-15m'] = process.argv.slice(2)
 const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true, args: ['--use-angle=metal'], defaultViewport: { width: 1500, height: 950 } })
 const p = await b.newPage()
 p.on('pageerror', e => console.log('pageerror:', e.message))
@@ -1116,7 +1116,7 @@ console.log(`${out} · 'No data' 패널 ${noData}`)
 await b.close()
 ```
 
-Run: `SP=/private/tmp/claude-501/-Users-hubilon-map-orca-projects-bim-platform/0572893b-aebc-47eb-af74-6b5e7bd4be77/scratchpad; node $SP/grafana-shot.mjs /Users/hubilon_map/orca/projects/bim-platform/images/15-grafana.png http://localhost:3000 now-20m`
+Run: `SP=/private/tmp/claude-501/-Users-hubilon-map-orca-projects-bim-platform/0572893b-aebc-47eb-af74-6b5e7bd4be77/scratchpad; node $SP/grafana-shot.mjs /Users/hubilon_map/orca/projects/bim-platform/images/15-grafana.png http://localhost:3001 now-20m`
 Expected: `… 'No data' 패널 0`. Read 로 이미지를 열어 9패널 3×3 이 잘림 없이 보이고, 시나리오마다 요청률·알림률·구독자 봉우리가 있는지 확인(계획 작성 중 임시 스택 촬영본 `$SP/r23/grafana-test3.png` 와 같은 배치). 봉우리가 범위 밖이면 `now-30m` 으로 다시
 
 - [ ] **Step 8: 위생 확인**
@@ -1133,7 +1133,7 @@ Expected: 출력 없음. 차이가 있으면 `run.sh` 기록 디렉터리(`되�
 교체:
 ```markdown
 - 웹 화면: [http://localhost:5173](http://localhost:5173)
-- 관측성: `docker compose --profile obs up -d` → Grafana [http://localhost:3000](http://localhost:3000)(익명 보기, 대시보드 BIM API)·Prometheus 127.0.0.1:9090. 부하 한 판 `load/run.sh <초당 PATCH> <SSE 구독자>`
+- 관측성: `docker compose --profile obs up -d` → Grafana [http://localhost:3001](http://localhost:3001)(익명 보기, 대시보드 BIM API)·Prometheus 127.0.0.1:9090. 부하 한 판 `load/run.sh <초당 PATCH> <SSE 구독자>`
 ```
 
 ② 규모 측정 절 끝(= `## 빠른 실행` 제목 바로 앞) — 기존:

@@ -27,7 +27,7 @@
 ## 3. 대시보드 — compose profile `obs`
 
 - `prometheus`(prom/prometheus): api:8080/actuator/prometheus 5초 스크레이프, 127.0.0.1:9090
-- `grafana`(grafana/grafana): 127.0.0.1:3000, 익명 Viewer, 데이터소스·대시보드 JSON 프로비저닝(`obs/` 디렉터리 — 저장소에 포함)
+- `grafana`(grafana/grafana): 127.0.0.1:3001(호스트 3000 은 다른 개발 서버가 점유), 익명 Viewer, 데이터소스·대시보드 JSON 프로비저닝(`obs/` 디렉터리 — 저장소에 포함)
 - 대시보드 패널: 엔드포인트별 요청률·p95, 이벤트 지연 p95, SSE 구독자, 종류별 알림률, Hikari active/pending, JVM 스레드·힙, 프로세스 CPU
 - 실행: `docker compose --profile obs up -d` 한 줄
 
