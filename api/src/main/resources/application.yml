@@ -5,6 +5,7 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/bim
     username: bim
     password: ${DB_PASSWORD:bim}
+    hikari.maximum-pool-size: 11   # 기본 10 + 1 — Notifier 의 LISTEN 루프가 풀 연결 하나를 계속 점유
   servlet.multipart:
     max-file-size: 500MB
     max-request-size: 500MB

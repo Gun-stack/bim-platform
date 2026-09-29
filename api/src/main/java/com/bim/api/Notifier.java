@@ -28,14 +28,18 @@ class Notifier implements SmartLifecycle {
 	private final Map<UUID, Set<BiConsumer<String, String>>> subs = new ConcurrentHashMap<>();
 	private volatile boolean running;
 	private volatile Thread thread;
-	private volatile CountDownLatch listening = new CountDownLatch(1);
+	private final CountDownLatch listening = new CountDownLatch(1);
 
 	Notifier(DataSource ds) { this.ds = ds; }
 
-	/** 구독. 반환된 Runnable 을 실행하면 해제 */
+	/** 구독. 반환된 Runnable 을 실행하면 해제. 추가·제거 모두 compute 안에서 — 빈 집합은 맵에서 빠지고(누수 없음), 제거와 추가가 엇갈려도 구독이 사라지지 않음 */
 	Runnable subscribe(UUID model, BiConsumer<String, String> sink) {
-		subs.computeIfAbsent(model, k -> ConcurrentHashMap.newKeySet()).add(sink);
-		return () -> { var s = subs.get(model); if (s != null) s.remove(sink); };
+		subs.compute(model, (k, s) -> { if (s == null) s = ConcurrentHashMap.newKeySet(); s.add(sink); return s; });
+		return () -> remove(model, sink);
+	}
+
+	private void remove(UUID model, BiConsumer<String, String> sink) {
+		subs.computeIfPresent(model, (k, s) -> { s.remove(sink); return s.isEmpty() ? null : s; });
 	}
 
 	int subscribers() { return subs.values().stream().mapToInt(Set::size).sum(); }
@@ -63,7 +67,8 @@ class Notifier implements SmartLifecycle {
 				long hb = System.currentTimeMillis();
 				while (running) {
 					PGNotification[] ns = pg.getNotifications(HEARTBEAT_MS / 2);
-					if (ns != null) for (var n : ns) dispatch(n.getParameter());
+					// 잘못된 payload(수동 NOTIFY 등) 하나가 리스너 스레드를 죽이지 않도록 알림 단위로 격리
+					if (ns != null) for (var n : ns) try { dispatch(n.getParameter()); } catch (RuntimeException e) { log.warn("notifier payload 무시: {}", n.getParameter(), e); }
 					if (System.currentTimeMillis() - hb >= HEARTBEAT_MS) { toAll("hb", null); hb = System.currentTimeMillis(); }
 				}
 			} catch (SQLException e) {
@@ -78,13 +83,14 @@ class Notifier implements SmartLifecycle {
 	@SuppressWarnings("unchecked")
 	private void dispatch(String json) {
 		var p = (Map<String, Object>) Json.parse(json);
-		var s = subs.get(UUID.fromString((String) p.get("m")));
-		if (s != null) send(s, (String) p.get("k"), json);
+		var m = UUID.fromString((String) p.get("m"));
+		var s = subs.get(m);
+		if (s != null) send(m, s, (String) p.get("k"), json);
 	}
 
-	private void toAll(String kind, String data) { subs.values().forEach(s -> send(s, kind, data)); }
+	private void toAll(String kind, String data) { subs.forEach((m, s) -> send(m, s, kind, data)); }
 
-	private static void send(Set<BiConsumer<String, String>> s, String kind, String data) {
-		for (var sink : s) try { sink.accept(kind, data); } catch (RuntimeException e) { s.remove(sink); }
+	private void send(UUID m, Set<BiConsumer<String, String>> s, String kind, String data) {
+		for (var sink : s) try { sink.accept(kind, data); } catch (RuntimeException e) { remove(m, sink); }
 	}
 }

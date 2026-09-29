@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,11 +18,14 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 class StreamController {
 	private static final Logger log = LoggerFactory.getLogger(StreamController.class);
 	private final Notifier notifier;
+	private final JdbcClient db;
 
-	StreamController(Notifier notifier) { this.notifier = notifier; }
+	StreamController(Notifier notifier, JdbcClient db) { this.notifier = notifier; this.db = db; }
 
 	@GetMapping(value = "/models/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	SseEmitter stream(@PathVariable UUID id) throws IOException {
+		// 없는 모델이면 404 — 아무도 알림을 안 보내는 구독이 연결을 붙잡지 않게
+		if (db.sql("SELECT 1 FROM model WHERE id = :id").param("id", id).query(Integer.class).optional().isEmpty()) throw new ApiErrors.NotFound("model " + id);
 		var em = new SseEmitter(0L);   // 시간 제한 없음 — 끊김은 하트비트 송신 실패로 정리
 		Runnable[] off = { () -> {} };
 		// Notifier 의 LISTEN 스레드를 막지 않도록 실제 전송은 가상 스레드에서 — 실패하면 구독 해제 + emitter 종료

@@ -1,6 +1,7 @@
 package com.bim.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import java.util.UUID;
@@ -22,6 +23,7 @@ class NotifyTests {
 	@Autowired JdbcClient db;
 	@Autowired Notifier notifier;
 	@Autowired StatusService status;
+	@Autowired StreamController stream;
 
 	UUID mid, other;
 	final BlockingQueue<String[]> got = new LinkedBlockingQueue<>();
@@ -73,5 +75,18 @@ class NotifyTests {
 		status.power(mid, "GENERATOR");
 		assertThat(next("status").get("g")).isIn("ATS", "EG-1");
 		assertThat(db.sql("SELECT count(*) FROM op_event WHERE model_id = :m AND global_id = 'ATS' AND status = 'TRANSFERRED'").param("m", mid).query(Long.class).single()).isEqualTo(1);
+	}
+
+	@Test
+	void malformedPayloadDoesNotKillListener() throws InterruptedException {
+		db.sql("NOTIFY bim, 'not json'").update();          // 파싱 실패
+		db.sql("NOTIFY bim, '{\"k\":\"status\"}'").update();  // m 없음 → UUID.fromString(null)
+		db.sql("INSERT INTO op_event (model_id, kind, global_id, status) VALUES (:m, 'STATUS', 'SD', 'ALARM')").param("m", mid).update();
+		assertThat(next("status").get("g")).isEqualTo("SD");   // 리스너가 살아 있다
+	}
+
+	@Test
+	void unknownModelStreamIs404() {
+		assertThatThrownBy(() -> stream.stream(UUID.randomUUID())).isInstanceOf(ApiErrors.NotFound.class);
 	}
 }
