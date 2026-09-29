@@ -428,7 +428,7 @@ providers:
       "datasource": { "type": "prometheus", "uid": "prom" },
       "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{uri!~\"/actuator.*|.*/(stream|events)\"}[$__rate_interval]))", "legendFormat": "{{method}} {{uri}}" }
+        { "refId": "A", "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{uri!~\"/actuator.*|/api/models/[^/]+/(stream|events)\"}[$__rate_interval]))", "legendFormat": "{{method}} {{uri}}" }
       ]
     },
     {
@@ -437,7 +437,7 @@ providers:
       "datasource": { "type": "prometheus", "uid": "prom" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, method, uri) (rate(http_server_requests_seconds_bucket{uri!~\"/actuator.*|.*/(stream|events)\"}[$__rate_interval])))", "legendFormat": "{{method}} {{uri}}" }
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, method, uri) (rate(http_server_requests_seconds_bucket{uri!~\"/actuator.*|/api/models/[^/]+/(stream|events)\"}[$__rate_interval])))", "legendFormat": "{{method}} {{uri}}" }
       ]
     },
     {
