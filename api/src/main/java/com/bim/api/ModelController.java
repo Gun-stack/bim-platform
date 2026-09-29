@@ -28,9 +28,10 @@ class ModelController {
 	private final TransactionTemplate tx;
 	private final S3Client s3;
 	private final String bucket;
+	private final Notifier notifier;
 
-	ModelController(JdbcClient db, TransactionTemplate tx, S3Client s3, @Value("${s3.bucket}") String bucket) {
-		this.db = db; this.tx = tx; this.s3 = s3; this.bucket = bucket;
+	ModelController(JdbcClient db, TransactionTemplate tx, S3Client s3, @Value("${s3.bucket}") String bucket, Notifier notifier) {
+		this.db = db; this.tx = tx; this.s3 = s3; this.bucket = bucket; this.notifier = notifier;
 	}
 
 	@PostMapping("/projects/{pid}/models")
@@ -117,24 +118,33 @@ class ModelController {
 		return find(id);
 	}
 
-	/** 1초 폴링 → SSE. 종료 상태(READY/FAILED)면 마지막 이벤트 후 닫는다. 가상 스레드라 클라이언트당 스레드 비용 무시. */
+	/** 변환 진행률 SSE: 첫 스냅샷 + conversion_job 알림마다 모델 행 1회 조회. 종료 상태면 닫는다 — 구독자마다 1초 DB 폴링하던 것을 Notifier 하나로 */
 	@GetMapping("/models/{id}/events")
-	SseEmitter events(@PathVariable UUID id) {
+	SseEmitter events(@PathVariable UUID id) throws IOException {
 		var emitter = new SseEmitter(0L);
-		Thread.startVirtualThread(() -> {
-			try {
-				while (true) {
-					var m = find(id);
-					emitter.send(SseEmitter.event().name("status").data(m));
-					if (DONE.contains((String) m.get("status"))) break;
-					Thread.sleep(1000);
-				}
-				emitter.complete();
-			} catch (Exception e) {  // 클라이언트 끊김·404 → 조용히 종료
-				emitter.completeWithError(e);
-			}
-		});
+		var m = find(id);
+		emitter.send(SseEmitter.event().name("status").data(m));
+		if (DONE.contains((String) m.get("status"))) { emitter.complete(); return emitter; }
+		Runnable[] off = { () -> {} };
+		// Notifier 의 LISTEN 스레드를 막지 않도록 DB 재조회·전송은 가상 스레드에서 — 실패하면 구독 해제 + emitter 종료
+		off[0] = notifier.subscribe(id, (kind, data) -> Thread.startVirtualThread(() -> onNotify(id, off[0], emitter, kind)));
+		emitter.onCompletion(off[0]); emitter.onTimeout(off[0]); emitter.onError(t -> off[0].run());
+		var again = find(id);   // 첫 조회와 구독 사이에 끝났으면 알림이 다시 오지 않는다
+		if (DONE.contains((String) again.get("status"))) { emitter.send(SseEmitter.event().name("status").data(again)); off[0].run(); emitter.complete(); }
 		return emitter;
+	}
+
+	private void onNotify(UUID id, Runnable off, SseEmitter emitter, String kind) {
+		try {
+			if (kind.equals("hb")) { emitter.send(SseEmitter.event().comment("hb")); return; }
+			if (!kind.equals("job") && !kind.equals("resync")) return;
+			var now = find(id);
+			emitter.send(SseEmitter.event().name("status").data(now));
+			if (DONE.contains((String) now.get("status"))) { off.run(); emitter.complete(); }
+		} catch (IOException | RuntimeException e) {   // 전송 실패·모델 삭제 등
+			off.run();
+			try { emitter.completeWithError(e); } catch (Exception ignore) {}
+		}
 	}
 
 	private static final Set<String> DONE = Set.of("READY", "FAILED");
