@@ -53,6 +53,7 @@
 - 적용
   - `useAlerts`: 5초 `setInterval` → `useStream(['status','work_order','resync'])` + 60초 안전망 폴링
   - `MonitorPage`: 같은 방식으로 `load()`
+  - `FmPage`: `work_order` 알림에 `reload()` — 경보가 만든 작업지시가 칸반에 바로 뜬다
   - 변환 진행률(Home)은 서버 쪽 재구현만으로 해결 — 코드 변경 없음
 - 기존 화면 로직(새 경보 플래시·알림음·토스트 diff)은 그대로 — 재조회 계기만 바뀜
 
