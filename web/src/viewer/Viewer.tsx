@@ -5,12 +5,12 @@ import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resiz
 import { Check, Eye, Palette, Ruler, Trash2, X, EyeOff, Focus, Home, Keyboard, Link, Maximize, Scissors } from 'lucide-react'
 import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type StatusRow, type System, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
-import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
+import SystemPanel, { StatusBoard, hasPowerScenario, systemColor } from './SystemPanel'
 import { STATUS, isAbnormal, statusHex } from '../status'
 import ObjectSummary from '../ObjectSummary'
 import { ifcKo } from '../ifcNames'
 import { notify } from '../context'
-import { day, useEsc } from '../ui'
+import { btn, day, useEscLayer } from '../ui'
 import FmPanel, { StatusBadge } from './FmPanel'
 import StatusEditor from './StatusEditor'
 import { Scene3D, type Classify, type Kind, type Stats, type View } from './scene'
@@ -43,6 +43,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [stats, setStats] = useState<Stats>({ calls: 0, triangles: 0, fps: 0, geometries: 0 })
   const tiles = useRef<Tiles>(undefined)          // 타일 모드일 때만 (R2-2)
   const [tileOn, setTileOn] = useState(false)
+  const [glbProgress, setGlbProgress] = useState<{ loaded: number; total: number }>()   // U306: 단일 GLB 로드 진행(받은/전체 바이트). 타일 모드는 stats.tiles 를 그대로 쓴다
   const [err, setErr] = useState<string>()
   const [clip, setClip] = useState<number[] | null>(null)   // [xmin,xmax,ymin,ymax,zmin,zmax]
   const [measuring, setMeasuring] = useState(false)
@@ -83,6 +84,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); setFocus('none'); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])   // 다른 요소를 고르면 포커스 모드(격리·비콘)도 해제 — 배너 X 와 동일
   const { rows: statusRows, fresh: freshAlerts, dismiss: dismissAlert, reload: reloadStatus } = useAlerts(modelId)   // 5초 폴링 — 상태판·트리 배지도 함께 최신 유지
   useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
+  // B302: 뷰어 마운트 때 서버의 지금 정전 상태를 읽는다 — 정전 중에 다른 화면으로 갔다 돌아와도 '복전' 버튼·무전원 색이 바로 보이게
+  useEffect(() => { api<PowerResult>(`/models/${modelId}/power`).then(p => setPower(p.source === 'GENERATOR' ? p : undefined)).catch(() => {}) }, [modelId])
   // 색 보기(U309): pickColors 하나가 우선순위(추적 > 정전 > 상태·계통·속성 > 없음)를 정하고, scene 에는 여기 한 곳에서만 쓴다 —
   // 전에는 이 effect 와 ColorPanel 의 onChange 가 각자 scene.setColors() 를 불러 경합했다(속성 모드에서 추적 색이 덮이는 버그)
   useEffect(() => {
@@ -121,6 +124,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const el = canvas.current   // cleanup 에서 ref 대신 이 변수를 쓴다
     const s = new Scene3D(el); scene.current = s; firstVp.current = true
     s.onPick = setSelection
+    s.onProgress = (loaded, total) => setGlbProgress({ loaded, total })   // U306: 단일 GLB 모드에서만 호출된다(타일은 stats.tiles)
     const classify: Classify = gid => { const e = byGid.get(gid); return { kind: e ? 'element' : spaceGids.has(gid) ? 'space' : 'opening', ifcClass: e?.ifcClass } }
     // 타일 모드(R2-2): 요소 → 층 GlobalId 는 API spatial 조상으로. 공간(IfcSpace) 형상은 자기 노드부터
     const byId = new Map(spatial.map(n => [n.id, n])), nodeOf = new Map(spatial.map(n => [n.globalId, n.id]))
@@ -137,7 +141,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
         .catch(e => { console.warn('tileset 실패 — 단일 GLB 로', e); tiles.current = undefined; return single() })
       : single()
     ready.then(() => {
-      setBounds(s.bounds()); setLoaded(true)   // 뷰포인트 복원은 아래 딥링크 effect 가 (최초 + hashchange 재적용)
+      setBounds(s.bounds()); setLoaded(true); setGlbProgress(undefined)   // 뷰포인트 복원은 아래 딥링크 effect 가 (최초 + hashchange 재적용)
     }).catch(e => setErr(String(e)))
     let pending = false   // 호버 툴팁: 프레임당 1회
     const onMove = (e: PointerEvent) => {
@@ -153,7 +157,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.onContext = (x, y) => setMenu({ x, y })
     s.onMeasure = m => setMeasures(ms => [...ms, m])
     const t = setInterval(() => setStats({ ...s.stats(), tiles: tiles.current?.count() }), 500)
-    return () => { clearInterval(t); tiles.current?.dispose(); tiles.current = undefined; el.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null; setLoaded(false) }
+    return () => { clearInterval(t); tiles.current?.dispose(); tiles.current = undefined; el.removeEventListener('pointermove', onMove); s.dispose(); scene.current = null; setLoaded(false); setGlbProgress(undefined) }
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.glbUrl, elements.length])
 
@@ -221,7 +225,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [snap, setSnap] = useState(() => { try { return localStorage.getItem('viewer.snap') !== '0' } catch { return true } })
   useEffect(() => { if (scene.current) scene.current.snap = snap; try { localStorage.setItem('viewer.snap', snap ? '1' : '0') } catch { /* 저장 불가 환경 */ } }, [snap, loaded])
   const [showKeys, setShowKeys] = useState(false)
-  useEsc(useCallback(() => { setMeasuring(false); setShowKeys(false) }, []))
+  // B301: 측정 패널·단축키 안내는 각자 자기 층 — 둘 다 열려 있어도 Esc 한 번은 나중에 연 쪽(가장 위)만 닫는다
+  useEscLayer(measuring, useCallback(() => setMeasuring(false), []))
+  useEscLayer(showKeys, useCallback(() => setShowKeys(false), []))
   useEffect(() => {   // 격리(반투명) — 선택 집합 기준 (+ 포커스 모드면 구역도 함께, 구역은 진한 파랑)
     const spaceGid = focusInfo?.spaceGid
     scene.current?.setFocus(focus !== 'ghost' || !selSet.size ? undefined : { gids: spaceGid ? new Set([...selSet, spaceGid]) : selSet }, spaceGid)
@@ -340,7 +346,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }, [])
 
   const storeys = spatial.filter(s => s.ifcClass === 'IfcBuildingStorey').sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0))
+  const storeyGroups = useMemo(() => groupStoreysByBuilding(spatial), [spatial])   // U315: 단면 패널의 층 버튼 — 동별 묶음
   const abnormal = useMemo(() => new Map(statusRows.filter(r => isAbnormal(r.status.Status)).map(r => [r.globalId, r.status.Status!])), [statusRows])
+  const hasPower = useMemo(() => hasPowerScenario(elements), [elements])   // U330: ATS·발전기 없는 실무 IFC는 정전 버튼을 숨긴다
   useEffect(() => {   // 경보=빨강·장애=주황 발광. 타일 모드면 그 층들을 받아 고정 — 멀리서도 펄스가 보이게
     scene.current?.setPulse(new Map([...abnormal].map(([g, st]) => [g, STATUS[st]?.color ?? num(T.crit)])))
     if (loaded) void tiles.current?.ensureLoaded('pulse', [...abnormal.keys()])
@@ -362,7 +370,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     <Group orientation="horizontal" style={{ height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
         <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel} onShowAll={showAll} anyHidden={anyHidden}
-          statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
+          statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} hasPower={hasPower} />}
           systemPanel={<SystemPanel selection={selection} systems={systemsMeta} route={route} setRoute={setRoute}
             onSolo={onLegendSolo}
             onSelect={gids => scene.current?.select(gids)} />} />
@@ -372,6 +380,15 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Panel minSize={200}>
         <div ref={canvas} style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
           {err && <p style={{ position: 'absolute', top: 8, left: 8, color: T.crit, background: T.bg.surface, padding: 6 }}>{err}</p>}
+          {/* U306: GLB·타일을 받는 동안 캔버스가 비어 "고장났나" 싶은 것 방지 — loaded 가 되면 사라진다 */}
+          {!loaded && !err && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', color: T.ink[2], fontSize: 13 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <span>모델 불러오는 중</span>
+              <span style={{ fontSize: 12, color: T.ink[3] }}>
+                {tileOn ? (stats.tiles ? `타일 ${stats.tiles.loaded}/${stats.tiles.total}` : '') : glbProgress?.total ? `${(glbProgress.loaded / 1e6).toFixed(1)} / ${(glbProgress.total / 1e6).toFixed(1)} MB` : ''}
+              </span>
+            </div>
+          </div>}
           {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.bg.base, padding: '2px 6px', borderRadius: T.radius, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
 
           {colorView !== 'none' && <ColorPanel modelId={modelId} mode={colorView} elements={elements} spatial={spatial} systemsMeta={systemsMeta}
@@ -409,12 +426,17 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {clip && bounds && (
             <Floating id="clip" anchor={{ top: 8, left: '50%', transform: 'translateX(-50%)', padding: '8px 10px', fontSize: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '4px 8px', alignItems: 'center', minWidth: 380 }}>
-              {(['X', 'Y', 'Z'] as const).map((ax, a) => <Axis key={ax} name={ax} min={bounds.min[a]} max={bounds.max[a]} lo={clip[a * 2]} hi={clip[a * 2 + 1]}
+              {CLIP_AXES.map(({ name, label }, a) => <Axis key={name} name={name} label={label} min={bounds.min[a]} max={bounds.max[a]} lo={clip[a * 2]} hi={clip[a * 2 + 1]}
                 onChange={(lo, hi) => setClip(c => { const n = [...c!]; n[a * 2] = lo; n[a * 2 + 1] = hi; return n })} />)}
               <span style={{ color: T.ink[2] }}>층</span>
-              <div style={{ gridColumn: '2 / 4', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {storeys.filter(st => st.elevation != null).map(st => <button key={st.id} onClick={() => setClip(c => { const n = [...c!]; n[3] = st.elevation! + 1.5; return n })} title="바닥 +1.5m 에서 수평 절단" style={{ whiteSpace: 'nowrap' }}>{st.name}</button>)}
-                <button onClick={() => setClip([...bounds.min.flatMap((m, i) => [m, bounds.max[i]])])} title="박스 초기화">초기화</button>
+              <div style={{ gridColumn: '2 / 4', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {storeyGroups.map(g => (
+                  <div key={g.building || '_'} style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                    {storeyGroups.length > 1 && g.building && <span style={{ color: T.ink[3], fontSize: 11, marginRight: 2 }}>{g.building}</span>}
+                    {g.storeys.map(st => <button key={st.id} onClick={() => setClip(c => { const n = [...c!]; n[3] = st.elevation! + 1.5; return n })} title="바닥 +1.5m 에서 수평 절단" style={{ ...btn, padding: '3px 8px', fontSize: 12 }}>{st.name}</button>)}
+                  </div>
+                ))}
+                <button onClick={() => setClip([...bounds.min.flatMap((m, i) => [m, bounds.max[i]])])} title="박스 초기화" style={{ ...btn, padding: '3px 8px', fontSize: 12, alignSelf: 'flex-start' }}>초기화</button>
               </div>
             </div>
             </Floating>
@@ -490,6 +512,25 @@ export function pickColors({ route, power, colorView, statusRows, systemsMeta, p
   }
   if (colorView === 'property') return propertyMap
   return undefined
+}
+
+/** U315: 단면 박스 축 이름 — 씬은 Y-up(scene.ts 의 grid 가 box.min.y 를 바닥으로 쓴다), clip 배열은 [xmin,xmax,ymin,ymax,zmin,zmax].
+ *  X·Z 는 바닥 평면(동서·남북은 진짜 방위가 아니라 평면 두 축을 구분하는 이름), Y 가 높이 */
+export const CLIP_AXES = [{ name: 'X', label: '동서' }, { name: 'Y', label: '높이' }, { name: 'Z', label: '남북' }] as const
+
+/** U315: 층 버튼을 동(IfcBuilding)별로 묶는다 — storey.parentId 를 타고 올라가 가장 가까운 IfcBuilding 을 찾는다.
+ *  IfcBuilding 이 없는 모델(실무 IFC 단일 동)은 소제목 없는 그룹 하나 — 순수 함수(테스트용) */
+export function groupStoreysByBuilding(spatial: SpatialNode[]): { building: string; storeys: SpatialNode[] }[] {
+  const byId = new Map(spatial.map(n => [n.id, n]))
+  const buildingOf = (n: SpatialNode): SpatialNode | undefined => { let p = n.parentId != null ? byId.get(n.parentId) : undefined; while (p && p.ifcClass !== 'IfcBuilding') p = p.parentId != null ? byId.get(p.parentId) : undefined; return p }
+  const storeys = spatial.filter(n => n.ifcClass === 'IfcBuildingStorey' && n.elevation != null).sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0))
+  const order: string[] = [], groups = new Map<string, { building: string; storeys: SpatialNode[] }>()
+  for (const st of storeys) {
+    const key = buildingOf(st)?.globalId ?? ''
+    if (!groups.has(key)) { groups.set(key, { building: buildingOf(st)?.name ?? '', storeys: [] }); order.push(key) }
+    groups.get(key)!.storeys.push(st)
+  }
+  return order.map(k => groups.get(k)!)
 }
 
 /** URL 쿼리의 뷰포인트: v=카메라 6수, sel=GlobalId 목록, clip=섹션 박스 6수, focus=포커스 모드 */

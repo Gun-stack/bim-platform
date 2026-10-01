@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { KEY, read } from './tourSteps'
-import { btn, btnPrimary, useEsc } from './ui'
+import { btn, btnPrimary, useEscLayer } from './ui'
 import { T } from './theme'
 
 /** 둘러보기 안내 카드 — 하단 가운데(뷰어 툴바 위). 단계마다 딥링크로 이동, Esc·X 로 닫기. 키오스크에선 App 이 안 그린다 */
@@ -9,7 +9,8 @@ export default function Tour() {
   const [t, setT] = useState(read)
   useEffect(() => { const f = () => setT(read()); addEventListener('tour', f); return () => removeEventListener('tour', f) }, [])
   const close = () => { sessionStorage.removeItem(KEY); setT(undefined) }
-  useEsc(close)
+  // B301(Controller Ruling 7): 카드가 떠 있을 때만 층에 올라간다 — 메뉴를 닫으려던 Esc 가 둘러보기까지 지우지 않는다
+  useEscLayer(!!t, close)
   if (!t) return null
   const go = (i: number) => { if (i >= t.steps.length) return close(); const n = { ...t, i }; sessionStorage.setItem(KEY, JSON.stringify(n)); setT(n); location.hash = t.steps[i].hash }
   const s = t.steps[t.i], last = t.i === t.steps.length - 1

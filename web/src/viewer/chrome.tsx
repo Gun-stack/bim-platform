@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { GripVertical, type LucideIcon } from 'lucide-react'
+import { useEscLayer } from '../ui'
 import { T } from '../theme'
 
 /** 캔버스 위에 얹는 순수 표시 부품: 플로팅 패널, 툴바 버튼, 구분선, 범위 슬라이더. 뷰어 상태를 모른다 */
@@ -55,11 +56,12 @@ export function ToolMenu({ icon, label, active, value, options, onChange }: {
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
+  useEscLayer(open, () => setOpen(false))   // B301(Ruling 7): Esc 는 이 메뉴만 닫는다 — 씬의 선택 해제가 같이 따라오지 않는다
   useEffect(() => {
     if (!open) return
-    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }, key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    addEventListener('pointerdown', close, true); addEventListener('keydown', key); addEventListener('wheel', close, true)
-    return () => { removeEventListener('pointerdown', close, true); removeEventListener('keydown', key); removeEventListener('wheel', close, true) }
+    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    addEventListener('pointerdown', close, true); addEventListener('wheel', close, true)
+    return () => { removeEventListener('pointerdown', close, true); removeEventListener('wheel', close, true) }
   }, [open])
   return (
     <span ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
@@ -75,11 +77,11 @@ export function ToolMenu({ icon, label, active, value, options, onChange }: {
 
 export const Gap = () => <span style={{ width: 1, background: T.bg.line, margin: '6px 4px' }} />
 
-/** 축 하나의 min/max 범위 슬라이더 (native range 두 개 겹침) */
-export function Axis({ name, min, max, lo, hi, onChange }: { name: string; min: number; max: number; lo: number; hi: number; onChange: (lo: number, hi: number) => void }) {
+/** 축 하나의 min/max 범위 슬라이더 (native range 두 개 겹침). name 은 색 식별자(X/Y/Z), label 은 화면에 보이는 글자(U315: 동서·남북·높이) */
+export function Axis({ name, label, min, max, lo, hi, onChange }: { name: 'X' | 'Y' | 'Z'; label: string; min: number; max: number; lo: number; hi: number; onChange: (lo: number, hi: number) => void }) {
   const st = { width: '100%', margin: 0, position: 'absolute' as const, left: 0, top: 0 }
   return <>
-    <span style={{ color: { X: T.axis.x, Y: T.axis.y, Z: T.axis.z }[name as 'X'], fontWeight: 600 }}>{name}</span>
+    <span style={{ color: { X: T.axis.x, Y: T.axis.y, Z: T.axis.z }[name], fontWeight: 600 }}>{label}</span>
     <div style={{ position: 'relative', height: 20 }}>
       <input type="range" className="dual" min={min} max={max} step={0.05} value={lo} onChange={e => onChange(Math.min(+e.target.value, hi - 0.05), hi)} style={st} />
       <input type="range" className="dual hi" min={min} max={max} step={0.05} value={hi} onChange={e => onChange(lo, Math.max(+e.target.value, lo + 0.05))} style={st} />

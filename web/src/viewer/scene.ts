@@ -8,6 +8,7 @@ import { Pipeline } from './render'
 import { EDGE, edgesOf, tier, xrayMat, type Tier } from './xray'
 import { FLY_MS, GlowLayer, REVEAL_MS, flowLevel, interpView, pulseOpacity, reducedMotion, revealY } from './fx'
 import { FLY, isTyping } from './keys'
+import { hasEscLayer } from '../ui'
 import { T, num } from '../theme'
 
 export type Kind = 'element' | 'space' | 'opening'
@@ -87,6 +88,8 @@ export class Scene3D {
   private hoverGroup = new THREE.Group()   // 호버 외곽선 — 마그네틱 픽이 잡은 요소 표시
   private hoveredGid?: string
   onMeasure?: (m: { a: number[]; b: number[]; d: number }) => void
+  /** 단일 GLB 로드 진행(U306) — 받은/전체 바이트. 타일 모드는 Tiles.count() 를 Viewer 가 직접 폴링한다 */
+  onProgress?: (loaded: number, total: number) => void
   private measurePt?: THREE.Vector3
   private measureGroup = new THREE.Group()
   private marker?: THREE.Group
@@ -135,13 +138,20 @@ export class Scene3D {
     this.renderer.domElement.addEventListener('dblclick', e => { const g = this.pick(e.clientX, e.clientY); this.fitAll(g ? [g] : []) })
     this.ro = new ResizeObserver(this.onResize); this.ro.observe(el)   // 패널 리사이즈 추종
     this.navCube = new NavCube(el, dir => this.lookFrom(dir), () => this.preset('home'))
-    const loop = () => { this.raf = requestAnimationFrame(loop); const now = performance.now(); this.fly((now - this.last) / 1000); this.last = now; this.controls.update(); this.frame(now); this.navCube.sync(this.camera); this.frames++ }
+    // B303: 뷰어를 떠날 때(라우트 전환) React 의 DOM 커밋이 dispose() effect-cleanup 보다 먼저 일어날 수 있다 —
+    // 그 틈에 캔버스 컨테이너가 떨어져 나가면(clientWidth/Height 0) 그 프레임은 그리지 않는다. 0 크기 프레임버퍼에 그리면
+    // 'Attachment has zero size' GL 경고가 패스마다(MSAA·AO·출력) 터져 한 프레임에도 브라우저 상한(256)까지 쌓인다
+    const loop = () => {
+      this.raf = requestAnimationFrame(loop)
+      const now = performance.now(); this.fly((now - this.last) / 1000); this.last = now; this.controls.update()
+      if (this.el.clientWidth && this.el.clientHeight) { this.frame(now); this.navCube.sync(this.camera); this.frames++ }
+    }
     loop()
   }
 
   /** 단일 GLB: 콘텐츠 하나(tile '') + 모델 범위 + 등장 연출 */
   async load(url: string, classify: Classify) {
-    const gltf = await new GLTFLoader().loadAsync(url)
+    const gltf = await new GLTFLoader().loadAsync(url, e => this.onProgress?.(e.loaded, e.total))
     this.addContent(gltf.scene, '', classify)
     this.begin(new THREE.Box3().setFromObject(gltf.scene))
     this.startReveal()
@@ -488,11 +498,11 @@ export class Scene3D {
     return { calls: this.pipeline.calls, triangles: this.pipeline.triangles, fps: this.fps, geometries: this.renderer.info.memory.geometries }
   }
 
-  /** 키보드: Escape = 선택 해제. 연속 키(WASD·QE·방향키·±·Shift)는 Set 에 담아 fly() 가 프레임마다 본다. 입력란·Ctrl/Cmd/Alt 조합은 무시. 단발 액션 키는 Viewer 가 처리 */
+  /** 키보드: Escape = 선택 해제(단, 열린 층이 없을 때만 — B301). 연속 키(WASD·QE·방향키·±·Shift)는 Set 에 담아 fly() 가 프레임마다 본다. 입력란·Ctrl/Cmd/Alt 조합은 무시. 단발 액션 키는 Viewer 가 처리 */
   private onKey = (e: KeyboardEvent) => {
     if (e.type === 'keyup') { this.keys.delete(e.code); return }
     if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
-    if (e.key === 'Escape') { this.select([]); return }
+    if (e.key === 'Escape') { if (!hasEscLayer()) this.select([]); return }   // 메뉴·단축키 안내·측정 패널이 열려 있으면 그 층만 닫고 선택은 그대로
     if (FLY.has(e.code)) { this.keys.add(e.code); e.preventDefault() }   // 방향키·Shift 의 기본 스크롤 방지
   }
   private onBlur = () => this.keys.clear()   // 키 누른 채 탭 전환 → keyup 을 못 받아 계속 날아가는 것 방지
@@ -566,5 +576,8 @@ export class Scene3D {
     return (this.xray ? found.find(g => el(g) && this.tiers.get(g) === 'equipment') : undefined) ?? found.find(el) ?? found[0]
   }
 
-  private onResize = () => { this.camera.aspect = this.el.clientWidth / this.el.clientHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(this.el.clientWidth, this.el.clientHeight); this.pipeline.setSize(this.el.clientWidth, this.el.clientHeight) }
+  private onResize = () => {
+    const w = this.el.clientWidth, h = this.el.clientHeight; if (!w || !h) return   // B303: 0 크기로 리사이즈하지 않는다 — loop() 의 같은 가드와 짝
+    this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h); this.pipeline.setSize(w, h)
+  }
 }

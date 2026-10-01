@@ -14,6 +14,10 @@ export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOME
   // 예외: 설비 배관은 현업 도색 관례가 우선 — 급수=청, 급탕=적, 가스=황, 오배수=갈, 환기=녹
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
 
+/** U330: 정전 시나리오는 ATS·발전기(이름이 MDB·EG- 로 시작하는 요소)가 있어야 뜻이 있다 —
+ *  서버 StatusService.downstream() 의 이름 패턴(MDB%·EG-%)과 같은 판정. 둘 다 없는 실무 IFC는 버튼을 숨긴다 */
+export const hasPowerScenario = (elements: { name: string | null }[]) => elements.some(e => e.name?.startsWith('MDB') || e.name?.startsWith('EG-'))
+
 /** 선택 요소가 신호(SIGNAL) 계통에만 속하면 화재감지 어휘(감지기 쪽·수신기까지)로 추적 라벨을 바꾼다 — 계통 탭·요약 카드가 같은 판정을 쓴다(중복 계산 방지) */
 export const isSignalTrace = (systems: System[] | undefined, gid?: string) => {
   const inSystems = (systems ?? []).filter(s => s.members.includes(gid ?? ''))
@@ -73,19 +77,21 @@ export default function SystemPanel({ selection, systems, route, setRoute, onSol
   )
 }
 
-/** 상태판: ALARM/FAULT 목록 + 정전/복전. 좌측 패널 최상단(탭 무관)에 놓인다 — 뷰어를 열면 제일 먼저 볼 것. 요소별 상태 변경은 우측 속성 패널(StatusEditor). 상태 색 보기는 툴바 "색" 메뉴(U309) */
-export function StatusBoard({ rows, modelId, reload, onSelect, power, setPower, collapsed, setCollapsed }: {
+/** 상태판: ALARM/FAULT 목록 + 정전/복전. 좌측 패널 최상단(탭 무관)에 놓인다 — 뷰어를 열면 제일 먼저 볼 것. 요소별 상태 변경은 우측 속성 패널(StatusEditor). 상태 색 보기는 툴바 "색" 메뉴(U309)
+ *  U330: 상태 행이 0개면(감시용 Pset_BimStatus 가 없는 실무 IFC) "전부 정상"이 아니라 "감시 장비 없음" — hasPower 가 false 면 정전 버튼도 숨긴다(ATS·발전기가 없어 눌러도 아무 일도 안 생긴다) */
+export function StatusBoard({ rows, modelId, reload, onSelect, power, setPower, collapsed, setCollapsed, hasPower }: {
   rows: StatusRow[]; modelId: string; reload: () => Promise<unknown>; onSelect: (g: string[]) => void; collapsed: boolean; setCollapsed: (b: boolean) => void
-  power?: PowerResult; setPower: (p?: PowerResult) => void
+  power?: PowerResult; setPower: (p?: PowerResult) => void; hasPower: boolean
 }) {
   const [busy, setBusy] = useState(false)
   const abnormal = rows.filter(r => isAbnormal(r.status.Status))
+  const noSensors = rows.length === 0
   const togglePower = () => { setBusy(true); post<PowerResult>(`/models/${modelId}/power?source=${power?.source === 'GENERATOR' ? 'UTILITY' : 'GENERATOR'}`, {}).then(p => setPower(p.source === 'GENERATOR' ? p : undefined)).then(reload).finally(() => setBusy(false)) }
   return (
-    <div style={{ padding: '6px 10px', background: abnormal.length ? T.critSoft : T.okSoft, borderBottom: `1px solid ${T.bg.line}` }}>
+    <div style={{ padding: '6px 10px', background: noSensors ? T.bg.raised : abnormal.length ? T.critSoft : T.okSoft, borderBottom: `1px solid ${T.bg.line}` }}>
       <div onClick={() => setCollapsed(!collapsed)} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                 <b style={{ flex: 1 }}>상태판</b>
-        <span style={{ fontSize: 12, fontWeight: 600, color: abnormal.length ? T.crit : T.ok }}>{abnormal.length ? `이상 ${abnormal.length}` : '전부 정상'}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: noSensors ? T.ink[2] : abnormal.length ? T.crit : T.ok }}>{noSensors ? '감시 장비 없음' : abnormal.length ? `이상 ${abnormal.length}` : '전부 정상'}</span>
         {power?.source === 'GENERATOR' && <span style={{ fontSize: 11, color: T.warn }}>· 정전</span>}
         {collapsed ? <ChevronDown size={14} style={{ color: T.ink[2] }} /> : <ChevronUp size={14} style={{ color: T.ink[2] }} />}
       </div>
@@ -94,8 +100,8 @@ export function StatusBoard({ rows, modelId, reload, onSelect, power, setPower, 
         <span style={{ width: 8, height: 8, borderRadius: 999, background: statusHex(r.status.Status), flexShrink: 0 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
         <span style={{ color: T.ink[2] }}>{r.spatialName}</span><b style={{ color: statusHex(r.status.Status) }}>{statusLabel(r.status.Status)}</b></div>)}
-      <button disabled={busy} onClick={togglePower} title={power ? '발전기에서 한전으로 되돌린다' : '한전 정전 — ATS 가 발전기로 절체, 비상 계통만 전원 유지'} style={{ ...btn, marginTop: 8, width: '100%', background: power ? T.warnSoft : T.bg.surface, borderColor: power ? T.warn : T.bg.line, color: power ? T.warn : T.ink[1] }}>
-        {power ? `복전 (무전원 ${power.unpowered.length})` : '정전 시나리오'}</button>
+      {hasPower && <button disabled={busy} onClick={togglePower} title={power ? '발전기에서 한전으로 되돌린다' : '한전 정전 — ATS 가 발전기로 절체, 비상 계통만 전원 유지'} style={{ ...btn, marginTop: 8, width: '100%', background: power ? T.warnSoft : T.bg.surface, borderColor: power ? T.warn : T.bg.line, color: power ? T.warn : T.ink[1] }}>
+        {power ? `복전 (무전원 ${power.unpowered.length})` : '정전 시나리오'}</button>}
       </>}
     </div>
   )

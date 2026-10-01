@@ -1,8 +1,16 @@
+/* oxlint-disable react/only-export-components -- isEquipment(U336): 서버 FmService.bulk 와 같은 제외 규칙, 순수 함수 */
 import { useEffect, useState } from 'react'
 import { api, post, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Viewpoint } from '../api'
 import { WO_STATUS, type WoStatus } from '../status'
 import { btn, btnPrimary, day, inp as inpBase } from '../ui'
+import { STRUCT } from './LeftPanel'
 import { T } from '../theme'
+
+/** U336: 자산 일괄 등록(FmService.bulk)과 같은 제외 규칙 — 구조체(STRUCT)·배관(API Sql.SEGMENT_CLASSES, "선"과 그 이음)은
+ *  장비가 아니다. 공간(IfcSpace)은 여기까지 오기 전에 이미 걸러진다(selection 이 byGid=/elements 에 있어야 FmPanel 이 뜬다) */
+const SEGMENT_CLASSES = ['IfcPipeSegment', 'IfcCableCarrierSegment', 'IfcCableSegment', 'IfcDuctSegment', 'IfcFlowSegment', 'IfcPipeFitting', 'IfcDuctFitting', 'IfcCableCarrierFitting', 'IfcCableFitting', 'IfcFlowFitting']
+const NOT_EQUIPMENT = new Set<string>([...STRUCT, ...SEGMENT_CLASSES])
+export const isEquipment = (ifcClass: string) => !NOT_EQUIPMENT.has(ifcClass)
 
 /** 우측 "자산" 탭. 선택 요소 ↔ asset 연결, 점검·작업지시. 자산 목록은 모델 단위로 한 번 받아 globalId 로 찾는다.
  *  assetDetail(점검·작업지시 목록)은 Viewer 가 한 곳에서 받아 내려준다 — 전엔 Viewer(요약 카드용)와 여기(AssetCard) 둘 다 GET /assets/{id} 를 불렀다 */
@@ -36,6 +44,7 @@ const suggestTag = (el: ElementRow, n: number) => `${el.ifcClass.replace('Ifc', 
 function Register({ gid, el, detail, modelId, run, err }: { gid: string; el: ElementRow; detail?: ElementDetail; modelId: string; run: (p: Promise<unknown>) => Promise<void>; err?: string }) {
   const [tag, setTag] = useState(''); const [category, setCategory] = useState(el.ifcClass.replace('Ifc', ''))
   useEffect(() => { api<Asset[]>(`/models/${modelId}/assets`).then(as => setTag(suggestTag(el, as.length + 1))) }, [gid, modelId, el])
+  if (!isEquipment(el.ifcClass)) return <p style={{ color: T.ink[2] }}>장비가 아닌 요소입니다.</p>   // U336: 벽·슬래브·배관엔 자산 등록 폼을 주 동작으로 내밀지 않는다
   const attrs = snapshot(detail)
   return (
     <form onSubmit={e => { e.preventDefault(); run(post(`/models/${modelId}/assets`, { globalId: gid, tag, category, attributes: attrs })) }}>

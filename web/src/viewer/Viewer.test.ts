@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { pickColors } from './Viewer'
-import type { PowerResult, Route, StatusRow, System } from '../api'
+import { pickColors, groupStoreysByBuilding } from './Viewer'
+import type { PowerResult, Route, SpatialNode, StatusRow, System } from '../api'
 
 const route: Route = { globalId: 'g0', direction: 'down', systems: [], nodes: [{ globalId: 'g1', ifcClass: 'IfcPipeSegment', name: null, depth: 1, spatialName: null, via: null }] }
 const power: PowerResult = { source: 'GENERATOR', powered: ['g1'], unpowered: ['g2'] }
@@ -36,5 +36,39 @@ describe('pickColors — 색 보기 우선순위(U309): 추적 > 정전 > 상태
   it('계통 모드 + /systems 응답에 멤버 포함 → 계통색 즉시 칠함(B300: 탭을 연 적 없어도)', () => {
     const sm: System = { id: 1, globalId: 's1', name: '전기', predefinedType: null, memberCount: 1, connectionCount: 0, members: ['g1'] }
     expect(pickColors({ ...base, colorView: 'systems', systemsMeta: [sm] })?.get('g1')).toBeDefined()
+  })
+})
+
+describe('groupStoreysByBuilding — U315: 층 버튼 동별 묶음', () => {
+  const node = (p: Partial<SpatialNode> & { id: number }): SpatialNode => ({ parentId: null, globalId: 'g' + p.id, ifcClass: 'IfcBuildingStorey', name: null, elevation: null, ...p })
+  it('storey.parentId 로 IfcBuilding 까지 올라가 동별로 묶는다 — gen_mep.py --annex 처럼 두 동이 섞여 있어도', () => {
+    const spatial: SpatialNode[] = [
+      node({ id: 1, ifcClass: 'IfcSite' }),
+      node({ id: 2, ifcClass: 'IfcBuilding', name: '업무동', parentId: 1 }),
+      node({ id: 3, ifcClass: 'IfcBuilding', name: '주차타워', parentId: 1 }),
+      node({ id: 4, name: '1F', parentId: 2, elevation: 0 }),
+      node({ id: 5, name: 'P1F', parentId: 3, elevation: 0 }),
+      node({ id: 6, name: '2F', parentId: 2, elevation: 4 }),
+      node({ id: 7, name: 'P2F', parentId: 3, elevation: 4 }),
+    ]
+    const groups = groupStoreysByBuilding(spatial)
+    expect(groups.map(g => g.building)).toEqual(['업무동', '주차타워'])
+    expect(groups[0].storeys.map(s => s.name)).toEqual(['1F', '2F'])   // 동 안에서는 높이순
+    expect(groups[1].storeys.map(s => s.name)).toEqual(['P1F', 'P2F'])
+  })
+  it('IfcBuilding 이 없는 실무 IFC(단일 동)는 묶음 하나로, 소제목 없음', () => {
+    const spatial: SpatialNode[] = [
+      node({ id: 1, ifcClass: 'IfcSite' }),
+      node({ id: 2, name: 'Level 1', parentId: 1, elevation: 0 }),
+      node({ id: 3, name: 'Level 2', parentId: 1, elevation: 3 }),
+    ]
+    const groups = groupStoreysByBuilding(spatial)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].building).toBe('')
+    expect(groups[0].storeys.map(s => s.name)).toEqual(['Level 1', 'Level 2'])
+  })
+  it('고도 없는 층(elevation null)은 제외 — 단면 절단 기준이 없다', () => {
+    const spatial: SpatialNode[] = [node({ id: 1, name: '고도 없음', parentId: null, elevation: null })]
+    expect(groupStoreysByBuilding(spatial)).toEqual([])
   })
 })

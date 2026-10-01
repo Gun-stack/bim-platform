@@ -4,6 +4,7 @@ import { Focus, X } from 'lucide-react'
 import { api, type ElementRow, type SpatialNode, type System } from '../api'
 import { STATUS, hex } from '../status'
 import { groupByTeam, systemColor } from './SystemPanel'
+import { ifcKo } from '../ifcNames'
 import { T } from '../theme'
 
 /** 카테고리 팔레트 (Tableau 10 + 2). 값이 더 많으면 순환 */
@@ -80,7 +81,8 @@ export default function ColorPanel({ modelId, mode, elements, spatial, systemsMe
         </div>
         <div style={{ overflow: 'auto', padding: '0 6px 8px' }}>
           {!values && <div style={{ color: T.ink[2], padding: 6 }}>불러오는 중…</div>}
-          {legend.map(l => <LegendRow key={l.value} {...l} onSolo={() => onSolo(`${key} = ${l.value}`, l.gids, 'v:' + `${key} = ${l.value}`)} />)}
+          {/* U316: '종류'(ifcClass) 범례만 ifcKo 한글로 — 묶음 키는 그대로 원본 클래스(LeftPanel 의 종류 트리와 같은 규칙), 보이는 값만 번역 */}
+          {legend.map(l => <LegendRow key={l.value} {...l} value={key === 'ifcClass' ? ifcKo(l.value) : l.value} onSolo={() => onSolo(`${key} = ${l.value}`, l.gids, 'v:' + `${key} = ${l.value}`)} />)}
           {values && uncolored > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', color: T.ink[2] }}>
             <span style={{ width: 12, height: 12, borderRadius: T.radius, background: T.bg.line }} /> <span style={{ flex: 1 }}>값 없음</span> {uncolored}</div>}
         </div>

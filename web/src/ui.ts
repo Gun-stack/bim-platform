@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { T } from './theme'
 
 /** 화면 공용 잔재주: 날짜, 점검 지연 규칙, Esc 훅, 버튼·입력 기본 스타일 */
@@ -23,6 +23,25 @@ export const woOverdue = (dueOn?: string | null, status?: string) => !!dueOn && 
 
 /** Esc 로 닫기 (모달·Drawer·측정 모드) */
 export const useEsc = (fn: () => void) => useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === 'Escape') fn() }; addEventListener('keydown', h); return () => removeEventListener('keydown', h) }, [fn])
+
+/** Esc 층 쌓기(B301) — 뷰어 위에 뜨는 층(우클릭 메뉴·색 메뉴·단축키 안내·측정 패널·둘러보기 카드)이 겹치면
+ *  Esc 한 번은 가장 위(가장 최근에 연) 층만 닫는다. 층이 하나도 없을 때만 그 아래(씬의 선택 해제 등)가 자기 Esc 를 쓴다.
+ *  층마다 따로 keydown 을 달면 한 번의 Esc 에 여럿이 반응한다 — 전역 리스너 하나(아래)가 스택 top 만 부른다 */
+let escLayers: (() => void)[] = []
+/** 층을 하나 연다 — 반환한 함수를 닫힐 때(effect cleanup) 불러 스택에서 뺀다. 테스트용 순수 함수 */
+export const pushEscLayer = (close: () => void) => { escLayers = [...escLayers, close]; return () => { escLayers = escLayers.filter(f => f !== close) } }
+/** 지금 열린 층이 있는가 — scene.ts 의 Escape(선택 해제)가 "층이 없을 때만" 동작하도록 쓴다 */
+export const hasEscLayer = () => escLayers.length > 0
+/** 가장 위 층만 닫는다. 테스트용 순수 함수 — 실제 입력은 아래 전역 keydown 하나뿐 */
+export const fireEsc = () => escLayers[escLayers.length - 1]?.()
+if (typeof window !== 'undefined') addEventListener('keydown', e => { if (e.key === 'Escape' && escLayers.length) { e.stopPropagation(); fireEsc() } }, true)   // capture: scene.ts·Tour 등 bubble 리스너보다 먼저 가로챈다
+
+/** 캔버스 위 층 하나 — active 인 동안 스택에 쌓인다. close 는 매 렌더 새 함수라도 괜찮다(ref 로 최신 것만 쓴다 — ContextMenu 재구독 버그 재발 방지) */
+export const useEscLayer = (active: boolean, close: () => void) => {
+  const ref = useRef(close)
+  useEffect(() => { ref.current = close })   // 렌더 중이 아니라 effect 안에서 — 매 렌더 새 close 라도 아래 구독 effect 는 active 가 바뀔 때만 다시 돈다
+  useEffect(() => { if (!active) return; return pushEscLayer(() => ref.current()) }, [active])
+}
 
 export const btn = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, background: T.bg.raised, cursor: 'pointer', fontSize: T.fs.sm, color: T.ink[1], textDecoration: 'none' } as const
 /** 주 동작 하나(등록·생성·저장). 채움 위 글자는 어두운 bg.base — 규칙 */
