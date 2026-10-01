@@ -48,7 +48,7 @@ export function Tool({ icon: Icon, label, hint, keys, onClick, active, disabled 
   </span>
 }
 
-/** Tool 버튼 + 작은 선택 메뉴(택1). 클릭하면 위로 펼침 — 바깥 클릭·Esc 로 닫힘. 색 모드(U309)처럼 한 버튼에 여러 보기를 모을 때 */
+/** Tool 버튼 + 작은 선택 메뉴(택1). 클릭하면 위로 펼침 — 바깥 클릭·Esc·휠(ContextMenu 와 동일)로 닫힘. 색 모드(U309)처럼 한 버튼에 여러 보기를 모을 때 */
 export function ToolMenu({ icon, label, active, value, options, onChange }: {
   icon: LucideIcon; label: string; active?: boolean
   value: string; options: { value: string; label: string }[]; onChange: (v: string) => void
@@ -58,8 +58,8 @@ export function ToolMenu({ icon, label, active, value, options, onChange }: {
   useEffect(() => {
     if (!open) return
     const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }, key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    addEventListener('pointerdown', close, true); addEventListener('keydown', key)
-    return () => { removeEventListener('pointerdown', close, true); removeEventListener('keydown', key) }
+    addEventListener('pointerdown', close, true); addEventListener('keydown', key); addEventListener('wheel', close, true)
+    return () => { removeEventListener('pointerdown', close, true); removeEventListener('keydown', key); removeEventListener('wheel', close, true) }
   }, [open])
   return (
     <span ref={ref} style={{ position: 'relative', display: 'inline-block' }}>

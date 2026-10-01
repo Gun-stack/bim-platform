@@ -1,8 +1,9 @@
+/* oxlint-disable react/only-export-components -- pickColors(U309): 색 우선순위 순수 함수, readViewpoint 와 같은 자리 */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels'
 import { Check, Eye, Palette, Ruler, Trash2, X, EyeOff, Focus, Home, Keyboard, Link, Maximize, Scissors } from 'lucide-react'
-import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type System, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
+import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type StatusRow, type System, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
 import { STATUS, isAbnormal, statusHex } from '../status'
@@ -15,7 +16,7 @@ import StatusEditor from './StatusEditor'
 import { Scene3D, type Classify, type Kind, type Stats, type View } from './scene'
 import { Tiles, tileMode } from './tiles'
 import LeftPanel, { STRUCT, type Hidden, type Opts, type SelectMode } from './LeftPanel'
-import ColorPanel from './ColorPanel'
+import ColorPanel, { type ColorView } from './ColorPanel'
 import ContextMenu, { type MenuItem } from './ContextMenu'
 import { Axis, Floating, Gap, Tool, ToolMenu } from './chrome'
 import { keyAction, type Action } from './keys'
@@ -50,7 +51,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [focus, setFocus] = useState<'none' | 'ghost'>('none')
   const [hover, setHover] = useState<{ x: number; y: number; text: string }>()
   const [copied, setCopied] = useState(false)
-  const [colorView, setColorView] = useState<'none' | 'status' | 'systems' | 'property'>('none')   // 색 보기 — 툴바 "색" 메뉴 하나(U309), T·K·P 는 같은 상태를 토글
+  const [colorView, setColorView] = useState<ColorView>('none')   // 색 보기 — 툴바 "색" 메뉴 하나(U309), T·K·P 는 같은 상태를 토글
+  const [propertyMap, setPropertyMap] = useState<Map<string, number>>()   // 속성 모드 범례(ColorPanel)가 올려보내는 맵 — scene 은 Viewer 만 건드린다(U309 재발 방지)
+  useEffect(() => { if (colorView !== 'property') setPropertyMap(undefined) }, [colorView])   // 모드를 떠나면 버린다 — 다음에 속성으로 돌아와도 범례가 다시 계산될 때까지는 undefined(이전 모드 잔상 방지)
   const [sysMembers, setSysMembers] = useState<Map<number, SystemMember[]>>(new Map())
   const [route, setRoute] = useState<Route>()          // 추적 결과
   const [systemsMeta, setSystemsMeta] = useState<System[]>([])
@@ -80,21 +83,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); setFocus('none'); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])   // 다른 요소를 고르면 포커스 모드(격리·비콘)도 해제 — 배너 X 와 동일
   const { rows: statusRows, fresh: freshAlerts, dismiss: dismissAlert, reload: reloadStatus } = useAlerts(modelId)   // 5초 폴링 — 상태판·트리 배지도 함께 최신 유지
   useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
-  // 색 보기(U309): 추적 > 정전 > 선택한 색 모드 하나(없음·상태·계통·속성). 속성은 ColorPanel 이 자기 범례로 직접 칠한다(분류 기준 선택이 그 안에 있어서) — 여기선 손대지 않는다
+  // 색 보기(U309): pickColors 하나가 우선순위(추적 > 정전 > 상태·계통·속성 > 없음)를 정하고, scene 에는 여기 한 곳에서만 쓴다 —
+  // 전에는 이 effect 와 ColorPanel 의 onChange 가 각자 scene.setColors() 를 불러 경합했다(속성 모드에서 추적 색이 덮이는 버그)
   useEffect(() => {
     const s = scene.current; if (!s) return
-    if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? num(T.warn) : route.direction === 'up' ? num(T.accent) : num(T.ok)); s.setColors(m, true); return }
-    if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, num(T.ok)); for (const g of power.unpowered) m.set(g, 0x555c66); /* 무전원: 배경보다 살짝 밝은 짙은 회색 */ s.setColors(m, true); return }
-    if (colorView === 'status') { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? num(T.ink[3]) : st.On === false ? num(T.ink[3]) : STATUS[st.Status ?? '']?.color ?? num(T.ink[3])) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
-    if (colorView === 'systems') {
-      if (!sysMembers.size) { s.setColors(undefined); return }   // 계통 탭을 연 적 없으면 멤버가 비어있다(B300) — 전부 회색 대신 평소 색 유지, 범례가 "불러오는 중"
-      const m = new Map<string, number>()
-      for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, systemColor(sm))
-      s.setColors(m, true)   // 구조체는 반투명 — 계통이 건물 안에서 보이게
-      return
-    }
-    if (colorView !== 'property') s.setColors(undefined)
-  }, [colorView, sysMembers, systemsMeta, route, bounds, power, statusRows])
+    const map = pickColors({ route, power, colorView, statusRows, systemsMeta, sysMembers, propertyMap })
+    const ghost = !!route || !!power || colorView === 'status' || colorView === 'systems'   // 속성 모드는 값 없는 요소도 원래 색 유지(기존 동작)
+    s.setColors(map, ghost)
+  }, [colorView, sysMembers, systemsMeta, route, bounds, power, statusRows, propertyMap])
   const [menu, setMenu] = useState<{ x: number; y: number }>()
   const hq = useHashQuery(), woId = hq.get('wo')
   const [wo, setWo] = useState<WorkOrder>()   // ?wo= 로 열었을 때 상단 배너
@@ -373,7 +369,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.bg.base, padding: '2px 6px', borderRadius: T.radius, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
 
           {colorView !== 'none' && <ColorPanel modelId={modelId} mode={colorView} elements={elements} spatial={spatial} systemsMeta={systemsMeta} sysMembers={sysMembers}
-            onChange={m => scene.current?.setColors(m)} onSolo={onLegendSolo} onClose={() => setColorView('none')} />}
+            onChange={setPropertyMap} onSolo={onLegendSolo} onClose={() => setColorView('none')} />}
 
           {/* 경보/장애 포커스 배너: 층·구역 한 줄만 (U304) — 작업지시로 들어왔으면 그 배너에 합치고 여긴 안 띄운다(배너 중첩 방지) */}
           {focusInfo && !wo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: focusInfo.status === 'ALARM' ? T.critSoft : focusInfo.status === 'FAULT' ? T.warnSoft : T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 320 }}>
@@ -470,6 +466,24 @@ export default function Viewer({ modelId }: { modelId: string }) {
       </Panel>
     </Group>
   )
+}
+
+/** 색 보기(U309) 우선순위 — 추적 > 정전 > 선택한 색 모드(상태·계통·속성) > 없음. scene.setColors 에 넘길 단 하나의 맵을 고른다(순수 함수 — Viewer 의 색 effect 하나만 이 결과를 쓴다).
+ *  속성 모드는 ColorPanel 의 범례가 propertyMap 을 올려줄 때까지 undefined — 이전 모드 색이 눌어붙지 않는다(범례가 늦게 뜨는 속성 모드 진입 때의 잔상 버그) */
+export function pickColors({ route, power, colorView, statusRows, systemsMeta, sysMembers, propertyMap }: {
+  route?: Route; power?: PowerResult; colorView: ColorView
+  statusRows: StatusRow[]; systemsMeta: System[]; sysMembers: Map<number, SystemMember[]>
+  propertyMap?: Map<string, number>
+}): Map<string, number> | undefined {
+  if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? num(T.warn) : route.direction === 'up' ? num(T.accent) : num(T.ok)); return m }
+  if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, num(T.ok)); for (const g of power.unpowered) m.set(g, 0x555c66); return m }   // 무전원: 배경보다 살짝 밝은 짙은 회색
+  if (colorView === 'status') { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? num(T.ink[3]) : st.On === false ? num(T.ink[3]) : STATUS[st.Status ?? '']?.color ?? num(T.ink[3])) } return m }   // 점유 주차면·소등 조명은 회색
+  if (colorView === 'systems') {
+    if (!sysMembers.size) return undefined   // 계통 탭을 연 적 없으면 멤버가 비어있다(B300) — 전부 회색 대신 평소 색 유지, 범례가 "불러오는 중"
+    const m = new Map<string, number>(); for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, systemColor(sm)); return m
+  }
+  if (colorView === 'property') return propertyMap
+  return undefined
 }
 
 /** URL 쿼리의 뷰포인트: v=카메라 6수, sel=GlobalId 목록, clip=섹션 박스 6수, focus=포커스 모드 */
