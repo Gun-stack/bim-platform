@@ -7,8 +7,7 @@ import { T } from '../theme'
 export function Props({ e }: { e: ElementDetail }) {
   return (
     <>
-      <b>{ifcKo(e.ifcClass)}</b> <span>{e.name}</span>
-      <div style={{ color: T.ink[2], margin: '4px 0 8px' }}>{e.ifcClass} · {e.spatialClass} {e.spatialName} · <code>{e.globalId}</code></div>
+      <div style={{ color: T.ink[2], margin: '0 0 8px' }}><code>{e.globalId}</code></div>
       {Object.entries(e.properties).filter(([pset]) => pset !== 'Pset_BimStatus').map(([pset, props]) => (
         <details key={pset} open={pset.startsWith('Pset_')}>
           <summary>{pset}</summary>
@@ -19,7 +18,6 @@ export function Props({ e }: { e: ElementDetail }) {
           </tbody></table>
         </details>
       ))}
-      {e.properties.Pset_BimStatus && <details><summary style={{ color: T.ink[2] }}>Pset_BimStatus 원본</summary><pre style={{ fontSize: 11, color: T.ink[2], whiteSpace: 'pre-wrap', margin: '4px 0' }}>{JSON.stringify(e.properties.Pset_BimStatus, null, 1)}</pre></details>}
     </>
   )
 }

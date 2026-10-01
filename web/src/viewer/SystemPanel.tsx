@@ -14,17 +14,15 @@ export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOME
   // 예외: 설비 배관은 현업 도색 관례가 우선 — 급수=청, 급탕=적, 가스=황, 오배수=갈, 환기=녹
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
 
-/** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 선택 요소의 상류/하류 추적 */
-export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onTrace, onSolo, onSelect, colorMode, setColorMode }: {
+/** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 추적 경로 목록(버튼은 요약 카드 — U303) */
+export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode }: {
   modelId: string; selection: string[]
   members: Map<number, SystemMember[]>; setMembers: (m: Map<number, SystemMember[]>) => void
   route?: Route; setRoute: (r?: Route) => void
-  onTrace: (dir: 'up' | 'down') => Promise<void>   // 추적은 Viewer 가 (단축키 [ ] 와 공용)
   onSolo: (label: string, gids: string[], key: string) => void; onSelect: (gids: string[]) => void
   colorMode: boolean; setColorMode: (b: boolean) => void
 }) {
   const [systems, setSystems] = useState<System[]>([])
-  const [busy, setBusy] = useState(false)
   useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystems) }, [modelId])
   useEffect(() => {   // 멤버는 전부 미리 받아둔다 (색상 모드·솔로에 필요, 모델당 수백 개)
     if (!systems.length) return
@@ -34,19 +32,9 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
   const gid = selection.length === 1 ? selection[0] : undefined
   const inSystems = useMemo(() => systems.filter(s => (members.get(s.id) ?? []).some(m => m.globalId === gid)), [systems, members, gid])
   const signal = inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
-  const trace = (dir: 'up' | 'down') => { setBusy(true); onTrace(dir).finally(() => setBusy(false)) }
 
-  const traceSection = <>
-      {!gid && <div style={{ color: T.ink[2], fontSize: 12, padding: 6 }}>요소를 하나 선택하면 상류·하류를 추적할 수 있습니다.</div>}
-      {gid && <>
-        {systems.length > 0 && <div style={{ fontSize: 12, color: T.ink[2], padding: '0 6px 6px' }}>선택 요소 계통: {inSystems.length ? inSystems.map(s => s.name).join(', ') : '없음 — 전체 연결에서 추적'}</div>}
-        <div style={{ display: 'flex', gap: 6, padding: '0 6px' }}>
-          {/* 신호 계통(화재감지)은 흐름이 감지기 → 수신기 라 라벨을 바꾼다 */}
-          <button disabled={busy} onClick={() => trace('up')} title="단축키 [" style={btn}>{signal ? '감지기 쪽' : '상류 (원천까지)'}</button>
-          <button disabled={busy} onClick={() => trace('down')} title="단축키 ]" style={btn}>{signal ? '수신기까지' : '하류 (말단까지)'}</button>
-        </div>
-      </>}
-      {route && <div style={{ marginTop: 8, padding: 8, background: T.bg.raised, borderRadius: T.radius }}>
+  // 추적 시작은 요약 카드(ObjectSummary)·단축키 [ ] — 여기는 경로 결과만
+  const traceSection = route ? <div style={{ marginTop: 8, padding: 8, background: T.bg.raised, borderRadius: T.radius }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <b style={{ flex: 1 }}>{route.direction === 'up' ? (signal ? '감지기 쪽' : '상류 경로') : (signal ? '수신기까지 경로' : '하류 범위')} · {route.nodes.length}개</b>
           <span title="경로만 보기" onClick={() => onSolo(`${route.direction === 'up' ? '상류' : '하류'} 경로`, route.nodes.map(n => n.globalId), 'route')} style={{ cursor: 'pointer', color: T.accent, display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
@@ -56,8 +44,7 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
           ? route.nodes.map(n => <RouteRow key={n.globalId} n={n} onClick={() => onSelect([n.globalId])} />)
           : Object.entries(groupBy(route.nodes, n => n.ifcClass)).map(([cls, ns]) => <div key={cls} style={{ display: 'flex', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }} onClick={() => onSelect(ns.map(n => n.globalId))}>
               <span style={{ flex: 1 }}>{cls.replace('Ifc', '')}</span><span style={{ color: T.ink[2] }}>{ns.length}</span></div>)}
-      </div>}
-  </>
+      </div> : null
 
   // 실무 IFC: 계통은 없어도 포트 연결이 있으면 추적은 가능
   if (!systems.length) return (

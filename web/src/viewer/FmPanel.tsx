@@ -18,7 +18,7 @@ export default function FmPanel({ modelId, selection, byGid, detail, assets, rel
   if (!gid || !byGid.has(gid)) return <p style={{ color: T.ink[2] }}>요소를 선택하면 자산 등록·점검·작업지시를 기록할 수 있습니다.</p>
   const asset = byElement.get(gid)
   return asset
-    ? <AssetCard asset={asset} run={run} err={err} viewpoint={viewpoint} />
+    ? <AssetCard modelId={modelId} asset={asset} run={run} err={err} viewpoint={viewpoint} />
     : <Register gid={gid} el={byGid.get(gid)!} detail={detail} modelId={modelId} run={run} err={err} />
 }
 
@@ -67,7 +67,7 @@ function Bulk({ selection, byGid, byElement, modelId, run, err }: { selection: s
   )
 }
 
-function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Promise<unknown>) => Promise<void>; err?: string; viewpoint: () => Promise<Viewpoint> }) {
+function AssetCard({ modelId, asset, run, err, viewpoint }: { modelId: string; asset: Asset; run: (p: Promise<unknown>) => Promise<void>; err?: string; viewpoint: () => Promise<Viewpoint> }) {
   const [d, setD] = useState<AssetDetail>()
   const load = useCallback(() => api<AssetDetail>(`/assets/${asset.id}`).then(setD), [asset.id])
   useEffect(() => { load() }, [load, asset.lastInspectedOn, asset.openWorkOrders])
@@ -106,8 +106,8 @@ function AssetCard({ asset, run, err, viewpoint }: { asset: Asset; run: (p: Prom
         <button disabled={!wo.title} onClick={createWo} style={btnPrimary}>생성</button>
       </div>}
       {d?.workOrders.map(w => <div key={w.id} style={{ fontSize: 12, padding: '5px 0', borderTop: `1px solid ${T.bg.line}` }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><StatusBadge s={w.status} /><span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={w.title}>{w.title}</span>
-          <span style={{ display: 'inline-flex', gap: 2 }}>{(['OPEN', 'IN_PROGRESS', 'DONE'] as const).map(st => <button key={st} disabled={w.status === st} onClick={() => run(post(`/work-orders/${w.id}`, { status: st }, 'PATCH')).then(load)} style={{ fontSize: 11, padding: '1px 6px', border: `1px solid ${T.bg.line}`, borderRadius: 999, background: w.status === st ? T.accentSoft : T.bg.surface, color: w.status === st ? T.accent : T.ink[2], cursor: w.status === st ? 'default' : 'pointer' }}>{WO_STATUS[st]}</button>)}</span></div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><StatusBadge s={w.status} />
+          <a href={`#/models/${modelId}/fm?wo=${w.id}`} title="작업지시 보드에서 이 카드 열기" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.ink[1], textDecoration: 'none' }}>{w.title}</a></div>
         <div style={{ color: T.ink[2], fontSize: 11, marginTop: 2, paddingLeft: 2 }}>{w.assignee ? `담당 ${w.assignee}` : <span style={{ color: T.warn }}>미배정</span>}{w.dueOn ? ` · 기한 ${day(w.dueOn)}` : ''}{w.priority && w.priority !== 'NORMAL' ? ` · ${({ URGENT: '긴급', HIGH: '높음', LOW: '낮음' } as Record<string, string>)[w.priority] ?? w.priority}` : ''}</div></div>)}
     </div>
   )

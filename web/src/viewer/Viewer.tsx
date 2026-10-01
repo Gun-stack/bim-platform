@@ -5,11 +5,10 @@ import { Check, Eye, Palette, Ruler, Trash2, X, EyeOff, Focus, Home, Keyboard, L
 import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type System, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
-import { STATUS, isAbnormal, statusHex, statusLabel } from '../status'
+import { STATUS, isAbnormal, statusHex } from '../status'
 import ObjectSummary from '../ObjectSummary'
 import { ifcKo } from '../ifcNames'
 import { notify } from '../context'
-import NavLinks from '../NavLinks'
 import { day, useEsc } from '../ui'
 import FmPanel, { StatusBadge } from './FmPanel'
 import StatusEditor from './StatusEditor'
@@ -94,9 +93,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     s.setColors(m, true)   // 구조체는 반투명 — 계통이 건물 안에서 보이게
   }, [sysColor, sysMembers, systemsMeta, route, colorMode, bounds, power, statusView, statusRows])
   const [menu, setMenu] = useState<{ x: number; y: number }>()
-  const hq = useHashQuery(), woId = hq.get('wo'), wantFm = hq.has('fm') || hq.has('wo')
-  const [tab, setTab] = useState<'props' | 'fm'>(wantFm ? 'fm' : 'props')
-  useEffect(() => { if (wantFm) setTab('fm') }, [wantFm])   // 같은 페이지에서 ?fm/?wo 딥링크가 와도 탭 전환
+  const hq = useHashQuery(), woId = hq.get('wo')
   const [wo, setWo] = useState<WorkOrder>()   // ?wo= 로 열었을 때 상단 배너
   useEffect(() => { if (woId) api<WorkOrder>(`/work-orders/${woId}`).then(setWo).catch(() => {}); else setWo(undefined) }, [woId])
   const [assets, setAssets] = useState<Asset[]>([])
@@ -359,7 +356,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
         <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel} onShowAll={showAll}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
-          systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute} onTrace={trace}
+          systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute}
             onSolo={(label, gids, key) => setHidden({ ...hidden, solo: hidden.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } })}
             onSelect={gids => scene.current?.select(gids)} colorMode={sysColor} setColorMode={setSysColor} />} />
       </Panel>
@@ -373,17 +370,15 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {colorMode && <ColorPanel modelId={modelId} elements={elements} spatial={spatial} onChange={m => scene.current?.setColors(m)}
             onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
 
-          {/* 경보/장애 포커스 배너 (구역 강조 + 위치 비콘) */}
-          {focusInfo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : wo ? 52 : 8, left: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 8px', padding: '8px 12px', background: focusInfo.status === 'ALARM' ? T.critSoft : focusInfo.status === 'FAULT' ? T.warnSoft : T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 460 }}>
+          {/* 경보/장애 포커스 배너: 층·구역 한 줄만 (U304) — 작업지시로 들어왔으면 그 배너에 합치고 여긴 안 띄운다(배너 중첩 방지) */}
+          {focusInfo && !wo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: focusInfo.status === 'ALARM' ? T.critSoft : focusInfo.status === 'FAULT' ? T.warnSoft : T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 320 }}>
             <span style={{ width: 8, height: 8, borderRadius: 999, background: isAbnormal(focusInfo.status) ? statusHex(focusInfo.status) : T.accent, flexShrink: 0 }} />
-            <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b><span>{focusInfo.name}</span>
-            {focusInfo.status && <b style={{ color: statusHex(focusInfo.status, T.ok) }}>{statusLabel(focusInfo.status)}</b>}
-            <NavLinks modelId={modelId} gid={focusInfo.gid} style={{ fontSize: 12 }} />
+            <b>{focusInfo.storey}{focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}</b>
             <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => { setFocusInfo(undefined); setFocus('none'); scene.current?.setFocus(undefined); scene.current?.setMarker(undefined) }} /></div>}
 
-          {/* 작업지시로 진입: 배너 */}
-          {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 420 }}>
-            <StatusBadge s={wo.status} /><b>{wo.title}</b><span style={{ color: T.ink[2] }}>{wo.assetTag} · {wo.assignee ?? '미배정'}{wo.dueOn && ` · ~${day(wo.dueOn)}`}</span>
+          {/* 작업지시로 진입: 배너 (포커스 중이면 층·구역도 한 줄에 합침 — 배너 두 개가 쌓이지 않게) */}
+          {wo && <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 460 }}>
+            <StatusBadge s={wo.status} /><b>{wo.title}</b><span style={{ color: T.ink[2] }}>{wo.assetTag} · {wo.assignee ?? '미배정'}{wo.dueOn && ` · ~${day(wo.dueOn)}`}{focusInfo && ` · ${focusInfo.storey}${focusInfo.zone ? ` · ${focusInfo.zone} 구역` : ''}`}</span>
             <a href={`#/models/${modelId}/fm?wo=${wo.id}`} style={{ color: T.accent, marginLeft: 4 }}>보드</a>
             <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={() => setWo(undefined)} /></div>}
 
@@ -455,20 +450,15 @@ export default function Viewer({ modelId }: { modelId: string }) {
 
       <Panel panelRef={rightPanelRef} defaultSize={340} minSize={200} collapsible collapsedSize={0}>
         <aside style={{ overflow: 'auto', height: '100%', padding: 12, boxSizing: 'border-box' }}>
-          {selection.length === 1 && detail && 'properties' in detail && <ObjectSummary modelId={modelId} detail={detail} asset={selAsset} openWos={assetDetail?.workOrders.filter(w => w.status !== 'DONE')} onFm={() => setTab('fm')} />}
-          <div style={{ display: 'flex', borderBottom: `1px solid ${T.bg.line}`, marginBottom: 10 }}>
-            {(['props', 'fm'] as const).map(t => <button key={t} onClick={() => setTab(t)}
-              style={{ flex: 1, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: tab === t ? T.accent : T.ink[2], borderBottom: tab === t ? `2px solid ${T.accent}` : '2px solid transparent', fontWeight: tab === t ? 600 : 400 }}>
-              {t === 'props' ? '속성' : `자산·점검${selection.length === 1 && assetByGid.has(selection[0]) ? ' ●' : ''}`}</button>)}
-          </div>
-          {tab === 'fm' && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpointForWorkOrder} />}
-          {tab === 'props' && <>
+          {/* U311: 객체 패널과 같은 순서의 한 스크롤 — 요약 카드 → 운영 상태 → 자산·점검 → 속성(접힘) */}
           {!selection.length && <p style={{ color: T.ink[2] }}>요소를 클릭하면 속성이 표시됩니다. <span onClick={() => setShowKeys(true)} style={{ color: T.ink[3], cursor: 'pointer' }} title="? 키">단축키 ?</span></p>}
+          {selection.length === 1 && detail && 'properties' in detail && <ObjectSummary modelId={modelId} detail={detail} asset={selAsset} openWos={assetDetail?.workOrders.filter(w => w.status !== 'DONE')} onTrace={trace} />}
           {selection.length === 1 && detail && !('properties' in detail) && <p style={{ color: T.ink[2] }}>{detail.kind === 'space' ? '공간(구역) 형상입니다. 구역 정보는 왼쪽 공간 트리에서 확인하세요.' : '개구부 형상입니다 (요소 아님).'}</p>}
           {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && (tiles.current?.settled(detail.globalId) ?? true) && <p style={{ color: T.warn, fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
-          {selection.length === 1 && detail && 'properties' in detail && <><StatusEditor key={detail.globalId} modelId={modelId} e={detail} reload={reloadStatus} /><Props e={detail} /></>}
+          {selection.length === 1 && detail && 'properties' in detail && <StatusEditor key={detail.globalId} modelId={modelId} e={detail} reload={reloadStatus} />}
+          {(selection.length > 1 || (selection.length === 1 && detail && 'properties' in detail)) && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpointForWorkOrder} />}
+          {selection.length === 1 && detail && 'properties' in detail && <details style={{ marginTop: 10 }}><summary style={{ cursor: 'pointer', color: T.ink[2] }}>속성</summary><div style={{ marginTop: 6 }}><Props e={detail} /></div></details>}
           {selection.length > 1 && <MultiProps selection={selection} byGid={byGid} details={details} />}
-          </>}
         </aside>
       </Panel>
     </Group>

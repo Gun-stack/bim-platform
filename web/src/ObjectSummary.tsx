@@ -2,14 +2,15 @@ import type { Asset, ElementDetail, WorkOrder } from './api'
 import { ifcKo } from './ifcNames'
 import { TEAMS } from './teams'
 import { isQuiet, statusHex, statusLabel } from './status'
-import { badge, day } from './ui'
+import { badge, btn, day } from './ui'
 import { objLinks } from './context'
 import NavLinks from './NavLinks'
 import { T } from './theme'
 
-/** 객체 요약 카드: 무엇·어디·어느 팀·자산·작업지시 — 뷰어 우측 패널과 모니터링/시설관리의 객체 패널이 같은 카드를 쓴다.
- *  openWos 가 없으면(객체 패널) asset.openWorkOrders 건수만 보여주고 카드 목록(fm?sel=)으로 보낸다 */
-export default function ObjectSummary({ modelId, detail, asset, openWos, onFm, nav = true }: { modelId: string; detail: ElementDetail; asset?: Asset; openWos?: WorkOrder[]; onFm?: () => void; nav?: boolean }) {
+/** 객체 요약 카드: 무엇·어디·어느 팀·자산·작업지시(·상류/하류 추적) — 뷰어 우측 패널과 모니터링/시설관리의 객체 패널이 같은 카드를 쓴다.
+ *  openWos 가 없으면(객체 패널) asset.openWorkOrders 건수만 보여주고 카드 목록(fm?sel=)으로 보낸다.
+ *  onTrace 는 뷰어에서만 전달 — 선택 요소가 계통(detail.systems)에 속할 때만 상류·하류 추적 버튼(단축키 `[` `]` 와 동일 동작) */
+export default function ObjectSummary({ modelId, detail, asset, openWos, onTrace, nav = true }: { modelId: string; detail: ElementDetail; asset?: Asset; openWos?: WorkOrder[]; onTrace?: (dir: 'up' | 'down') => void; nav?: boolean }) {
   const st = (detail.properties.Pset_BimStatus as Record<string, unknown> | undefined)?.Status as string | undefined
   const links = objLinks(modelId, detail.globalId), open = openWos ?? []
   const teamsOf = (detail.systems ?? []).map(name => ({ name, team: TEAMS.find(t => t.systems.includes(name)) }))
@@ -24,8 +25,11 @@ export default function ObjectSummary({ modelId, detail, asset, openWos, onFm, n
         {asset && (openWos
           ? (open.length ? <a href={`#/models/${modelId}/fm?wo=${open[0].id}`} title="작업지시 보드에서 이 카드 열기" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>작업지시 {open.length} · {open[0].assignee ?? <span style={{ color: T.warn }}>미배정</span>}{open[0].dueOn ? ` ~${day(open[0].dueOn)}` : ''}</a> : <span style={{ color: T.ink[3], whiteSpace: 'nowrap' }}>열린 작업지시 없음</span>)
           : (asset.openWorkOrders ? <a href={links.fm} title="작업지시 보드에서 이 자산의 카드" style={{ color: T.accent, textDecoration: 'none', whiteSpace: 'nowrap' }}>작업지시 {asset.openWorkOrders}</a> : <span style={{ color: T.ink[3], whiteSpace: 'nowrap' }}>열린 작업지시 없음</span>))}
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, whiteSpace: 'nowrap', fontSize: 11 }}>{/* 링크 묶음 — 좁으면 같이 다음 줄 오른쪽으로. 이동 링크(NavLinks)는 항상 맨 끝 */}
-          {onFm && <a onClick={onFm} style={{ color: T.accent, cursor: 'pointer' }}>자산·점검 ↓</a>}
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, whiteSpace: 'nowrap', fontSize: 11 }}>{/* 이동 링크(NavLinks) — 좁으면 다음 줄 오른쪽으로 */}
           {nav && <NavLinks modelId={modelId} gid={detail.globalId} style={{ marginLeft: 0 }} />}</span></div>
+      {onTrace && (detail.systems?.length ?? 0) > 0 && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <button onClick={() => onTrace('up')} title="단축키 [" style={{ ...btn, flex: 1, justifyContent: 'center', padding: '4px 8px' }}>상류 추적</button>
+        <button onClick={() => onTrace('down')} title="단축키 ]" style={{ ...btn, flex: 1, justifyContent: 'center', padding: '4px 8px' }}>하류 추적</button>
+      </div>}
     </div>)
 }

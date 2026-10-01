@@ -8,7 +8,7 @@ import type { Stats } from './scene'
 import { T } from '../theme'
 
 /** 트리 한 행. children 은 지연 계산(펼칠 때만) */
-export type Row = { key: string; gid?: string; label: string; sub?: string; icon: LucideIcon; count: number; badge?: number; hidden: boolean; solo: boolean; gids: () => string[]; children?: () => Row[] }
+export type Row = { key: string; gid?: string; label: string; sub?: string; title?: string; icon: LucideIcon; count: number; badge?: number; hidden: boolean; solo: boolean; gids: () => string[]; children?: () => Row[] }
 export type SelectMode = 'set' | 'toggle' | 'range'
 
 /** 숨김 3종 + 솔로(이것만 보기). 보임 = (solo 없음 || gid ∈ solo) && !hidden */
@@ -55,7 +55,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
     }
     const byClass = new Map<string, ElementRow[]>()
     for (const e of elements) (byClass.get(e.ifcClass) ?? byClass.set(e.ifcClass, []).get(e.ifcClass)!).push(e)
-    return [...byClass].sort((a, b) => b[1].length - a[1].length).map(([c, es]) => ({ key: 'c:' + c, label: ifcKo(c), sub: c.replace('Ifc', ''), icon: classIcon(c), count: es.length, hidden: hidden.classes.has(c), solo: hidden.solo?.key === 'c:' + c, gids: () => es.map(e => e.globalId), children: () => es.map(elRow) }))
+    return [...byClass].sort((a, b) => b[1].length - a[1].length).map(([c, es]) => ({ key: 'c:' + c, label: ifcKo(c), title: `${ifcKo(c)} · ${c}`, icon: classIcon(c), count: es.length, hidden: hidden.classes.has(c), solo: hidden.solo?.key === 'c:' + c, gids: () => es.map(e => e.globalId), children: () => es.map(elRow) }))
   }, [tab, elements, hidden, byNode, childrenOf, abnormal])
 
   const clone = (): Hidden => ({ nodes: new Set(hidden.nodes), classes: new Set(hidden.classes), gids: new Set(hidden.gids), solo: hidden.solo })
@@ -150,7 +150,7 @@ function TreeRow({ row, depth, open, selected, onToggle, onSolo, onOpen, onClick
       <span onClick={e => { e.stopPropagation(); onOpen() }} style={{ width: 14, display: 'grid', placeItems: 'center', color: T.ink[2] }}>
         {row.children && (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}</span>
       <Icon size={14} style={{ color: T.ink[2], flexShrink: 0 }} />
-      <span title={row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span title={row.title ?? row.label} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {row.label}{row.sub && <span style={{ color: T.ink[2], marginLeft: 6, fontSize: 11 }}>{row.sub}</span>}</span>
       {!!row.badge && <span title={`이상 ${row.badge}`} style={{ color: T.bg.base, fontSize: T.fs.xs, fontWeight: 600, background: T.crit, borderRadius: T.radius, padding: '0 5px' }}>{row.badge}</span>}
       {row.count > 0 && <span style={{ color: T.ink[2], fontSize: 11, background: T.bg.line, borderRadius: T.radius, padding: '0 6px' }}>{row.count}</span>}
