@@ -71,7 +71,9 @@ class InspectionDueTests {
 			.isInstanceOf(ApiErrors.BadRequest.class);
 		assertThatThrownBy(() -> fm.createAsset(modelId, new FmService.AssetIn(null, "A-2", null, null, Map.of("intervalMonths", "abc"))))
 			.isInstanceOf(ApiErrors.BadRequest.class);
-		assertThat(fm.assets(modelId)).hasSize(1);   // 둘 다 거부 — seed 의 PUMP-01만 남는다
+		assertThatThrownBy(() -> fm.createAsset(modelId, new FmService.AssetIn(null, "A-3", null, null, Map.of("intervalMonths", "99999999999999999999999"))))
+			.isInstanceOf(ApiErrors.BadRequest.class);   // long 을 넘는 자릿수도 400
+		assertThat(fm.assets(modelId)).hasSize(1);   // 셋 다 거부 — seed 의 PUMP-01만 남는다
 	}
 
 	@Test

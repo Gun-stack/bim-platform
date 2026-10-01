@@ -108,7 +108,7 @@ class FmService {
 		if (v == null) return;
 		long n;
 		if (v instanceof Integer || v instanceof Long) n = ((Number) v).longValue();
-		else if (v instanceof String s && s.matches("-?[0-9]+")) n = Long.parseLong(s);
+		else if (v instanceof String s && s.matches("-?[0-9]+")) n = new java.math.BigInteger(s).max(java.math.BigInteger.valueOf(-1)).min(java.math.BigInteger.valueOf(601)).longValue();   // long 을 넘는 자릿수도 500 이 아닌 400 으로
 		else throw new ApiErrors.BadRequest("intervalMonths must be an integer");
 		if (n > 600) throw new ApiErrors.BadRequest("intervalMonths 1~600");
 	}
