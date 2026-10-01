@@ -1,7 +1,7 @@
 #!/bin/sh
 # 공개 데모: DEMO_PUBLIC=1 이면 파괴적 쓰기(업로드·프로젝트 생성·모델 삭제·재시도·썸네일/배치 PUT·자산 삭제)를 403 으로 막는다.
 # 조회와 체험형 쓰기(경보 확인·상태 편집·작업지시 이동·정전 시나리오·점검)는 연다 — 데모의 핵심이 상호작용이라서.
-# $demo_block 은 nginx.conf 의 location /api/ 가 늘 참조하므로 끄더라도 map 은 만든다(default 0). 화면 신호는 GET /api/config.
+# $demo_block 은 nginx.conf 의 location /api/ 가 늘 참조하므로 끄더라도 map 은 만든다(default 0). 화면 신호는 GET /api/config — 꺼져 있어도 {"demo":false} 로 응답(콘솔 404 방지).
 if [ "$DEMO_PUBLIC" = "1" ]; then
   cat > /etc/nginx/conf.d/demo-map.conf <<'MAP'
 map "$request_method $uri" $demo_block {
@@ -17,6 +17,6 @@ MAP
   echo "demo public ON — destructive writes blocked"
 else
   printf 'map "$request_method $uri" $demo_block { default 0; }\n' > /etc/nginx/conf.d/demo-map.conf
-  : > /etc/nginx/conf.d/demo.inc
+  printf 'location = /api/config { default_type application/json; return 200 %s; }\n' "'{\"demo\":false}'" > /etc/nginx/conf.d/demo.inc
   echo "demo public OFF"
 fi
