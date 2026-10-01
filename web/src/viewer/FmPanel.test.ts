@@ -8,6 +8,12 @@ describe('isEquipment — U336: 자산 일괄 등록(서버 FmService.bulk)과 �
     expect(isEquipment('IfcSlab')).toBe(false)
     expect(isEquipment('IfcCurtainWall')).toBe(false)
   })
+  it('계단·경사로·난간·문 같은 다른 건축 요소도 장비가 아니다(X-ray 층위와 같은 분류)', () => {
+    expect(isEquipment('IfcStair')).toBe(false)
+    expect(isEquipment('IfcRamp')).toBe(false)
+    expect(isEquipment('IfcRailing')).toBe(false)
+    expect(isEquipment('IfcDoor')).toBe(false)
+  })
   it('배관·덕트·케이블 같은 선과 그 이음은 장비가 아니다(API Sql.SEGMENT_CLASSES 와 같은 목록)', () => {
     expect(isEquipment('IfcPipeSegment')).toBe(false)
     expect(isEquipment('IfcDuctFitting')).toBe(false)

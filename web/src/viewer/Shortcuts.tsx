@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import { KEYS } from './keys'
 import { T } from '../theme'
 
-/** 단축키 안내 — ? 로 토글. 캔버스 위 반투명 가림 + 가운데 카드. 가림 클릭·X·Esc(Viewer 의 useEsc) 로 닫힘 */
+/** 단축키 안내 — ? 로 토글. 캔버스 위 반투명 가림 + 가운데 카드. 가림 클릭·X·Esc(ui.ts 의 useEscLayer) 로 닫힘 */
 export default function Shortcuts({ onClose }: { onClose: () => void }) {
   return <div onClick={onClose} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: '#0007', zIndex: 5 }}>
     <div onClick={e => e.stopPropagation()} style={{ background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, padding: '12px 16px', fontSize: 12, minWidth: 380, maxHeight: '90%', overflow: 'auto' }}>

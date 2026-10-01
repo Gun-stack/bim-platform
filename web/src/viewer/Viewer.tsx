@@ -385,7 +385,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
               <span>모델 불러오는 중</span>
               <span style={{ fontSize: 12, color: T.ink[3] }}>
-                {tileOn ? (stats.tiles ? `타일 ${stats.tiles.loaded}/${stats.tiles.total}` : '') : glbProgress?.total ? `${(glbProgress.loaded / 1e6).toFixed(1)} / ${(glbProgress.total / 1e6).toFixed(1)} MB` : ''}
+                {tileOn ? (stats.tiles ? `타일 ${stats.tiles.loaded}/${stats.tiles.total}` : '') : glbProgress?.total ? `${(glbProgress.loaded / 1e6).toFixed(1)} / ${(glbProgress.total / 1e6).toFixed(1)} MB` : glbProgress?.loaded ? `${(glbProgress.loaded / 1e6).toFixed(1)} MB 받음` : ''}   {/* gzip 전송이면 전체 크기(Content-Length)를 모른다 — 받은 양만 */}
               </span>
             </div>
           </div>}
