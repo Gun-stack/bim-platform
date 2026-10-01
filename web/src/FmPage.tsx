@@ -18,6 +18,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const [model, setModel] = useState<Model>()
   const [assets, setAssets] = useState<Asset[]>([])
   const [wos, setWos] = useState<WorkOrder[]>([])
+  const [noAsset, setNoAsset] = useState(0)   // 계통 멤버 중 자산이 없는 요소 수 — bulk 가 등록할 대상과 같은 집계(MonitorController.monitor)
   const [open, toggle] = useSections('fm.sections', { board: true, assets: false })
   const [add, setAdd] = useState<{ tag: string; category: string } | null>(null)   // 모델에 없는 자산 추가 폼
   const [err, setErr] = useState<string>()
@@ -29,7 +30,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const assetsRef = useRef<HTMLDivElement>(null)
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- 진입 시 1회: 지연 딥링크면 자산 대장으로 스크롤
   useEffect(() => { if (hq.has('due')) requestAnimationFrame(() => assetsRef.current?.scrollIntoView({ block: 'start' })) }, [])
-  const reload = useCallback(() => Promise.all([api<Asset[]>(`/models/${modelId}/assets`), api<WorkOrder[]>(`/models/${modelId}/work-orders`)]).then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
+  const reload = useCallback(() => Promise.all([api<Asset[]>(`/models/${modelId}/assets`), api<WorkOrder[]>(`/models/${modelId}/work-orders`), api<{ rows: { assetId: string | null }[] }>(`/models/${modelId}/monitor`).catch(() => ({ rows: [] }))])
+    .then(([a, w, m]) => { setAssets(a); setWos(w); setNoAsset(m.rows.filter(r => !r.assetId).length) }), [modelId])
   useStream(modelId, ['work_order'], reload)   // 경보가 만든 작업지시가 칸반에 바로 뜬다
   const { abnormal, fresh, dismiss } = useAlerts(modelId)   // 상태 구독(서버 푸시) — 이상 배너 + 전역 경보 토스트
   useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); reload() }, [modelId, reload])
@@ -71,7 +73,10 @@ export default function FmPage({ modelId }: { modelId: string }) {
 
       <div ref={assetsRef} />
       <Section title="자산 대장" count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset || aod} onToggle={() => toggle('assets')}
-               right={<a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={btn}>COBie 내보내기</a>}>
+               right={<span style={{ display: 'inline-flex', gap: 8 }}>
+                 {noAsset > 0 && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(reload)} style={btn} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록">자산 일괄 등록 (미등록 {noAsset})</button>}
+                 <a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={btn}>COBie 내보내기</a>
+               </span>}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: T.ink[2], fontSize: 12 }}>3D 요소는 뷰어에서 자산으로 등록하고, 모델에 없는 장비(추가 설치분)는 여기서 태그만으로 추가합니다.</span>
           <button onClick={() => setAdd(add ? null : { tag: '', category: '' })} style={{ ...btn, marginLeft: 'auto' }}>자산 추가</button>
@@ -110,7 +115,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
             : '—'}</span>
           <span style={{ display: 'flex', justifyContent: 'flex-end' }}><NavLinks modelId={modelId} gid={a.globalId} style={{ fontSize: 12 }} /></span>
         </div>)}
-        {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 모니터링의 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}
+        {!assets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>등록된 자산이 없습니다. 뷰어에서 요소를 골라 등록하거나, 위 "자산 일괄 등록"으로 한 번에 등록하세요.</div>}
         {filteredAssets.length > limit && <button onClick={() => setLimit(l => l + PAGE)} style={{ ...btn, display: 'flex', justifyContent: 'center', width: '100%', borderRadius: 0, border: 0, borderTop: `1px solid ${T.bg.line}`, padding: 10, color: T.accent }}>더 보기 (+{Math.min(PAGE, filteredAssets.length - limit)} · 남은 {filteredAssets.length - limit})</button>}
         {assets.length > 0 && !filteredAssets.length && <div style={{ padding: 24, textAlign: 'center', color: T.ink[2] }}>조건에 맞는 자산이 없습니다.</div>}
         </div>

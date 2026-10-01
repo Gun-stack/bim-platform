@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TrendModal from './TrendModal'
 import ObjectDrawer from './ObjectDrawer'
 import { objLinks, selQ } from './context'
-import { api, post, type Model } from './api'
+import { api, type Model } from './api'
 import { SHELL_H } from './Shell'
 import { TEAMS, teamOfSystems } from './teams'
-import { day, btn, dateTime, hm, hms } from './ui'
+import { day, btn, dateTime, hm, hms, hmsOrDate } from './ui'
 import { patchStatus } from './statusApi'
 import { isQuiet, statusUi, WO_STATUS, type WoStatus } from './status'
 import { KEY_EQUIP, isAbn, overdue, rank, storeyClipZ, teamStats, worst, type Ev, type Row, type StatRow, type Storey } from './monitor'
@@ -19,18 +19,18 @@ import { useStream } from './stream'
 import { T } from './theme'
 
 /** #/models/{id}/monitor — 건물 요약 → 팀 KPI → 팀 × 층 격자 + 최근 이벤트. 서버 푸시로 갱신. ?kiosk=1 은 관제실 벽면용 */
-type Mode = 'abnormal' | 'equipment' | 'all'
+type Mode = 'abnormal' | 'all'
+const modeDefault: Mode = 'abnormal'   // 기본 '이상만' — '?mode=equipment' 옛 딥링크도 여기로(목록에 없는 값은 기본으로)
 
 export default function MonitorPage({ modelId }: { modelId: string }) {
   const hq = useHashQuery()
-  const kiosk = hq.has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대·이상만
-  const modeDefault: Mode = kiosk ? 'abnormal' : 'equipment'
+  const kiosk = hq.has('kiosk')   // 벽면 화면: 내비 숨김·글자 확대
   const [model, setModel] = useState<Model>()
   const [rows, setRows] = useState<Row[]>([]); const [power, setPower] = useState('UNKNOWN'); const [events, setEvents] = useState<Ev[]>([])
   // 필터는 해시 쿼리와 동기화 — "소방 이상만 B1" 화면을 링크로 공유·북마크 (§7-3). 초기값만 읽고 변경은 replaceState
   const [team, setTeamS] = useState<string | undefined>(() => hq.get('team') ?? undefined)
   const [storeyF, setStoreyFS] = useState<string | undefined>(() => hq.get('storey') ?? undefined)
-  const [mode, setModeS] = useState<Mode>(() => (['abnormal', 'equipment', 'all'] as const).find(m => m === hq.get('mode')) ?? modeDefault)
+  const [mode, setModeS] = useState<Mode>(() => (['abnormal', 'all'] as const).find(m => m === hq.get('mode')) ?? modeDefault)
   const [days, setDaysS] = useState(() => [7, 30, 90].find(d => d === +(hq.get('days') ?? 0)) ?? 30)
   const setTeam = (v?: string) => { setTeamS(v); setHashParam('team', v) }
   const setStoreyF = (v?: string) => { setStoreyFS(v); setHashParam('storey', v) }
@@ -39,7 +39,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const [tick, setTick] = useState(new Date())
   const [unpowered, setUnpowered] = useState<Set<string>>(new Set())
   const [trend, setTrend] = useState<{ globalId: string; name: string | null } | null>(null)   // 계측 트렌드 모달
-  const [sec, toggleSec] = useSections('monitor.sections', { stack: true, teams: true, todo: true, key: true, grid: true, stats: false })
+  const [sec, toggleSec] = useSections('monitor.sections', { stats: false })   // 접기는 경보 통계만 — 나머지는 항상 펼침(U327)
   const [timeline, setTimeline] = useState<Hour[]>([])   // 24시간 발생 막대
   const [stats, setStats] = useState<StatRow[]>([])   // 경보 통계 — 섹션이 열려 있을 때만 갱신
   const [flash, setFlash] = useState<Set<string>>(new Set()); const prevAbn = useRef<Set<string> | null>(null)
@@ -61,7 +61,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   useEffect(() => {
     if (!sel || !gotRows) return
     const r = rows.find(x => x.globalId === sel)
-    if (r && rank(r, unpowered.has(r.globalId)) >= 9 && !(mode === 'equipment' && r.status)) setMode('all')
+    if (r && mode === 'abnormal' && rank(r, unpowered.has(r.globalId)) >= 9) setMode('all')   // 선택 요소가 '이상만'에 안 보이면 '전체'로
     setFlash(new Set([sel])); const t = setTimeout(() => setFlash(new Set()), 4000)
     requestAnimationFrame(() => document.querySelector(`[data-gid="${CSS.escape(sel)}"]`)?.scrollIntoView({ block: 'center' }))
     return () => clearTimeout(t)
@@ -73,8 +73,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
   const storeys = storeyList.map(e => e.name).filter(s => !storeyF || s === storeyF)
   const visibleTeams = TEAMS.filter(t => !team || t.key === team)
   const dead = (r: Row) => unpowered.has(r.globalId)
-  const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (mode === 'all' || (mode === 'equipment' ? !!r.status || !!r.assetId || rank(r, dead(r)) < 9 : rank(r, dead(r)) < 9))).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (a.zone ?? '').localeCompare(b.zone ?? '') || (a.name ?? '').localeCompare(b.name ?? ''))
-  const kpi = (t: typeof TEAMS[number]) => { const rs = rows.filter(r => teamOf(r)?.key === t.key); return { total: rs.length, alarm: rs.filter(r => r.status?.Status === 'ALARM').length, fault: rs.filter(r => r.status?.Status === 'FAULT').length, wo: rs.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), assets: rs.filter(r => r.assetId).length, dead: rs.filter(r => unpowered.has(r.globalId)).length, due: rs.filter(overdue).length } }
+  const cell = (st: string, t: typeof TEAMS[number]) => rows.filter(r => r.storey === st && teamOf(r)?.key === t.key && (mode === 'all' || rank(r, dead(r)) < 9)).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (a.zone ?? '').localeCompare(b.zone ?? '') || (a.name ?? '').localeCompare(b.name ?? ''))
+  const kpi = (t: typeof TEAMS[number]) => { const rs = rows.filter(r => teamOf(r)?.key === t.key); return { alarm: rs.filter(r => r.status?.Status === 'ALARM').length, fault: rs.filter(r => r.status?.Status === 'FAULT').length, dead: rs.filter(r => unpowered.has(r.globalId)).length, due: rs.filter(overdue).length } }
   const val = (prefix: string, key: string) => rows.find(r => r.name?.startsWith(prefix))?.status?.[key]
   /** 팀 카드의 대표 지표 — 정상일 때도 카드가 비지 않게 */
   const metric = (t: typeof TEAMS[number]) => ({
@@ -84,20 +84,20 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
     comm: () => `UPS ${val('UPS-1', 'LoadPercent') ?? '—'}% · 온라인 ${rows.filter(r => teamOf(r)?.key === 'comm' && r.status?.Status === 'ONLINE').length}/${rows.filter(r => teamOf(r)?.key === 'comm' && r.status).length}`,
     elec: () => `변압기 ${val('TR-1', 'LoadPercent') ?? '—'}% · 발전기 ${statusUi(String(val('EG-1', 'Status')))?.label ?? '—'} · 태양광 ${val('PV-1', 'OutputKW') ?? '—'}kW`,
   } as Record<string, () => string>)[t.key]?.()
-  const tot = { alarm: rows.filter(r => r.status?.Status === 'ALARM').length, fault: rows.filter(r => r.status?.Status === 'FAULT').length, wo: rows.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), dead: unpowered.size, noAsset: rows.filter(r => !r.assetId).length, unassigned: rows.filter(r => r.openWorkOrders && !r.woAssignee).length, reading: rows.filter(r => !isAbn(r) && worst(r) !== 'ok').length, due: rows.filter(overdue).length }
+  const tot = { alarm: rows.filter(r => r.status?.Status === 'ALARM').length, fault: rows.filter(r => r.status?.Status === 'FAULT').length, wo: rows.reduce((n, r) => n + (r.openWorkOrders ?? 0), 0), dead: unpowered.size, unassigned: rows.filter(r => r.openWorkOrders && !r.woAssignee).length, reading: rows.filter(r => !isAbn(r) && worst(r) !== 'ok').length, due: rows.filter(overdue).length }
   const shown = mode === 'abnormal' ? storeys.filter(st => visibleTeams.some(t => cell(st, t).length)) : storeys   // '이상만'이면 빈 층 행 생략 — "이상 없음" 칸 반복 대신
   const abnByStorey = (st: string) => rows.filter(r => r.storey === st && isAbn(r)).length
   // 총계 바 숫자 클릭 → 그것들이 보이는 곳으로 (같은 화면은 펼치고 스크롤)
   const todoRef = useRef<HTMLDivElement>(null)
-  const goTodo = () => { if (!sec.todo) toggleSec('todo'); requestAnimationFrame(() => todoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
+  const goTodo = () => requestAnimationFrame(() => todoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   const gridRef = useRef<HTMLDivElement>(null)
   /** 건물 단면 칸·층 클릭 → 격자 필터. 같은 것을 다시 누르면 해제. 칸은 격자로 스크롤 */
   const pick = (t: string | undefined, st: string) => {
     const same = storeyF === st && (t === undefined || team === t)
     setStoreyF(same ? undefined : st); if (t) setTeam(same ? undefined : t)
-    if (!same && t) { if (!sec.grid) toggleSec('grid'); requestAnimationFrame(() => gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
+    if (!same && t) requestAnimationFrame(() => gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
-  const goEvents = () => { if (!sec.grid) toggleSec('grid'); requestAnimationFrame(() => document.querySelector('.monitor-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
+  const goEvents = () => requestAnimationFrame(() => document.querySelector('.monitor-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   const storeyClip = (st: string) => { const [z0, z1] = storeyClipZ(storeyList, st); return `#/models/${modelId}?clip=-999,999,${(z0 - 0.3).toFixed(1)},${(z1 - 0.05).toFixed(1)},-999,999` }   // 씬은 Y-up(GLB) — 높이는 clip[2..3]. 섹션 박스의 층 버튼과 같은 축
   const fs = kiosk ? 1.25 : 1
 
@@ -114,8 +114,9 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 
       {/* 건물 전체 요약 — 관제 화면의 첫 줄은 총계 */}
       <div className={flash.size ? 'pulse' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 16px', marginBottom: 12, borderRadius: T.radius, background: tot.alarm ? T.critSoft : tot.fault ? T.warnSoft : T.bg.surface, border: '1px solid ' + (tot.alarm ? T.crit : tot.fault ? T.warn : T.bg.line), fontSize: 13 * fs }}>
-        {tot.alarm || tot.fault
-          ? <button className="stat-link" onClick={goTodo} title="조치 필요 목록으로" style={{ fontWeight: 600, fontSize: 15 * fs, color: tot.alarm ? T.crit : T.warn }}>{tot.alarm ? `경보 ${tot.alarm}건` : `장애 ${tot.fault}건`}</button>
+        {tot.alarm
+          ? <button className="stat-link" onClick={goTodo} title="조치 필요 목록으로" style={{ fontWeight: 600, fontSize: 15 * fs, color: T.crit }}>경보 발생</button>
+          : tot.fault ? <button className="stat-link" onClick={goTodo} title="조치 필요 목록으로" style={{ fontWeight: 600, fontSize: 15 * fs, color: T.warn }}>장애 발생</button>
           : <b style={{ fontSize: 15 * fs }}>건물 정상</b>}
         <Stat label="경보" n={tot.alarm} color={T.crit} onClick={goTodo} title="조치 필요 목록으로" /><Stat label="장애" n={tot.fault} color={T.warn} onClick={goTodo} title="조치 필요 목록으로" /><Stat label="계측 주의" n={tot.reading} color={T.warn} onClick={goTodo} title="조치 필요 목록으로" />
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
@@ -126,30 +127,28 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
         <Stat label="점검 지연" n={tot.due} color={T.warn} href={kiosk ? undefined : `#/models/${modelId}/fm?due=1`} title="자산 대장에서 지연 자산만" />
         {power === 'GENERATOR' && (kiosk ? <b style={{ color: T.warn }} title="발전기 절체 중">정전 · 무전원 {tot.dead}</b>
           : <a className="stat-link" href={`#/models/${modelId}`} title="발전기 절체 중 — 3D 뷰어 상태판에서 복전" style={{ color: T.warn, fontWeight: 600 }}>정전 · 무전원 {tot.dead}</a>)}
-        {tot.noAsset > 0 && !kiosk && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(load)} style={{ ...btn, marginLeft: 'auto' }} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록">자산 일괄 등록 (미등록 {tot.noAsset})</button>}
-        <span style={{ marginLeft: tot.noAsset && !kiosk ? 0 : 'auto' }}><EventBars data={timeline} fs={fs} /></span>
-        <button className="stat-link" onClick={goEvents} title="최근 이벤트 목록으로" style={{ color: T.ink[2], fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? hms(events[0].at) : '—'}</button>
+        <span style={{ marginLeft: 'auto' }}><EventBars data={timeline} fs={fs} /></span>
+        <button className="stat-link" onClick={goEvents} title="최근 이벤트 목록으로" style={{ color: T.ink[2], fontSize: 12 * fs }}>마지막 이벤트 {events[0]?.at ? hmsOrDate(events[0].at) : '—'}</button>
       </div>
 
       {/* 첫 화면 2단: 왼쪽 건물 단면(어디), 오른쪽 분야·조치 필요(무엇) — 좁으면 아래로 접힌다 */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
       <div style={{ flex: '0 0 auto' }}>
-      <Section title="건물 단면" count="층 × 분야 — 색은 설비 상태" open={sec.stack} onToggle={() => toggleSec('stack')} pad={12}>
+      <Section title="건물 단면" count="층 × 분야 — 색은 설비 상태" open collapsible={false} pad={12}>
         <StoreyStack rows={rows} storeys={storeyList} teamOf={teamOf} dead={g => unpowered.has(g)} team={team} storey={storeyF} onPick={pick} fs={fs} />
       </Section>
       </div>
       <div style={{ flex: '1 1 600px', minWidth: 0 }}>
 
-      <Section title="분야 현황" count={team ? `${TEAMS.find(t => t.key === team)!.name}만 표시 — 클릭 해제` : undefined} open={sec.teams} onToggle={() => toggleSec('teams')} pad={10}>
+      <Section title="분야 현황" count={team ? `${TEAMS.find(t => t.key === team)!.name}만 표시 — 클릭 해제` : undefined} open collapsible={false} pad={10}>
       <div style={{ display: 'flex', gap: 12 }}>
         {TEAMS.map(t => { const k = kpi(t), active = team === t.key; return (
           <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} title={`클릭: 이 분야만 보기\n${t.systems.join(' · ')}`} style={{ flex: '1 1 0', minWidth: 0, background: T.bg.surface, border: '1px solid ' + (active ? t.color : T.bg.line), borderRadius: T.radius, padding: '10px 12px', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: t.color, flexShrink: 0 }} /><b style={{ whiteSpace: 'nowrap', color: active ? t.color : T.ink[1] }}>{t.name}</b></div>
-            <div style={{ color: T.ink[2], fontSize: 12 * fs, marginTop: 2, whiteSpace: 'nowrap' }}>요소 {k.total} · 자산 {k.assets}{k.due ? <b style={{ color: T.warn, marginLeft: 6 }}>점검 지연 {k.due}</b> : ''}{k.dead ? <b style={{ color: T.ink[1], marginLeft: 6 }}>무전원 {k.dead}</b> : ''}</div>
+            {(k.due > 0 || k.dead > 0) && <div style={{ color: T.ink[2], fontSize: 12 * fs, marginTop: 2, whiteSpace: 'nowrap' }}>{k.due ? <b style={{ color: T.warn }}>점검 지연 {k.due}</b> : ''}{k.due && k.dead ? ' · ' : ''}{k.dead ? <b style={{ color: T.ink[1] }}>무전원 {k.dead}</b> : ''}</div>}
             <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12 * fs, whiteSpace: 'nowrap' }}>
               <span style={{ color: k.alarm ? T.crit : T.ink[3] }}>경보 <b>{k.alarm}</b></span>
               <span style={{ color: k.fault ? T.warn : T.ink[3] }}>장애 <b>{k.fault}</b></span>
-              <span style={{ color: k.wo ? T.accent : T.ink[3] }}>작업지시 <b>{k.wo}</b></span>
             </div>
             <div style={{ color: T.ink[2], fontSize: 11 * fs, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={metric(t)}>{metric(t)}</div>
           </div>) })}
@@ -158,16 +157,16 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 
       {/* 1) 조치 필요 — 층·팀 격자보다 먼저. 경보 → 장애 → 계측 위험/무전원 → 주의·작업지시 순 */}
       {(() => { const todo = rows.filter(r => (!team || teamOf(r)?.key === team) && rank(r, dead(r)) < 9).sort((a, b) => rank(a, dead(a)) - rank(b, dead(b)) || (b.elevation ?? 0) - (a.elevation ?? 0)); return (<div ref={todoRef}>
-        <Section title="조치 필요" color={todo.some(isAbn) ? T.crit : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}</>} open={sec.todo} onToggle={() => toggleSec('todo')} pad={10}>
+        <Section title="조치 필요" color={todo.some(isAbn) ? T.crit : undefined} count={<>{todo.length}{team ? ` · ${TEAMS.find(t => t.key === team)!.name}` : ''}</>} open collapsible={false} pad={10}>
           {todo.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '2px 14px' }}>
-            {todo.slice(0, 12).map(r => <div key={r.globalId} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', alignItems: 'center' }}><b style={{ color: T.ink[3], fontSize: 12 * fs }}>{r.storey}</b><RowView r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} reload={load} /></div>)}
+            {todo.slice(0, 12).map(r => <RowView key={r.globalId} r={r} modelId={modelId} dead={dead(r)} fresh={flash.has(r.globalId)} fs={fs} onTrend={setTrend} reload={load} />)}
             {todo.length > 12 && <div style={{ color: T.ink[2], fontSize: 12 * fs, padding: 4 }}>… 외 {todo.length - 12}건은 아래 격자에서</div>}</div>}
         </Section></div>) })()}
       </div></div>
 
       {/* 2) 핵심 장비 — 팀을 골랐을 때 그 팀의 원천 장비를 카드로 (격자 순서와 무관하게 늘 같은 자리) */}
       {team && (() => { const t = TEAMS.find(x => x.key === team)!; const keys = KEY_EQUIP[team] ?? []; const eq = keys.map(k => rows.find(r => r.name?.startsWith(k))).filter(Boolean) as Row[]; return eq.length ? (
-        <Section title={`${t.name} 핵심 요소`} color={t.color} count={`${eq.length}대 · 이상 ${eq.filter(r => isAbn(r) || worst(r) !== 'ok').length}`} open={sec.key} onToggle={() => toggleSec('key')} pad={10}>
+        <Section title={`${t.name} 핵심 요소`} color={t.color} count={`${eq.length}대 · 이상 ${eq.filter(r => isAbn(r) || worst(r) !== 'ok').length}`} open collapsible={false} pad={10}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
             {eq.map(r => { const st = r.status?.Status, sc = dead(r) ? { label: '무전원', color: T.ink[1] } : statusUi(st), rs = inlineReadings(r.status, r.name), w = worst(r); return (
               <a key={r.globalId} href={`#/models/${modelId}?sel=${encodeURIComponent(r.globalId)}&focus=1`} className={flash.has(r.globalId) ? 'fresh' : undefined} style={{ textDecoration: 'none', color: T.ink[1], background: isAbn(r) ? (st === 'ALARM' ? T.critSoft : T.warnSoft) : w === 'crit' ? T.critSoft : w === 'warn' ? T.warnSoft : T.bg.surface, border: '1px solid ' + (isAbn(r) ? (st === 'ALARM' ? T.crit : T.warn) : T.bg.line), borderLeft: '4px solid ' + (sc?.color ?? T.bg.line), borderRadius: T.radius, padding: '8px 10px' }}>
@@ -178,9 +177,9 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
           </div>
         </Section>) : null })()}
 
-      <div ref={gridRef}><Section title="층 × 분야 전체 현황" count={`${storeys.length}개 층 · ${visibleTeams.length}개 분야${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open={sec.grid} onToggle={() => toggleSec('grid')} pad={10}
+      <div ref={gridRef}><Section title="층 × 분야 전체 현황" count={`${storeys.length}개 층 · ${visibleTeams.length}개 분야${team ? ` — ${TEAMS.find(t => t.key === team)!.name}` : ''}${storeyF ? ` · ${storeyF}` : ''}`} open collapsible={false} pad={10}
         right={<span style={{ display: 'inline-flex', border: `1px solid ${T.bg.line}`, borderRadius: 6, overflow: 'hidden', fontSize: 12 * fs }}>
-          {([['abnormal', '이상만'], ['equipment', '요소'], ['all', '전체']] as const).map(([k, l]) => <button key={k} onClick={() => setMode(k)} style={{ padding: '3px 9px', border: 0, cursor: 'pointer', background: mode === k ? T.accent : T.bg.surface, color: mode === k ? T.bg.base : T.ink[2], fontSize: 'inherit' }}>{l}</button>)}</span>}>
+          {([['abnormal', '이상만'], ['all', '전체']] as const).map(([k, l]) => <button key={k} onClick={() => setMode(k)} style={{ padding: '3px 9px', border: 0, cursor: 'pointer', background: mode === k ? T.accent : T.bg.surface, color: mode === k ? T.bg.base : T.ink[2], fontSize: 'inherit' }}>{l}</button>)}</span>}>
       <div className="monitor-body" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}><div style={{ display: 'grid', gridTemplateColumns: `64px repeat(${visibleTeams.length}, minmax(210px, 1fr))`, gap: 10, minWidth: 64 + visibleTeams.length * 220 }}>
           <div /> {visibleTeams.map(t => <div key={t.key} style={{ fontWeight: 600, color: t.color, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: t.color, flexShrink: 0, display: 'inline-block' }} /> {t.name}</div>)}
@@ -196,7 +195,7 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
               </div>) })}
           </div> })}
         </div>
-        {shown.length < storeys.length && <div style={{ color: T.ink[3], fontSize: 12 * fs, padding: '8px 4px' }}>이상 없는 층 {storeys.length - shown.length}개 생략 — '요소'·'전체'에서 모두 보기</div>}</div>
+        {shown.length < storeys.length && <div style={{ color: T.ink[3], fontSize: 12 * fs, padding: '8px 4px' }}>이상 없는 층 {storeys.length - shown.length}개 생략 — '전체'에서 모두 보기</div>}</div>
 
         {/* 최근 이벤트 — 격자는 '지금'만 보여주므로 '언제 무슨 일이' 는 여기 */}
         <div className="monitor-events" style={{ width: kiosk ? 400 : 300, flexShrink: 0,   /* 벽면에선 '최근 무슨 일'이 격자보다 자주 읽힌다 */ background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, padding: '8px 10px', position: 'sticky', top: SHELL_H + 12, maxHeight: `calc(100vh - ${SHELL_H + 24}px)`, overflow: 'auto' }}>

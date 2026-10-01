@@ -13,6 +13,9 @@ export const plusDays = (n: number) => { const d = new Date(); d.setDate(d.getDa
 export const hm = (s: string | number | Date) => new Date(s).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 export const hms = (s: string | number | Date) => new Date(s).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 export const dateTime = (s: string | number | Date) => new Date(s).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short', hour12: false })
+/** '마지막 이벤트' 표기 — 오늘이면 HH:MM:SS, 아니면 오래된 걸 방금처럼 보이지 않게 M/D HH:MM */
+export const hmsOrDate = (s: string | number | Date) => { const d = new Date(s), n = new Date()
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate() ? hms(d) : `${d.getMonth() + 1}/${d.getDate()} ${hm(d)}` }
 /** 점검 주기를 넘긴 자산 — ACTIVE 만 (폐기·사용 중지 자산은 지연으로 안 센다). 모니터링·자산 대장이 같은 규칙 */
 export const inspectionOverdue = (nextDueOn?: string | null, assetStatus?: string | null) => !!nextDueOn && nextDueOn < today() && assetStatus === 'ACTIVE'
 /** 기한을 넘긴 열린 작업지시 — 점검 지연과 같은 날짜 문자열 비교 규칙. 용어: 점검=지연, 작업지시=기한 초과 */
