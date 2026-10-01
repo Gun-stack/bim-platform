@@ -30,8 +30,11 @@ export default function FmPage({ modelId }: { modelId: string }) {
   const assetsRef = useRef<HTMLDivElement>(null)
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- 진입 시 1회: 지연 딥링크면 자산 대장으로 스크롤
   useEffect(() => { if (hq.has('due')) requestAnimationFrame(() => assetsRef.current?.scrollIntoView({ block: 'start' })) }, [])
-  const reload = useCallback(() => Promise.all([api<Asset[]>(`/models/${modelId}/assets`), api<WorkOrder[]>(`/models/${modelId}/work-orders`), api<{ rows: { assetId: string | null }[] }>(`/models/${modelId}/monitor`).catch(() => ({ rows: [] }))])
-    .then(([a, w, m]) => { setAssets(a); setWos(w); setNoAsset(m.rows.filter(r => !r.assetId).length) }), [modelId])
+  const reload = useCallback(() => Promise.all([api<Asset[]>(`/models/${modelId}/assets`), api<WorkOrder[]>(`/models/${modelId}/work-orders`)])
+    .then(([a, w]) => { setAssets(a); setWos(w) }), [modelId])
+  // 미등록 수(일괄 등록 버튼용)는 /monitor 를 따로, 모델 바뀔 때·일괄 등록 성공 뒤에만 — reload 는 작업지시 이벤트마다도 돌아 매번 받으면 무거운 모델에서 낭비(605KB~3.6MB)
+  const reloadNoAsset = useCallback(() => api<{ rows: { assetId: string | null }[] }>(`/models/${modelId}/monitor`).then(m => setNoAsset(m.rows.filter(r => !r.assetId).length)).catch(() => setNoAsset(0)), [modelId])
+  useEffect(() => { reloadNoAsset() }, [reloadNoAsset])
   useStream(modelId, ['work_order'], reload)   // 경보가 만든 작업지시가 칸반에 바로 뜬다
   const { fresh, dismiss } = useAlerts(modelId)   // 상태 구독(서버 푸시) — 전역 경보 토스트
   useEffect(() => { reload() }, [modelId, reload])
@@ -62,7 +65,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
       <div ref={assetsRef} />
       <Section title="자산 대장" count={`${assets.length}개 · 결함 ${assets.filter(a => a.lastResult === 'DEFECT').length} · 미점검 ${assets.filter(a => !a.lastInspectedOn).length} · 지연 ${overdue}`} open={open.assets || !!selAsset || aod} onToggle={() => toggle('assets')}
                right={<span style={{ display: 'inline-flex', gap: 8 }}>
-                 {noAsset > 0 && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(reload)} style={btn} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록">자산 일괄 등록 (미등록 {noAsset})</button>}
+                 {noAsset > 0 && <button onClick={() => post(`/models/${modelId}/assets/bulk`, {}).then(() => Promise.all([reload(), reloadNoAsset()]))} style={btn} title="배관·트레이·덕트를 뺀 장비 전부를 자산으로 등록">자산 일괄 등록 (미등록 {noAsset})</button>}
                  <a href={`/api/models/${modelId}/export/cobie`} title="COBie 시트(Facility·Floor·Space·Type·Component·Job) CSV zip" style={btn}>COBie 내보내기</a>
                </span>}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -100,9 +103,10 @@ export default function FmPage({ modelId }: { modelId: string }) {
                          if (v !== ((a.attributes?.intervalMonths as number | undefined) ?? 0)) { setErr(undefined); post(`/assets/${a.id}`, { intervalMonths: v }, 'PATCH').then(reload).catch(x => setErr(x.message)) } }}
                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { cancelInt.current = true; e.currentTarget.blur() } }}
                        style={{ ...inp, width: 42, padding: '2px 4px', fontSize: 12 }} />
-              : <span onClick={() => setEditInt(a.id)} title="클릭해서 점검 주기 수정" style={{ cursor: 'pointer', color: a.attributes?.intervalMonths ? T.ink[1] : T.ink[3], textDecoration: 'underline dotted' }}>
+              : <button type="button" onClick={() => setEditInt(a.id)} title="클릭해서 점검 주기 수정" aria-label="점검 주기 편집"
+                        style={{ border: 0, background: 'none', padding: 0, font: 'inherit', cursor: 'pointer', color: a.attributes?.intervalMonths ? T.ink[1] : T.ink[3], textDecoration: 'underline dotted' }}>
                   {a.attributes?.intervalMonths ? `${a.attributes.intervalMonths}개월` : '—'}
-                </span>}
+                </button>}
             {a.nextDueOn ? <span style={{ color: isOverdue(a) ? T.crit : T.ink[2], fontWeight: isOverdue(a) ? 600 : 400 }}>{day(a.nextDueOn)}{isOverdue(a) ? ' 지연' : ''}</span> : <span style={{ color: T.bg.line }}>—</span>}
           </span>
           <span style={{ fontSize: 12 }}>{a.openWorkOrders ? `열림 ${a.openWorkOrders}`

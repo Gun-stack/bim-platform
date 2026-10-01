@@ -69,7 +69,7 @@ flowchart LR
 ├───────────────────────┴─────────────────────────────────────────────┤
 │ 핵심 장비 카드 (팀 선택 시) — 계측값 + 트렌드                          │
 ├───────────────────────────────────────────────────────┬─────────────┤
-│ 층 × 분야 격자 — 이상만(빈 층 생략)/요소/전체           │ 최근 이벤트  │
+│ 층 × 분야 격자 — 이상만(빈 층 생략)/전체                │ 최근 이벤트  │
 └───────────────────────────────────────────────────────┴─────────────┘
 ```
 
@@ -145,7 +145,7 @@ flowchart LR
 2. **배지는 이상만** — 정상은 텍스트. 배지 = soft 배경 + 같은 색 글자(`ui.badge`). 채움은 주 버튼·층 경보 배지뿐, 채움 위 글자는 `bg.base`.
 3. **아이콘은 라벨을 대신할 때만** — 툴바·토글·트리 종류·닫기·접기. 텍스트 옆 장식 아이콘 금지. 행의 보조 동작(트렌드·3D)은 hover 에서만(`.row-act`).
 4. **타이포 5/2** — 11·12·13·15·18, 400·600.
-5. **모서리 6, 알약 999.** 그림자는 플로팅(툴바·메뉴·토스트·모달·독)만, 흐름 안 카드는 1px line.
+5. **모서리 6, 알약 999.** 그림자는 플로팅(툴바·메뉴·토스트·모달)만, 흐름 안 카드는 1px line.
 6. **한 줄 ≤3 사실**, 나머지는 `title`.
 7. **문구는 명사** — 버튼 라벨의 괄호 설명은 title 로. 화면 이동은 공통 상단 바(모델 전환 · 3D 뷰어/모니터링/시설관리 탭).
 8. **팀 = 색 점 + 텍스트**, 팀 아이콘 없음.
@@ -191,7 +191,7 @@ flowchart LR
 | 무엇 | 파일 | 비고 |
 |---|---|---|
 | 라우팅·상단 바·홈 | `web/src/App.tsx` · `Shell.tsx` · `Home.tsx` · `summary.ts` | 해시 라우팅 (`#/models/{id}`, `/monitor`, `/fm`, `#/map`), 화면은 모델 id 로 key. 썸네일 `GET·PUT /api/models/{id}/thumbnail` |
-| 3D 뷰어 | `web/src/viewer/Viewer.tsx` + `scene.ts`(Three) · `NavCube.ts` · `chrome.tsx`(플로팅·툴바) · `Props.tsx`(속성 표) · `LeftPanel.tsx` · `SystemPanel.tsx` · `FmPanel.tsx` · `StatusEditor.tsx` · `ColorPanel.tsx` · `tiles.ts`(3D Tiles 순회기) | 딥링크 `?v= sel= clip= focus= wo= fm= tiles=` |
+| 3D 뷰어 | `web/src/viewer/Viewer.tsx` + `scene.ts`(Three) · `NavCube.ts` · `chrome.tsx`(플로팅·툴바) · `Props.tsx`(속성 표) · `LeftPanel.tsx` · `SystemPanel.tsx` · `FmPanel.tsx` · `StatusEditor.tsx` · `ColorPanel.tsx` · `tiles.ts`(3D Tiles 순회기) | 딥링크 `?v= sel= clip= focus= wo= tiles=` |
 | 설비 모니터링 | `web/src/MonitorPage.tsx` (화면) + `monitor.ts` (순수 로직: 우선순위 `rank`·점검 지연·핵심 장비·경보 통계 팀 합계 `teamStats`) | `monitor.test.ts` 가 순서·합계를 고정 |
 | 시설관리 | `web/src/FmPage.tsx` (대장) + `FmBoard.tsx` (칸반) | |
 | 지도 | `web/src/MapPage.tsx` | |
@@ -206,7 +206,7 @@ flowchart LR
 | API 호출·응답 타입 | `web/src/api.ts` | `api<T>()` — 응답 타입은 호출부가 선언 |
 | **공유 SQL 조각** | `api/…/Sql.java` | 선(배관) 제외 목록, 다음 점검일, 층/구역 조인, 계통 스코프 CTE |
 | API 오류 3종 + DB 제약 변환 | `api/…/ApiErrors.java` | |
-| API 문서 | `api/…/OpenApiConfig.java` (springdoc) | `localhost:8080/swagger-ui.html` — 경로 34개 자동, 응답 스키마는 `api.ts` 가 계약 |
+| API 문서 | `api/…/OpenApiConfig.java` (springdoc) | `localhost:8080/swagger-ui.html` — 경로 33개 자동, 응답 스키마는 `api.ts` 가 계약 |
 | 운영 상태·작업지시 규칙·전원 계산 | `api/…/StatusService.java` | `demoAggregates()` 는 가상 건물 전용 |
 | 자산·점검·작업지시 | `api/…/FmService.java` | |
 | 모니터링·이벤트 API | `api/…/MonitorController.java` | |

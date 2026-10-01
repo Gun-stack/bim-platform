@@ -60,7 +60,8 @@ export default function ColorPanel({ modelId, mode, elements, spatial, systemsMe
   const uncolored = elements.length - legend.reduce((n, l) => n + l.gids.length, 0)
 
   return (
-    <div style={{ position: 'absolute', top: 8, left: 8, width: 260, background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxHeight: 'calc(100% - 70px)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'absolute', left: 8, bottom: 60, width: 260, background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxHeight: 'calc(100% - 200px)', display: 'flex', flexDirection: 'column' }}>
+      {/* 좌하단 고정 — 좌상단은 추적·포커스·작업지시 배너, 단면·측정 패널이 쓴다(겹침 방지). NavCube·툴바는 우하단·하단중앙이라 안 겹친다 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: `1px solid ${T.bg.line}` }}>
         <b style={{ flex: 1 }}>{mode === 'status' ? '상태' : mode === 'systems' ? '계통' : '속성'}</b>
         <X size={14} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={onClose} />

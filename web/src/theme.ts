@@ -11,7 +11,7 @@ export const T = {
   radius: 6, pill: 999,
   fs: { xs: 11, sm: 12, md: 13, lg: 15, xl: 18 },
   fw: { normal: 400, bold: 600 },
-  shadow: '0 8px 24px rgba(0,0,0,0.45)',   // 플로팅(툴바·메뉴·토스트·모달·독)만. 흐름 안 카드는 1px line
+  shadow: '0 8px 24px rgba(0,0,0,0.45)',   // 플로팅(툴바·메뉴·토스트·모달)만. 흐름 안 카드는 1px line
 } as const
 /** three.js 용 숫자색 */
 export const num = (hex: string) => parseInt(hex.slice(1), 16)

@@ -234,7 +234,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const hideSelected = () => { const g = new Set(hidden.gids); for (const x of selection) g.add(x); setHidden({ ...hidden, gids: g }); scene.current?.select([]) }
   /** 계통 탭·색 범례(ColorPanel) 공용 "이것만 보기" — 같은 key 를 다시 누르면 해제 */
   const onLegendSolo = (label: string, gids: string[], key: string) => setHidden(h => ({ ...h, solo: h.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } }))
-  const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
+  // "모두 표시" 활성 조건 — 숨김 3종·솔로뿐 아니라 격리(focus='ghost')도 showAll() 이 함께 푼다. 구조체 숨김 기억(localStorage)은 그대로 — showAll 자체는 손대지 않는다
+  const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo || focus === 'ghost'
   const showAll = () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); setFocus('none') }   // U314: 좌측 눈 버튼·⌥H·우클릭 "전체 보기" 가 같이 부르는 단일 함수
   // U310: 선택 없음 → 접힘, 선택 있음 → 펼침. hasSelection 이 안 바뀌면(선택→다른 선택) effect 가 재실행되지 않아 사용자가 그 사이 직접 접은 상태가 유지된다
   const rightPanelRef = useRef<PanelImperativeHandle>(null)
@@ -349,8 +350,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
     if (loaded) void tiles.current?.ensureLoaded('trace', route?.nodes.map(n => n.globalId) ?? [])
   }, [route, loaded])
   const selAsset = selection.length === 1 ? assetByGid.get(selection[0]) : undefined
-  // oxlint-disable-next-line react-hooks/exhaustive-deps -- 자산 id·열린 작업지시 수가 바뀔 때만
-  useEffect(() => { if (!selAsset) { setAssetDetail(undefined); return } api<AssetDetail>(`/assets/${selAsset.id}`).then(setAssetDetail).catch(() => setAssetDetail(undefined)) }, [selAsset?.id, selAsset?.openWorkOrders])
+  // 자산 상세(점검·작업지시 목록) — 요약 카드와 FmPanel(AssetCard) 공용, 한 곳에서만 받는다(P104 류 중복 호출 방지)
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- 자산 id·점검·열린 작업지시 수가 바뀔 때만
+  useEffect(() => { if (!selAsset) { setAssetDetail(undefined); return } api<AssetDetail>(`/assets/${selAsset.id}`).then(setAssetDetail).catch(() => setAssetDetail(undefined)) }, [selAsset?.id, selAsset?.openWorkOrders, selAsset?.lastInspectedOn])
   const routeSummary = useMemo(() => { if (!route) return undefined; const st = new Map<number, string>(); for (const n of spatial) { let c: SpatialNode | undefined = n; while (c && c.ifcClass !== 'IfcBuildingStorey') c = c.parentId == null ? undefined : spatial.find(x => x.id === c!.parentId); if (c?.name) st.set(n.id, c.name) }
     const floors = new Set<string>(); const cls = new Map<string, number>(); for (const n of route.nodes) { const e = byGid.get(n.globalId); if (e?.spatialNodeId != null && st.get(e.spatialNodeId)) floors.add(st.get(e.spatialNodeId)!); cls.set(n.ifcClass, (cls.get(n.ifcClass) ?? 0) + 1) }
     const sorted = [...floors].sort((a, b) => (storeys.find(x => x.name === a)?.elevation ?? 0) - (storeys.find(x => x.name === b)?.elevation ?? 0))
@@ -359,7 +361,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   return (
     <Group orientation="horizontal" style={{ height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
-        <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel} onShowAll={showAll}
+        <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel} onShowAll={showAll} anyHidden={anyHidden}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
           systemPanel={<SystemPanel selection={selection} systems={systemsMeta} route={route} setRoute={setRoute}
             onSolo={onLegendSolo}
@@ -368,7 +370,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Separator style={sep} />
 
       <Panel minSize={200}>
-        <div ref={canvas} id="viewer-canvas" style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>   {/* id: 맥락 독이 기본 위치(캔버스 우측 상단)를 재려고 찾는다 */}
+        <div ref={canvas} style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
           {err && <p style={{ position: 'absolute', top: 8, left: 8, color: T.crit, background: T.bg.surface, padding: 6 }}>{err}</p>}
           {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.bg.base, padding: '2px 6px', borderRadius: T.radius, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
 
@@ -459,11 +461,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
         <aside style={{ overflow: 'auto', height: '100%', padding: 12, boxSizing: 'border-box' }}>
           {/* U311: 객체 패널과 같은 순서의 한 스크롤 — 요약 카드 → 운영 상태 → 자산·점검 → 속성(접힘) */}
           {!selection.length && <p style={{ color: T.ink[2] }}>요소를 클릭하면 속성이 표시됩니다. <span onClick={() => setShowKeys(true)} style={{ color: T.ink[3], cursor: 'pointer' }} title="? 키">단축키 ?</span></p>}
-          {selection.length === 1 && detail && 'properties' in detail && <ObjectSummary modelId={modelId} detail={detail} asset={selAsset} openWos={assetDetail?.workOrders.filter(w => w.status !== 'DONE')} onTrace={trace} />}
+          {selection.length === 1 && detail && 'properties' in detail && <ObjectSummary modelId={modelId} detail={detail} asset={selAsset} openWos={assetDetail?.workOrders.filter(w => w.status !== 'DONE')} systems={systemsMeta} onTrace={trace} />}
           {selection.length === 1 && detail && !('properties' in detail) && <p style={{ color: T.ink[2] }}>{detail.kind === 'space' ? '공간(구역) 형상입니다. 구역 정보는 왼쪽 공간 트리에서 확인하세요.' : '개구부 형상입니다 (요소 아님).'}</p>}
           {selection.length === 1 && detail && 'properties' in detail && !scene.current?.has(detail.globalId) && (tiles.current?.settled(detail.globalId) ?? true) && <p style={{ color: T.warn, fontSize: 12 }}>이 요소는 3D 형상이 없습니다 (IFC 에 형상 정보가 없거나 변환에서 제외됨).</p>}
           {selection.length === 1 && detail && 'properties' in detail && <StatusEditor key={detail.globalId} modelId={modelId} e={detail} reload={reloadStatus} />}
-          {(selection.length > 1 || (selection.length === 1 && detail && 'properties' in detail)) && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} reload={reloadAssets} viewpoint={viewpointForWorkOrder} />}
+          {(selection.length > 1 || (selection.length === 1 && detail && 'properties' in detail)) && <FmPanel modelId={modelId} selection={selection} byGid={byGid} detail={detail && 'properties' in detail ? detail : undefined} assets={assets} assetDetail={assetDetail} reload={reloadAssets} viewpoint={viewpointForWorkOrder} />}
           {selection.length === 1 && detail && 'properties' in detail && <details style={{ marginTop: 10 }}><summary style={{ cursor: 'pointer', color: T.ink[2] }}>속성</summary><div style={{ marginTop: 6 }}><Props e={detail} /></div></details>}
           {selection.length > 1 && <MultiProps selection={selection} byGid={byGid} details={details} />}
         </aside>

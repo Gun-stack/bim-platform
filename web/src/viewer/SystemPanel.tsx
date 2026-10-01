@@ -14,6 +14,12 @@ export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOME
   // 예외: 설비 배관은 현업 도색 관례가 우선 — 급수=청, 급탕=적, 가스=황, 오배수=갈, 환기=녹
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
 
+/** 선택 요소가 신호(SIGNAL) 계통에만 속하면 화재감지 어휘(감지기 쪽·수신기까지)로 추적 라벨을 바꾼다 — 계통 탭·요약 카드가 같은 판정을 쓴다(중복 계산 방지) */
+export const isSignalTrace = (systems: System[] | undefined, gid?: string) => {
+  const inSystems = (systems ?? []).filter(s => s.members.includes(gid ?? ''))
+  return inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
+}
+
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 추적 경로 목록(버튼은 요약 카드 — U303). 계통별 색 보기는 툴바 "색" 메뉴(U309).
  *  systems 는 Viewer 가 마운트 때 한 번 받아 내려주는 값 — 여기서 따로 /systems 를 다시 부르지 않는다(탭을 열 때마다 중복 요청,
  *  B300·P104). undefined = 응답 전(불러오는 중), 빈 배열 = 이 모델에 계통이 없음, 그 외 = 목록 */
@@ -23,8 +29,7 @@ export default function SystemPanel({ selection, systems, route, setRoute, onSol
   onSolo: (label: string, gids: string[], key: string) => void; onSelect: (gids: string[]) => void
 }) {
   const gid = selection.length === 1 ? selection[0] : undefined
-  const inSystems = useMemo(() => (systems ?? []).filter(s => s.members.includes(gid ?? '')), [systems, gid])
-  const signal = inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
+  const signal = useMemo(() => isSignalTrace(systems, gid), [systems, gid])
 
   // 추적 시작은 요약 카드(ObjectSummary)·단축키 [ ] — 여기는 경로 결과만
   const traceSection = route ? <div style={{ marginTop: 8, padding: 8, background: T.bg.raised, borderRadius: T.radius }}>

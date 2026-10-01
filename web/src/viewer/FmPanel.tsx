@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, post, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Viewpoint } from '../api'
 import { WO_STATUS, type WoStatus } from '../status'
 import { btn, btnPrimary, day, inp as inpBase } from '../ui'
 import { T } from '../theme'
 
-/** 우측 "자산" 탭. 선택 요소 ↔ asset 연결, 점검·작업지시. 자산 목록은 모델 단위로 한 번 받아 globalId 로 찾는다. */
-export default function FmPanel({ modelId, selection, byGid, detail, assets, reload, viewpoint }: {
+/** 우측 "자산" 탭. 선택 요소 ↔ asset 연결, 점검·작업지시. 자산 목록은 모델 단위로 한 번 받아 globalId 로 찾는다.
+ *  assetDetail(점검·작업지시 목록)은 Viewer 가 한 곳에서 받아 내려준다 — 전엔 Viewer(요약 카드용)와 여기(AssetCard) 둘 다 GET /assets/{id} 를 불렀다 */
+export default function FmPanel({ modelId, selection, byGid, detail, assets, assetDetail, reload, viewpoint }: {
   modelId: string; selection: string[]; byGid: Map<string, ElementRow>; detail?: ElementDetail
-  assets: Asset[]; reload: () => void; viewpoint: () => Promise<Viewpoint>
+  assets: Asset[]; assetDetail?: AssetDetail; reload: () => void; viewpoint: () => Promise<Viewpoint>
 }) {
   const [err, setErr] = useState<string>()
   const run = (p: Promise<unknown>) => { setErr(undefined); return p.then(reload).catch(e => setErr(e.message)) }
@@ -18,7 +19,7 @@ export default function FmPanel({ modelId, selection, byGid, detail, assets, rel
   if (!gid || !byGid.has(gid)) return <p style={{ color: T.ink[2] }}>요소를 선택하면 자산 등록·점검·작업지시를 기록할 수 있습니다.</p>
   const asset = byElement.get(gid)
   return asset
-    ? <AssetCard modelId={modelId} asset={asset} run={run} err={err} viewpoint={viewpoint} />
+    ? <AssetCard modelId={modelId} asset={asset} d={asset.id === assetDetail?.id ? assetDetail : undefined} run={run} err={err} viewpoint={viewpoint} />
     : <Register gid={gid} el={byGid.get(gid)!} detail={detail} modelId={modelId} run={run} err={err} />
 }
 
@@ -67,10 +68,7 @@ function Bulk({ selection, byGid, byElement, modelId, run, err }: { selection: s
   )
 }
 
-function AssetCard({ modelId, asset, run, err, viewpoint }: { modelId: string; asset: Asset; run: (p: Promise<unknown>) => Promise<void>; err?: string; viewpoint: () => Promise<Viewpoint> }) {
-  const [d, setD] = useState<AssetDetail>()
-  const load = useCallback(() => api<AssetDetail>(`/assets/${asset.id}`).then(setD), [asset.id])
-  useEffect(() => { load() }, [load, asset.lastInspectedOn, asset.openWorkOrders])
+function AssetCard({ modelId, asset, d, run, err, viewpoint }: { modelId: string; asset: Asset; d?: AssetDetail; run: (p: Promise<unknown>) => Promise<void>; err?: string; viewpoint: () => Promise<Viewpoint> }) {
   const [note, setNote] = useState(''); const [wo, setWo] = useState({ title: '', assignee: '', dueOn: '' }); const [showWo, setShowWo] = useState(false)
   const inspect = (result: 'OK' | 'DEFECT') => run(post(`/assets/${asset.id}/inspections`, { result, note: note || null })).then(() => setNote(''))
   const createWo = () => viewpoint().then(vp => run(post(`/assets/${asset.id}/work-orders`, { ...wo, dueOn: wo.dueOn || null, assignee: wo.assignee || null,

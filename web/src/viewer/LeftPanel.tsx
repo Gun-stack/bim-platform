@@ -19,11 +19,12 @@ export const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', '
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
-export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel, statusBoard, abnormal, onFit, onShowAll }: {
+export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel, statusBoard, abnormal, onFit, onShowAll, anyHidden }: {
   model?: Model; stats: Stats; spatial: SpatialNode[]; elements: ElementRow[]
   hidden: Hidden; setHidden: (h: Hidden) => void; opts: Opts; setOpts: (f: (o: Opts) => Opts) => void
   selected: Set<string>; onSelect: (gids: string[], mode: SelectMode) => void; onContext: (e: React.MouseEvent, gids: string[]) => void
   systemPanel?: ReactNode; statusBoard?: ReactNode; abnormal: Map<string, string>; onFit: () => void; onShowAll: () => void   // abnormal: gid → ALARM|FAULT (트리 배지). onShowAll: U314 단일 함수(Viewer.tsx)
+  anyHidden: boolean   // 숨김 3종·솔로·격리 중 하나라도 — Viewer 가 한 곳에서 계산(여기서 다시 계산하면 격리만 켜졌을 때 어긋난다)
 }) {
   const [tab, setTab] = useState<'spatial' | 'class' | 'system'>('spatial')
   const [q, setQ] = useState('')
@@ -76,7 +77,6 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
   }
   /** 표시 옵션 토글 — 사용자 클릭만 저장. focusOn 등 프로그램적 변경은 저장값을 안 건드림 */
   const flipOpt = (k: keyof Opts) => { const n = { ...opts, [k]: !opts[k] }; try { localStorage.setItem('viewer.opts', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } setOpts(() => n) }
-  const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
 
   const isOpen = (r: Row, depth: number) => open.has(r.key) || (!open.has('!' + r.key) && r.key.startsWith('n:') && depth < 2)
   // isOpen 이 open 을 읽으므로 open 은 실제 의존성 (lint 는 클로저를 못 봄)

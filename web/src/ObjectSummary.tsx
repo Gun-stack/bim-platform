@@ -1,20 +1,26 @@
-import type { Asset, ElementDetail, WorkOrder } from './api'
+import { useState } from 'react'
+import type { Asset, ElementDetail, System, WorkOrder } from './api'
 import { ifcKo } from './ifcNames'
 import { TEAMS } from './teams'
 import { isQuiet, statusHex, statusLabel } from './status'
 import { badge, btn, day } from './ui'
 import { objLinks } from './context'
 import NavLinks from './NavLinks'
+import { isSignalTrace } from './viewer/SystemPanel'
 import { T } from './theme'
 
 /** 객체 요약 카드: 무엇·어디·어느 팀·자산·작업지시(·상류/하류 추적) — 뷰어 우측 패널과 모니터링/시설관리의 객체 패널이 같은 카드를 쓴다.
  *  openWos 가 없으면(객체 패널) asset.openWorkOrders 건수만 보여주고 카드 목록(fm?sel=)으로 보낸다.
  *  onTrace 는 뷰어에서만 전달 — 선택 요소가 계통(detail.systems)에 속하면 상류·하류 추적 버튼(단축키 `[` `]` 와 동일 동작),
- *  계통은 없지만 포트 연결(detail.connected)은 있으면 "전체 연결에서 추적" 버튼 하나(실무 IFC — 계통 없이 연결만 있는 경우가 흔하다) */
-export default function ObjectSummary({ modelId, detail, asset, openWos, onTrace, nav = true }: { modelId: string; detail: ElementDetail; asset?: Asset; openWos?: WorkOrder[]; onTrace?: (dir: 'up' | 'down') => void; nav?: boolean }) {
+ *  계통은 없지만 포트 연결(detail.connected)은 있으면 "전체 연결에서 추적" 버튼 하나(실무 IFC — 계통 없이 연결만 있는 경우가 흔하다).
+ *  systems 가 있고(뷰어) 신호(SIGNAL) 계통뿐이면 계통 탭과 같은 화재감지 어휘(감지기 쪽·수신기까지) — isSignalTrace 로 판정 공용 */
+export default function ObjectSummary({ modelId, detail, asset, openWos, systems, onTrace, nav = true }: { modelId: string; detail: ElementDetail; asset?: Asset; openWos?: WorkOrder[]; systems?: System[]; onTrace?: (dir: 'up' | 'down') => Promise<unknown>; nav?: boolean }) {
   const st = (detail.properties.Pset_BimStatus as Record<string, unknown> | undefined)?.Status as string | undefined
   const links = objLinks(modelId, detail.globalId), open = openWos ?? []
   const teamsOf = (detail.systems ?? []).map(name => ({ name, team: TEAMS.find(t => t.systems.includes(name)) }))
+  const signal = isSignalTrace(systems, detail.globalId)
+  const [busy, setBusy] = useState(false)   // 추적 요청 중 버튼 비활성 — 더블클릭으로 두 번 쏘는 것 방지
+  const fire = (dir: 'up' | 'down') => { if (busy || !onTrace) return; setBusy(true); onTrace(dir).finally(() => setBusy(false)) }
   return (
     <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: T.radius, background: st === 'ALARM' ? T.critSoft : st === 'FAULT' ? T.warnSoft : T.bg.raised, border: '1px solid ' + (st === 'ALARM' ? T.crit : st === 'FAULT' ? T.warn : T.bg.line) }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><b style={{ flex: 1, fontSize: T.fs.lg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.name ?? ''}>{detail.name}</b>
@@ -29,11 +35,11 @@ export default function ObjectSummary({ modelId, detail, asset, openWos, onTrace
         <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, whiteSpace: 'nowrap', fontSize: 11 }}>{/* 이동 링크(NavLinks) — 좁으면 다음 줄 오른쪽으로 */}
           {nav && <NavLinks modelId={modelId} gid={detail.globalId} style={{ marginLeft: 0 }} />}</span></div>
       {onTrace && (detail.systems?.length ?? 0) > 0 && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-        <button onClick={() => onTrace('up')} title="단축키 [" style={{ ...btn, flex: 1, justifyContent: 'center', padding: '4px 8px' }}>상류 추적</button>
-        <button onClick={() => onTrace('down')} title="단축키 ]" style={{ ...btn, flex: 1, justifyContent: 'center', padding: '4px 8px' }}>하류 추적</button>
+        <button disabled={busy} onClick={() => fire('up')} title="단축키 [" style={{ ...btn, flex: 1, justifyContent: 'center', padding: '4px 8px' }}>{signal ? '감지기 쪽' : '상류 추적'}</button>
+        <button disabled={busy} onClick={() => fire('down')} title="단축키 ]" style={{ ...btn, flex: 1, justifyContent: 'center', padding: '4px 8px' }}>{signal ? '수신기까지' : '하류 추적'}</button>
       </div>}
       {onTrace && !(detail.systems?.length) && detail.connected && <div style={{ marginTop: 6 }}>
-        <button onClick={() => onTrace('down')} title="단축키 ]" style={{ ...btn, width: '100%', justifyContent: 'center', padding: '4px 8px' }}>전체 연결에서 추적</button>
+        <button disabled={busy} onClick={() => fire('down')} title="단축키 ]" style={{ ...btn, width: '100%', justifyContent: 'center', padding: '4px 8px' }}>전체 연결에서 추적</button>
       </div>}
     </div>)
 }
