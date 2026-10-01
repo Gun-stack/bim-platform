@@ -193,7 +193,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => {   // 홈 카드 썸네일이 없으면 등장 연출이 끝난 뒤 한 번 만들어 올린다 — 첫 방문자가 만든 것을 모두가 쓴다.
     if (!loaded) return   // 타일 모드는 필요한 타일이 다 들어온 뒤에나(그렇지 않으면 외피만 찍혀 모두에게 남는다) — 최대 ~10초 기다리고 포기
     let poll = 0
-    const capture = () => fetch(`/api/models/${modelId}/thumbnail`, { method: 'HEAD' }).then(r => {
+    const capture = () => fetch(`/api/models/${modelId}/thumbnail`, { method: 'HEAD', signal: AbortSignal.timeout(5000) }).then(r => {
       const s = scene.current; if (r.status !== 404 || !s) return
       return fetch(s.thumbnail(480, 300)).then(d => d.blob()).then(b => fetch(`/api/models/${modelId}/thumbnail`, { method: 'PUT', headers: { 'content-type': 'image/jpeg' }, body: b }))
     }).catch(() => {})
