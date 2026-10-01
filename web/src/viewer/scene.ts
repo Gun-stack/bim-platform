@@ -8,7 +8,6 @@ import { Pipeline } from './render'
 import { EDGE, edgesOf, tier, xrayMat, type Tier } from './xray'
 import { FLY_MS, GlowLayer, REVEAL_MS, flowLevel, interpView, pulseOpacity, reducedMotion, revealY } from './fx'
 import { FLY, isTyping } from './keys'
-import { coverRect } from '../context'
 import { T, num } from '../theme'
 
 export type Kind = 'element' | 'space' | 'opening'
@@ -347,15 +346,6 @@ export class Scene3D {
   }
 
   bounds() { return { min: this.box.min.toArray(), max: this.box.max.toArray() } }
-
-  /** 현재 화면을 w×h JPEG dataURL 로 (가운데 크롭). render 직후 같은 태스크에서 읽으므로 preserveDrawingBuffer 가 필요 없다. 독·객체 패널의 썸네일용 */
-  snapshot(w: number, h: number) {
-    this.frame()
-    const src = this.renderer.domElement, c = document.createElement('canvas'); c.width = w; c.height = h
-    const r = coverRect(src.width, src.height, w, h)
-    c.getContext('2d')!.drawImage(src, r.sx, r.sy, r.sw, r.sh, 0, 0, w, h)
-    return c.toDataURL('image/jpeg', 0.7)
-  }
 
   /** 홈 카드 썸네일: 캔버스 크기·비율과 무관하게 w×h 에 건물 전체(홈 뷰)를 AO 켠 한 프레임으로. 한 태스크 안에서 크기·카메라를 원복해 화면 깜빡임 없음.
    *  타일 모드는 그 순간 순회기가 고른 타일(가까우면 층, 멀면 외피)이 아니라 그때까지 받은 걸 전부 보여 — 안 받은 층·숨은 외피로 생기는 구멍 없이 찍는다 */
