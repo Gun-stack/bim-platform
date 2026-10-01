@@ -29,10 +29,10 @@ final class Sql {
 	 *  쓰기 쪽(FmService.checkIntervalMonths)이 1~600 정수만 저장하지만, attributes 는 jsonb 자유 입력이라 값을 다시 신뢰하지 않는다 —
 	 *  숫자 1~3자리 형식이고 1~600 범위일 때만 날짜 연산에 쓴다(그 외는 '주기 없음'과 동치, date + n*interval 범위 초과로 행 하나가 쿼리 전체를 깨는 것 방지) */
 	static final String NEXT_DUE = """
-		CASE WHEN a.id IS NOT NULL AND a.attributes->>'intervalMonths' ~ '^[0-9]{1,3}$'
-		          AND (a.attributes->>'intervalMonths')::int BETWEEN 1 AND 600 THEN
-		  (coalesce((SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id), a.installed_on, CURRENT_DATE)
-		   + (a.attributes->>'intervalMonths')::int * interval '1 month')::date END "nextDueOn"
+		CASE WHEN a.id IS NOT NULL AND a.attributes->>'intervalMonths' ~ '^[0-9]{1,3}$' THEN
+		  CASE WHEN (a.attributes->>'intervalMonths')::int BETWEEN 1 AND 600 THEN
+		    (coalesce((SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id), a.installed_on, CURRENT_DATE)
+		     + (a.attributes->>'intervalMonths')::int * interval '1 month')::date END END "nextDueOn"
 		""";
 
 	/** 출발 요소(:id, :gid)가 속한 계통 집합 — 추적을 같은 계통 안으로 제한할 때 `es.system_id IN SYSTEM_SCOPE` */

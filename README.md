@@ -277,7 +277,7 @@ docker compose --profile demo stop sim tunnel       # 공개 종료
 ```
 
 - quick tunnel 은 계정 불필요·임의 URL. 고정 도메인은 Cloudflare 계정의 named tunnel 토큰으로 `cloudflared tunnel run --token …`
-- 공개 모드 판정: nginx 가 `GET /api/config` → `{"demo":true}` 를 직접 응답(평소엔 404) → 홈이 업로드·삭제를 숨김
+- 공개 모드 판정: nginx 가 `GET /api/config` → `{"demo":true}`(평소엔 `{"demo":false}`) 를 직접 응답 → 홈이 업로드·삭제를 숨김
 - 썸네일은 쓰기라 공개 전에 각 모델을 뷰어로 한 번씩 열어 만들어 둘 것
 - Basic 인증(`BASIC_AUTH_*`)과 함께 켤 수 있음
 </details>
