@@ -99,7 +99,6 @@ class FmService {
 			 WHERE id = :id""").param("s", p.status()).param("c", p.category()).param("i", p.intervalMonths()).param("id", id).update();
 		return asset(id);
 	}
-	void deleteAsset(UUID id) { db.sql("DELETE FROM asset WHERE id = :id").param("id", id).update(); }
 
 	/** intervalMonths 쓰기 검증(patchAsset·createAsset 공유) — attributes 가 jsonb 자유 입력인 createAsset 경로에서는 JSON 값이
 	 *  Integer/Long/String 무엇이든 올 수 있다. 없음은 통과(해제), 정수가 아니면(문자열이어도 숫자가 아니면) 400, 600 초과는 400.
@@ -126,8 +125,8 @@ class FmService {
 	// ---------- work order ----------
 	record WorkOrderIn(String title, String assignee, LocalDate dueOn, UUID inspectionId, Map<String, Object> viewpoint, String priority, String description) {}
 
-	/** 모델의 작업지시 목록 (보드용). status 로 필터 가능 */
-	List<Map<String, Object>> workOrders(UUID id, String status) {
+	/** 모델의 작업지시 목록 (보드용) */
+	List<Map<String, Object>> workOrders(UUID id) {
 		return db.sql("""
 			SELECT w.id, w.title, w.status, w.priority, w.description, w.assignee, w.due_on "dueOn", w.inspection_id "inspectionId", w.viewpoint::text viewpoint, w.created_at "createdAt", w.updated_at "updatedAt",
 			       a.id "assetId", a.tag "assetTag", a.category "assetCategory", e.global_id "globalId", e.ifc_class "ifcClass", e.name "elementName",
@@ -137,9 +136,9 @@ class FmService {
 			  FROM work_order w JOIN asset a ON a.id = w.asset_id LEFT JOIN element e ON e.id = a.element_id
 			""" + Sql.STOREY_ZONE_JOIN + """
 
-			 WHERE a.model_id = :id AND (:s::text IS NULL OR w.status = :s)
+			 WHERE a.model_id = :id
 			 ORDER BY CASE w.status WHEN 'OPEN' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END, CASE w.priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, w.due_on NULLS LAST, w.created_at DESC""")
-			.param("id", id).param("s", status).query().listOfRows().stream().map(w -> { json(w, "viewpoint"); w.put("systems", Sql.csv(w.get("systems"))); return w; }).toList();
+			.param("id", id).query().listOfRows().stream().map(w -> { json(w, "viewpoint"); w.put("systems", Sql.csv(w.get("systems"))); return w; }).toList();
 	}
 	Map<String, Object> createWorkOrder(UUID id, WorkOrderIn in) {
 		if (in.title() == null || in.title().isBlank()) throw new ApiErrors.BadRequest("title required");

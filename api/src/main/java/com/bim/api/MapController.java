@@ -1,6 +1,5 @@
 package com.bim.api;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -14,11 +13,9 @@ class MapController {
 	private final JdbcClient db;
 	MapController(JdbcClient db) { this.db = db; }
 
-	/** 지도용 FeatureCollection: 풋프린트 있는 모델 (bbox 는 "minLon,minLat,maxLon,maxLat", 없으면 전체) */
+	/** 지도용 FeatureCollection: 풋프린트 있는 모델 전체 */
 	@GetMapping("/map/footprints")
-	Map<String, Object> footprints(@RequestParam(required = false) String bbox) {
-		double[] b = bbox == null ? null : Arrays.stream(bbox.split(",")).mapToDouble(Double::parseDouble).toArray();
-		if (b != null && b.length != 4) throw new ApiErrors.BadRequest("bbox=minLon,minLat,maxLon,maxLat");
+	Map<String, Object> footprints() {
 		var rows = db.sql("""
 			SELECT m.id, m.name, m.ifc_schema "ifcSchema", m.element_count "elementCount", m.status, p.name "projectName",
 			       m.map_conversion->>'source' "georefSource", m.map_conversion->>'crs' crs, (m.map_conversion->>'manual')::boolean manual,
@@ -26,9 +23,7 @@ class MapController {
 			       round(ST_Area(m.footprint::geography)) "areaM2"
 			  FROM model m JOIN project p ON p.id = m.project_id
 			 WHERE m.footprint IS NOT NULL
-			   AND (:b0::float8 IS NULL OR m.footprint && ST_MakeEnvelope(:b0, :b1, :b2, :b3, 4326))
 			 ORDER BY m.created_at DESC""")
-			.param("b0", b == null ? null : b[0]).param("b1", b == null ? null : b[1]).param("b2", b == null ? null : b[2]).param("b3", b == null ? null : b[3])
 			.query().listOfRows();
 		List<Map<String, Object>> features = rows.stream().map(r -> {
 			var geom = Json.parse((String) r.remove("geom"));

@@ -18,9 +18,8 @@ class FmController {
 	@PostMapping("/models/{id}/assets/bulk") Map<String, Object> bulk(@PathVariable UUID id) { return service.bulk(id); }
 	@GetMapping("/assets/{id}") Map<String, Object> asset(@PathVariable UUID id) { return service.asset(id); }
 	@PatchMapping("/assets/{id}") Map<String, Object> patchAsset(@PathVariable UUID id, @RequestBody FmService.AssetPatch p) { return service.patchAsset(id, p); }
-	@DeleteMapping("/assets/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) void deleteAsset(@PathVariable UUID id) { service.deleteAsset(id); }
 	@PostMapping("/assets/{id}/inspections") @ResponseStatus(HttpStatus.CREATED) Map<String, Object> inspect(@PathVariable UUID id, @RequestBody FmService.InspectionIn in) { return service.inspect(id, in); }
-	@GetMapping("/models/{id}/work-orders") List<Map<String, Object>> workOrders(@PathVariable UUID id, @RequestParam(required = false) String status) { return service.workOrders(id, status); }
+	@GetMapping("/models/{id}/work-orders") List<Map<String, Object>> workOrders(@PathVariable UUID id) { return service.workOrders(id); }
 	@PostMapping("/assets/{id}/work-orders") @ResponseStatus(HttpStatus.CREATED) Map<String, Object> createWorkOrder(@PathVariable UUID id, @RequestBody FmService.WorkOrderIn in) { return service.createWorkOrder(id, in); }
 	@GetMapping("/work-orders/{id}") Map<String, Object> workOrder(@PathVariable UUID id) { return service.workOrder(id); }
 	@PatchMapping("/work-orders/{id}") Map<String, Object> patchWorkOrder(@PathVariable UUID id, @RequestBody FmService.WorkOrderPatch p) { return service.patchWorkOrder(id, p); }

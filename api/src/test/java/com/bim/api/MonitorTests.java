@@ -47,20 +47,16 @@ class MonitorTests {
 		fm.patchAsset(aid, new FmService.AssetPatch(null, null, 6));
 		fm.inspect(aid, new FmService.InspectionIn(LocalDate.of(2026, 1, 15), "OK", null));
 
-		Map<String, Object> m = monitor.monitor(mid, false);
+		Map<String, Object> m = monitor.monitor(mid);
 		@SuppressWarnings("unchecked") var rows = (List<Map<String, Object>>) m.get("rows");
-		assertThat(rows).extracting(r -> r.get("globalId")).containsExactly("PUMP");   // 같은 제외 목록
+		assertThat(rows).extracting(r -> r.get("globalId")).containsExactly("PUMP");   // 선(배관·피팅)은 항상 제외
 		var pump = rows.getFirst();
 		assertThat(String.valueOf(pump.get("nextDueOn"))).isEqualTo("2026-07-15");   // 같은 다음 점검일 규칙
 		assertThat(pump.get("storey")).isEqualTo("B1"); assertThat(pump.get("zone")).isEqualTo("기계실");
 		assertThat(pump.get("systems")).isEqualTo(List.of("급수"));
 		assertThat(m.get("power")).isEqualTo("UNKNOWN");   // ATS 없음 → 화면은 '전원 정보 없음'
 		assertThat(status.powerNow(mid).get("source")).isEqualTo("UTILITY");   // 계산은 한전 수전으로
-		@SuppressWarnings("unchecked") var all = (List<Map<String, Object>>) monitor.monitor(mid, true).get("rows");
-		assertThat(all).hasSize(4);   // segments=true 면 선·피팅도 포함
 		assertThat(pump.get("building")).isEqualTo("업무동");   // 실 소속 → 층 → 동
-		var pipe = all.stream().filter(r -> "PIPE".equals(r.get("globalId"))).findFirst().orElseThrow();
-		assertThat(pipe.get("storey")).isEqualTo("B1"); assertThat(pipe.get("zone")).isNull(); assertThat(pipe.get("building")).isEqualTo("업무동");   // 층 직접 소속 → 동
 	}
 
 	@Test
@@ -80,9 +76,9 @@ class MonitorTests {
 		UUID aid = UUID.fromString(String.valueOf(fm.assets(mid).getFirst().get("id")));
 		db.sql("UPDATE asset SET attributes = '{\"intervalMonths\": \"abc\"}'::jsonb WHERE id = :id").param("id", aid).update();
 		assertThat(fm.assets(mid)).hasSize(1);
-		assertThat((List<?>) monitor.monitor(mid, false).get("rows")).hasSize(1);
+		assertThat((List<?>) monitor.monitor(mid).get("rows")).hasSize(1);
 		db.sql("UPDATE asset SET attributes = '{\"intervalMonths\": 3600000}'::jsonb WHERE id = :id").param("id", aid).update();
 		assertThat(fm.assets(mid)).hasSize(1);
-		assertThat((List<?>) monitor.monitor(mid, false).get("rows")).hasSize(1);
+		assertThat((List<?>) monitor.monitor(mid).get("rows")).hasSize(1);
 	}
 }

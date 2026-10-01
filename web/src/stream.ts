@@ -5,7 +5,7 @@ type EventSourceLike = { addEventListener(k: string, f: () => void): void; close
 /** 탭 가시성 — 테스트(node)에선 주입 */
 type Page = { hidden(): boolean; onChange(f: () => void): () => void }
 type Fn = (kind: string) => void
-const KINDS = ['status', 'work_order', 'job', 'resync']
+const KINDS = ['status', 'work_order', 'resync']
 export const RETRY_MS = 5000, RETRY_MAX_MS = 60_000
 const CLOSED = 2
 const shared = new Map<string, { fns: Set<Fn>; stop: () => void }>()

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-/** GET /api/models/{id}/stream — 운영 이벤트 SSE(status·work_order·job·resync). 화면은 '다시 조회' 신호로만 쓴다 */
+/** GET /api/models/{id}/stream — 운영 이벤트 SSE(status·work_order·resync). 변환 진행률(job)은 ModelController.events 전용이라 여기선 안 보낸다. 화면은 '다시 조회' 신호로만 쓴다 */
 @RestController
 @RequestMapping("/api")
 class StreamController {
@@ -28,8 +28,8 @@ class StreamController {
 		if (db.sql("SELECT 1 FROM model WHERE id = :id").param("id", id).query(Integer.class).optional().isEmpty()) throw new ApiErrors.NotFound("model " + id);
 		var em = new SseEmitter(0L);   // 시간 제한 없음 — 끊김은 하트비트 송신 실패로 정리
 		Runnable[] off = { () -> {} };
-		// Notifier 의 LISTEN 스레드를 막지 않도록 실제 전송은 가상 스레드에서 — 실패하면 구독 해제 + emitter 종료
-		off[0] = notifier.subscribe(id, (kind, data) -> Thread.startVirtualThread(() -> deliver(id, em, off[0], kind, data)));
+		// Notifier 의 LISTEN 스레드를 막지 않도록 실제 전송은 가상 스레드에서 — 실패하면 구독 해제 + emitter 종료. job 은 소비자가 없어 여기선 거른다
+		off[0] = notifier.subscribe(id, (kind, data) -> { if (!kind.equals("job")) Thread.startVirtualThread(() -> deliver(id, em, off[0], kind, data)); });
 		em.onCompletion(off[0]); em.onTimeout(off[0]); em.onError(t -> off[0].run());
 		em.send(SseEmitter.event().comment("ready"));   // 헤더를 바로 내보내 EventSource open 이 즉시 뜨게
 		return em;

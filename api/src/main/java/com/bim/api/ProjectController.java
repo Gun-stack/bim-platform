@@ -26,7 +26,6 @@ class ProjectController {
 
 	@GetMapping
 	List<Map<String, Object>> list() {
-		// location GeoJSON 은 M3
 		return db.sql("SELECT id, name, created_at \"createdAt\" FROM project ORDER BY created_at DESC").query().listOfRows();
 	}
 }
