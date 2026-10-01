@@ -33,6 +33,9 @@ class BcfExportTests {
 		var wo = fm.createWorkOrder(aid, new FmService.WorkOrderIn("펌프 <수리> & 점검", "김반장", LocalDate.of(2026, 9, 1), null,
 			Map.of("v", List.of(10, 2, 3, 10, 2, 0), "sel", List.of("G1")), "HIGH", null));
 		fm.patchWorkOrder((UUID) wo.get("id"), new FmService.WorkOrderPatch("IN_PROGRESS", null, null, null, null, null));
+		UUID bid = db.sql("INSERT INTO asset (model_id, tag) VALUES (:m, 'PUMP-02') RETURNING id").param("m", mid).query(UUID.class).single();
+		var bad = fm.createWorkOrder(bid, new FmService.WorkOrderIn("깨진 시점", null, null, null,
+			new HashMap<>(Map.of("v", java.util.Arrays.asList("a", null, 3, 10, 2, 0))), "NORMAL", null));
 
 		var body = export.bcf(mid).getBody();
 		Map<String, String> files = new HashMap<>();
@@ -41,6 +44,7 @@ class BcfExportTests {
 		}
 		String markup = files.get(wo.get("id") + "/markup.bcf"), vp = files.get(wo.get("id") + "/viewpoint.bcfv");
 		assertThat(files).containsKey("bcf.version");
+		assertThat(files).doesNotContainKey(bad.get("id") + "/viewpoint.bcfv");   // v 원소가 숫자 아님 — 카메라 없이도 전체는 성공
 		assertThat(markup).contains("TopicStatus=\"In Progress\"").contains("펌프 &lt;수리&gt; &amp; 점검")
 			.contains("<AssignedTo>김반장</AssignedTo>").contains("<DueDate>2026-09-01T00:00:00Z</DueDate>");
 		// scene (10,2,3) → IFC (10,-3,2); 시선 scene (0,0,-3) → IFC (0,3,0) 정규화 (0,1,0); up 은 Z 직교화 → (0,0,1)

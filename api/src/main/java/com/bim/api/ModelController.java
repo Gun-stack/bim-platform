@@ -105,7 +105,7 @@ class ModelController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	void putThumbnail(@PathVariable UUID id, @RequestBody byte[] jpeg) {
 		find(id);   // 없는 모델이면 404
-		if (jpeg.length == 0 || jpeg.length > THUMB_MAX) throw new ApiErrors.BadRequest("thumbnail 1B~" + THUMB_MAX / 1024 + "KB");
+		if (jpeg.length < 2 || jpeg.length > THUMB_MAX) throw new ApiErrors.BadRequest("thumbnail 2B~" + THUMB_MAX / 1024 + "KB");
 		if ((jpeg[0] & 0xff) != 0xff || (jpeg[1] & 0xff) != 0xd8) throw new ApiErrors.BadRequest("not a JPEG");   // SOI 마커
 		s3.putObject(b -> b.bucket(bucket).key(thumbKey(id)).contentType(MediaType.IMAGE_JPEG_VALUE), software.amazon.awssdk.core.sync.RequestBody.fromBytes(jpeg));   // Spring @RequestBody 와 이름 충돌
 	}

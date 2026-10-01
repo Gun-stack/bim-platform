@@ -89,6 +89,7 @@ class ExportController {
 				String guid = String.valueOf(w.get("id"));
 				String vpGuid = UUID.nameUUIDFromBytes((guid + ":vp").getBytes(StandardCharsets.UTF_8)).toString();
 				@SuppressWarnings("unchecked") var vp = (Map<String, Object>) Json.parse((String) w.get("vp"));
+				boolean hasVp = vp != null && (validSelection(vp) || validCamera(vp));   // 둘 다 없으면(예: v 원소가 숫자 아님) 빈 viewpoint 파일을 만들지 않는다
 				String status = switch (String.valueOf(w.get("status"))) { case "IN_PROGRESS" -> "In Progress"; case "DONE" -> "Closed"; default -> "Active"; };
 				var m = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Markup><Topic Guid=\"%s\" TopicType=\"Issue\" TopicStatus=\"%s\">".formatted(guid, status));
 				m.append("<Title>").append(xml(w.get("title"))).append("</Title>");
@@ -98,10 +99,10 @@ class ExportController {
 				if (w.get("assignee") != null) m.append("<AssignedTo>").append(xml(w.get("assignee"))).append("</AssignedTo>");
 				if (w.get("description") != null) m.append("<Description>").append(xml(w.get("description"))).append("</Description>");
 				m.append("</Topic>");
-				if (vp != null) m.append("<Viewpoints Guid=\"%s\"><Viewpoint>viewpoint.bcfv</Viewpoint></Viewpoints>".formatted(vpGuid));
+				if (hasVp) m.append("<Viewpoints Guid=\"%s\"><Viewpoint>viewpoint.bcfv</Viewpoint></Viewpoints>".formatted(vpGuid));
 				m.append("</Markup>");
 				entry(zip, guid + "/markup.bcf", m.toString());
-				if (vp != null) entry(zip, guid + "/viewpoint.bcfv", bcfv(vpGuid, vp));
+				if (hasVp) entry(zip, guid + "/viewpoint.bcfv", bcfv(vpGuid, vp));
 			}
 		}
 		return download(out, "workorders-" + id + ".bcfzip", "application/octet-stream");
@@ -116,12 +117,14 @@ class ExportController {
 
 	private static String bcfv(String guid, Map<String, Object> vp) {
 		var sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<VisualizationInfo Guid=\"" + guid + "\">");
-		if (vp.get("sel") instanceof List<?> sel && !sel.isEmpty()) {
+		if (validSelection(vp)) {
+			var sel = (List<?>) vp.get("sel");
 			sb.append("<Components><Selection>");
 			for (var g : sel) sb.append("<Component IfcGuid=\"").append(xml(g)).append("\"/>");
 			sb.append("</Selection></Components>");
 		}
-		if (vp.get("v") instanceof List<?> v && v.size() >= 6) {
+		if (validCamera(vp)) {
+			var v = (List<?>) vp.get("v");
 			// scene(Y-up) → IFC(Z-up): (x, y, z) → (x, -z, y)
 			double px = d(v.get(0)), py = -d(v.get(2)), pz = d(v.get(1));
 			double tx = d(v.get(3)), ty = -d(v.get(5)), tz = d(v.get(4));
@@ -134,6 +137,12 @@ class ExportController {
 		}
 		return sb.append("</VisualizationInfo>").toString();
 	}
+	/** 선택 요소 GUID 목록이 있는지 — 비어 있지 않은 리스트 */
+	private static boolean validSelection(Map<String, Object> vp) { return vp.get("sel") instanceof List<?> sel && !sel.isEmpty(); }
+	/** 카메라 6원소(px,py,pz,tx,ty,tz)가 모두 Number 인지 — 하나라도 아니면(예: null·문자열) 카메라 없이 내보낸다 */
+	private static boolean validCamera(Map<String, Object> vp) {
+		return vp.get("v") instanceof List<?> v && v.size() >= 6 && v.subList(0, 6).stream().allMatch(x -> x instanceof Number);
+	}
 	private static double d(Object o) { return ((Number) o).doubleValue(); }
 	private static String xyz(String tag, double x, double y, double z) { return "<%1$s><X>%2$s</X><Y>%3$s</Y><Z>%4$s</Z></%1$s>".formatted(tag, x + 0.0, y + 0.0, z + 0.0); }   // +0.0: -0.0 정리
 	private static String xml(Object s) { return String.valueOf(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
@@ -141,18 +150,22 @@ class ExportController {
 		zip.putNextEntry(new ZipEntry(name)); zip.write(content.getBytes(StandardCharsets.UTF_8)); zip.closeEntry();
 	}
 
-	private static List<String[]> start(String... header) { var l = new ArrayList<String[]>(); l.add(header); return l; }
-	private static String[] row(Object... v) { return Arrays.stream(v).map(x -> x == null ? "" : String.valueOf(x)).toArray(String[]::new); }
+	private static List<Object[]> start(String... header) { var l = new ArrayList<Object[]>(); l.add(header); return l; }
+	private static Object[] row(Object... v) { return Arrays.stream(v).map(x -> x == null ? "" : x).toArray(); }
 
 	/** CSV: 쉼표·따옴표·개행 포함 필드는 따옴표 감싸기, UTF-8 BOM(엑셀 한글) */
-	private static void sheet(ZipOutputStream zip, String name, List<String[]> rows) throws IOException {
+	private static void sheet(ZipOutputStream zip, String name, List<Object[]> rows) throws IOException {
 		zip.putNextEntry(new ZipEntry(name + ".csv"));
 		var sb = new StringBuilder("﻿");
-		for (var r : rows) sb.append(String.join(",", Arrays.stream(r).map(ExportController::esc).toList())).append("\r\n");
+		for (var r : rows) sb.append(String.join(",", Arrays.stream(r).map(ExportController::cell).toList())).append("\r\n");
 		zip.write(sb.toString().getBytes(StandardCharsets.UTF_8));
 		zip.closeEntry();
 	}
-	private static String esc(String s) {
+	/** 숫자(예: Elevation 음수)는 그대로, 문자열은 CSV 이스케이프 + 수식 주입 방지(=+-@ 로 시작하면 ' 접두, 엑셀이 문자열로 취급) */
+	private static String cell(Object v) {
+		if (v instanceof Number) return String.valueOf(v);
+		String s = String.valueOf(v);
+		if (!s.isEmpty() && "=+-@".indexOf(s.charAt(0)) >= 0) s = "'" + s;
 		return (s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")) ? '"' + s.replace("\"", "\"\"") + '"' : s;
 	}
 }

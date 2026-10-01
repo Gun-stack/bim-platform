@@ -1,6 +1,7 @@
 package com.bim.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDate;
 import java.util.Map;
@@ -47,5 +48,12 @@ class InspectionDueTests {
 		assertThat(String.valueOf(nextDueOn())).isEqualTo(LocalDate.now().plusMonths(3).toString());
 		Map<String, Object> a = fm.asset(assetId);
 		assertThat(((Map<?, ?>) a.get("attributes")).get("intervalMonths")).isEqualTo(3);
+	}
+
+	@Test
+	void hugeIntervalRejectedWithoutBreakingAssetsQuery() {
+		assertThatThrownBy(() -> fm.patchAsset(assetId, new FmService.AssetPatch(null, null, 3600000)))
+			.isInstanceOf(ApiErrors.BadRequest.class);
+		assertThat(fm.assets(modelId)).hasSize(1);   // 거부된 값이 저장되지 않아 쿼리 전체가 깨지지 않는다
 	}
 }

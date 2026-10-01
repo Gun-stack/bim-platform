@@ -100,7 +100,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <span style={{ fontSize: 12, color: a.status === 'ACTIVE' ? T.ink[2] : T.crit }}>{{ ACTIVE: '사용 중', OUT_OF_SERVICE: '사용 중지', RETIRED: '폐기' }[a.status]}</span>
           <span style={{ fontSize: 12, color: a.lastResult === 'DEFECT' ? T.crit : T.ink[2] }}>{a.lastInspectedOn ? `${day(a.lastInspectedOn)} ${a.lastResult === 'DEFECT' ? '결함' : '정상'}` : '—'}</span>
           <span style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <input type="number" min={0} defaultValue={(a.attributes?.intervalMonths as number | undefined) ?? ''} placeholder="주기" title="점검 주기(개월) — 비우거나 0이면 해제"
+            <input type="number" min={0} max={600} defaultValue={(a.attributes?.intervalMonths as number | undefined) ?? ''} placeholder="주기" title="점검 주기(개월) — 비우거나 0이면 해제, 최대 600"
                    onBlur={e => { const v = e.target.value === '' ? 0 : +e.target.value; if (v !== ((a.attributes?.intervalMonths as number | undefined) ?? 0)) post(`/assets/${a.id}`, { intervalMonths: v }, 'PATCH').then(reload) }}
                    style={{ ...inp, width: 42, padding: '2px 4px', fontSize: 12 }} />
             {a.nextDueOn ? <span style={{ color: isOverdue(a) ? T.crit : T.ink[2], fontWeight: isOverdue(a) ? 600 : 400 }}>{day(a.nextDueOn)}{isOverdue(a) ? ' 지연' : ''}</span> : <span style={{ color: T.bg.line }}>—</span>}

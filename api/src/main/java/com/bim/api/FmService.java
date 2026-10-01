@@ -88,8 +88,9 @@ class FmService {
 	}
 
 	record AssetPatch(String status, String category, Integer intervalMonths) {}
-	/** intervalMonths: 점검 주기(개월). 0 이하는 해제. 다음 점검일 계산은 Sql.NEXT_DUE */
+	/** intervalMonths: 점검 주기(개월). 0 이하는 해제. 600 초과는 NEXT_DUE 의 날짜 연산(date + n * interval)이 범위를 벗어나 그 모델의 모니터링·시설관리 쿼리 전체가 깨지므로 400. 다음 점검일 계산은 Sql.NEXT_DUE */
 	Map<String, Object> patchAsset(UUID id, AssetPatch p) {
+		if (p.intervalMonths() != null && p.intervalMonths() > 600) throw new ApiErrors.BadRequest("intervalMonths 1~600");
 		db.sql("""
 			UPDATE asset SET status = coalesce(:s, status), category = coalesce(:c, category),
 			       attributes = CASE WHEN :i::int IS NULL THEN attributes WHEN :i::int <= 0 THEN attributes - 'intervalMonths'
