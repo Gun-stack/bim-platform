@@ -1,8 +1,8 @@
 /* oxlint-disable react/only-export-components */
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Focus, X } from 'lucide-react'
 import { TEAMS } from '../teams'
-import { api, post, type PowerResult, type Route, type StatusRow, type System } from '../api'
+import { post, type PowerResult, type Route, type StatusRow, type System } from '../api'
 import { hex, isAbnormal, statusHex, statusLabel } from '../status'
 import { btn as btnBase } from '../ui'
 import { T, num } from '../theme'
@@ -15,17 +15,15 @@ export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOME
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
 
 /** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 추적 경로 목록(버튼은 요약 카드 — U303). 계통별 색 보기는 툴바 "색" 메뉴(U309).
- *  멤버는 /systems 응답에 같이 온다(B300·P104) — 이 패널이 따로 받지 않는다, Viewer 가 마운트 때 한 번 받아 둔 것과 같은 모양 */
-export default function SystemPanel({ modelId, selection, route, setRoute, onSolo, onSelect }: {
-  modelId: string; selection: string[]
+ *  systems 는 Viewer 가 마운트 때 한 번 받아 내려주는 값 — 여기서 따로 /systems 를 다시 부르지 않는다(탭을 열 때마다 중복 요청,
+ *  B300·P104). undefined = 응답 전(불러오는 중), 빈 배열 = 이 모델에 계통이 없음, 그 외 = 목록 */
+export default function SystemPanel({ selection, systems, route, setRoute, onSolo, onSelect }: {
+  selection: string[]; systems?: System[]
   route?: Route; setRoute: (r?: Route) => void
   onSolo: (label: string, gids: string[], key: string) => void; onSelect: (gids: string[]) => void
 }) {
-  const [systems, setSystems] = useState<System[]>([])
-  useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystems) }, [modelId])
-
   const gid = selection.length === 1 ? selection[0] : undefined
-  const inSystems = useMemo(() => systems.filter(s => s.members.includes(gid ?? '')), [systems, gid])
+  const inSystems = useMemo(() => (systems ?? []).filter(s => s.members.includes(gid ?? '')), [systems, gid])
   const signal = inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
 
   // 추적 시작은 요약 카드(ObjectSummary)·단축키 [ ] — 여기는 경로 결과만
@@ -40,6 +38,8 @@ export default function SystemPanel({ modelId, selection, route, setRoute, onSol
           : Object.entries(groupBy(route.nodes, n => n.ifcClass)).map(([cls, ns]) => <div key={cls} style={{ display: 'flex', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }} onClick={() => onSelect(ns.map(n => n.globalId))}>
               <span style={{ flex: 1 }}>{cls.replace('Ifc', '')}</span><span style={{ color: T.ink[2] }}>{ns.length}</span></div>)}
       </div> : null
+
+  if (systems === undefined) return <div style={{ padding: '4px 6px' }}><p style={{ color: T.ink[2], padding: 8, margin: 0 }}>불러오는 중…</p></div>
 
   // 실무 IFC: 계통은 없어도 포트 연결이 있으면 추적은 가능
   if (!systems.length) return (

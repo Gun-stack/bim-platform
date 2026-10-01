@@ -19,7 +19,7 @@ export type Legend = { value: string; color: number; gids: string[] }[]
 export default function ColorPanel({ modelId, mode, elements, spatial, systemsMeta, onChange, onSolo, onClose }: {
   modelId: string; mode: Exclude<ColorView, 'none'>
   elements: ElementRow[]; spatial: SpatialNode[]
-  systemsMeta: System[]
+  systemsMeta?: System[]   // undefined = /systems 응답 전(불러오는 중), 빈 배열 = 이 모델에 계통 없음
   onChange: (map?: Map<string, number>) => void
   onSolo: (label: string, gids: string[], key: string) => void
   onClose: () => void
@@ -91,8 +91,9 @@ export default function ColorPanel({ modelId, mode, elements, spatial, systemsMe
       </div>}
 
       {mode === 'systems' && <div style={{ overflow: 'auto', padding: '2px 6px 8px' }}>
-        {!systemsMeta.length && <div style={{ color: T.ink[2], padding: 6 }}>이 모델에는 계통 정보가 없습니다.</div>}
-        {groupByTeam(systemsMeta).map(([team, ss]) => <div key={team?.key ?? 'etc'}>
+        {systemsMeta === undefined && <div style={{ color: T.ink[2], padding: 6 }}>불러오는 중…</div>}
+        {systemsMeta?.length === 0 && <div style={{ color: T.ink[2], padding: 6 }}>이 모델에는 계통 정보가 없습니다.</div>}
+        {!!systemsMeta?.length && groupByTeam(systemsMeta).map(([team, ss]) => <div key={team?.key ?? 'etc'}>
           <div style={{ padding: '6px 4px 2px', fontSize: 11, fontWeight: 600, color: team?.color ?? T.ink[2] }}>{team?.name ?? '기타'}</div>
           {ss.map(s => <LegendRow key={s.id} value={s.name} color={systemColor(s)} gids={s.members}
             onSolo={() => onSolo(`계통 ${s.name}`, s.members, 'sys:' + s.id)} />)}

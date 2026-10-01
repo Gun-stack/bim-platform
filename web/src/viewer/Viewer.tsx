@@ -55,7 +55,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [propertyMap, setPropertyMap] = useState<Map<string, number>>()   // 속성 모드 범례(ColorPanel)가 올려보내는 맵 — scene 은 Viewer 만 건드린다(U309 재발 방지)
   useEffect(() => { if (colorView !== 'property') setPropertyMap(undefined) }, [colorView])   // 모드를 떠나면 버린다 — 다음에 속성으로 돌아와도 범례가 다시 계산될 때까지는 undefined(이전 모드 잔상 방지)
   const [route, setRoute] = useState<Route>()          // 추적 결과
-  const [systemsMeta, setSystemsMeta] = useState<System[]>([])   // 계통 + 멤버 GlobalId, 마운트 때 한 번(B300) — 탭을 연 적 없어도 추적·K 색이 정확한 범위
+  const [systemsMeta, setSystemsMeta] = useState<System[]>()   // 계통 + 멤버 GlobalId, 마운트 때 한 번(B300) — 탭을 연 적 없어도 추적·K 색이 정확한 범위.
+  // undefined = /systems 응답 전(불러오는 중), 빈 배열 = 이 모델에 계통이 없음 — "계통 정보 없음" 표시가 로딩 중에 잠깐 떴다 사라지지 않게 구분한다
   const [power, setPower] = useState<PowerResult>()
   const [boardCollapsed, setBoardCollapsed] = useState(false)
   const [assetDetail, setAssetDetail] = useState<AssetDetail>()
@@ -286,10 +287,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
     navigator.clipboard?.writeText(location.href).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
   }
   // 단축키(단발 액션). 핸들러는 렌더마다 새로 만들어지므로 ref 로 최신 것을 본다 — 리스너는 마운트 때 한 번. 연속 키(WASD 등)는 Scene3D 가 직접 본다
-  // 상류/하류 추적. 실무 IFC 는 계통(IfcSystem) 없이 포트 연결만 있는 경우가 많다 — 소속 계통이 없으면 scope=all 로 전체 연결 그래프를 탄다
+  // 상류/하류 추적. 실무 IFC 는 계통(IfcSystem) 없이 포트 연결만 있는 경우가 많다 — 소속 계통이 없으면 scope=all 로 전체 연결 그래프를 탄다.
+  // systemsMeta 가 아직 안 왔으면(마운트 직후 찰나) 이미 받아 둔 요소 상세(detail.systems)로 대신 판단 — 그것도 없으면 scope=all 로
+  // 넓히지 않고 API 기본값(계통 범위)을 믿는다. "모른다"에서 넓은 쪽(scope=all)을 고르면 하류 572 대신 1294 처럼 과다 범위가 더 잦다
   const trace = (dir: 'up' | 'down') => {
     const gid = selection.length === 1 ? selection[0] : undefined; if (!gid) return Promise.resolve()
-    const inSystem = systemsMeta.some(s => s.members.includes(gid))
+    const inSystem = systemsMeta ? systemsMeta.some(s => s.members.includes(gid))
+      : detail && 'properties' in detail && detail.globalId === gid ? (detail.systems?.length ?? 0) > 0
+      : true
     return api<Route>(`/models/${modelId}/elements/${encodeURIComponent(gid)}/route?dir=${dir}${inSystem ? '' : '&scope=all'}`).then(setRoute).catch(() => setRoute(undefined))
   }
   const traceRef = useRef(trace); traceRef.current = trace
@@ -356,7 +361,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
         <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel} onShowAll={showAll}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
-          systemPanel={<SystemPanel modelId={modelId} selection={selection} route={route} setRoute={setRoute}
+          systemPanel={<SystemPanel selection={selection} systems={systemsMeta} route={route} setRoute={setRoute}
             onSolo={onLegendSolo}
             onSelect={gids => scene.current?.select(gids)} />} />
       </Panel>
@@ -471,14 +476,14 @@ export default function Viewer({ modelId }: { modelId: string }) {
  *  속성 모드는 ColorPanel 의 범례가 propertyMap 을 올려줄 때까지 undefined — 이전 모드 색이 눌어붙지 않는다(범례가 늦게 뜨는 속성 모드 진입 때의 잔상 버그) */
 export function pickColors({ route, power, colorView, statusRows, systemsMeta, propertyMap }: {
   route?: Route; power?: PowerResult; colorView: ColorView
-  statusRows: StatusRow[]; systemsMeta: System[]
+  statusRows: StatusRow[]; systemsMeta?: System[]   // undefined = /systems 응답 전
   propertyMap?: Map<string, number>
 }): Map<string, number> | undefined {
   if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? num(T.warn) : route.direction === 'up' ? num(T.accent) : num(T.ok)); return m }
   if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, num(T.ok)); for (const g of power.unpowered) m.set(g, 0x555c66); return m }   // 무전원: 배경보다 살짝 밝은 짙은 회색
   if (colorView === 'status') { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? num(T.ink[3]) : st.On === false ? num(T.ink[3]) : STATUS[st.Status ?? '']?.color ?? num(T.ink[3])) } return m }   // 점유 주차면·소등 조명은 회색
   if (colorView === 'systems') {
-    if (!systemsMeta.length) return undefined   // /systems 응답이 아직 안 왔다(B300 수정 뒤엔 마운트 직후뿐 — 전부 회색 대신 평소 색 유지, 범례가 잠깐 "불러오는 중")
+    if (!systemsMeta?.length) return undefined   // 응답 전(undefined)이거나 이 모델에 계통이 없음(빈 배열) — 둘 다 전부 회색 대신 평소 색 유지
     const m = new Map<string, number>(); for (const sm of systemsMeta) for (const g of sm.members) m.set(g, systemColor(sm)); return m
   }
   if (colorView === 'property') return propertyMap
