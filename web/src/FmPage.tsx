@@ -74,8 +74,8 @@ export default function FmPage({ modelId }: { modelId: string }) {
           <input value={add.tag} onChange={e => setAdd({ ...add, tag: e.target.value })} placeholder="태그 * (예: CCTV-01)" required style={inp} />
           <input value={add.category} onChange={e => setAdd({ ...add, category: e.target.value })} placeholder="분류" style={inp} />
           <button type="submit" style={btnPrimary}>등록</button>
-          {err && <span style={{ color: T.crit, fontSize: 12 }}>{err}</span>}
         </form>}
+        {err && <div role="alert" style={{ color: T.crit, fontSize: 12, marginBottom: 8 }}>{err}</div>}   {/* 자산 추가·주기 편집 공용 — 폼이 닫혀 있어도 보이게 */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
           <input value={aq} onChange={e => setAq(e.target.value)} placeholder="태그 · 이름 검색" style={{ ...inp, width: 200 }} />
           <select value={acat} onChange={e => setAcat(e.target.value)} style={inp}><option value="">분류 전체</option>{[...new Set(assets.map(a => a.category).filter(Boolean) as string[])].sort((x, y) => ifcKo(x).localeCompare(ifcKo(y))).map(c => <option key={c} value={c}>{ifcKo(c)}</option>)}</select>
@@ -97,7 +97,7 @@ export default function FmPage({ modelId }: { modelId: string }) {
               ? <input type="number" min={0} max={600} autoFocus defaultValue={(a.attributes?.intervalMonths as number | undefined) ?? ''} placeholder="주기" title="점검 주기(개월) — 비우거나 0이면 해제, 최대 600"
                        onBlur={e => { setEditInt(null); if (cancelInt.current) { cancelInt.current = false; return }
                          const v = e.target.value === '' ? 0 : +e.target.value
-                         if (v !== ((a.attributes?.intervalMonths as number | undefined) ?? 0)) post(`/assets/${a.id}`, { intervalMonths: v }, 'PATCH').then(reload).catch(x => setErr(x.message)) }}
+                         if (v !== ((a.attributes?.intervalMonths as number | undefined) ?? 0)) { setErr(undefined); post(`/assets/${a.id}`, { intervalMonths: v }, 'PATCH').then(reload).catch(x => setErr(x.message)) } }}
                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { cancelInt.current = true; e.currentTarget.blur() } }}
                        style={{ ...inp, width: 42, padding: '2px 4px', fontSize: 12 }} />
               : <span onClick={() => setEditInt(a.id)} title="클릭해서 점검 주기 수정" style={{ cursor: 'pointer', color: a.attributes?.intervalMonths ? T.ink[1] : T.ink[3], textDecoration: 'underline dotted' }}>
