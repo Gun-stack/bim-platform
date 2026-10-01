@@ -14,13 +14,12 @@ export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOME
   // 예외: 설비 배관은 현업 도색 관례가 우선 — 급수=청, 급탕=적, 가스=황, 오배수=갈, 환기=녹
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
 
-/** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 추적 경로 목록(버튼은 요약 카드 — U303) */
-export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect, colorMode, setColorMode }: {
+/** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 추적 경로 목록(버튼은 요약 카드 — U303). 계통별 색 보기는 툴바 "색" 메뉴(U309) */
+export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect }: {
   modelId: string; selection: string[]
   members: Map<number, SystemMember[]>; setMembers: (m: Map<number, SystemMember[]>) => void
   route?: Route; setRoute: (r?: Route) => void
   onSolo: (label: string, gids: string[], key: string) => void; onSelect: (gids: string[]) => void
-  colorMode: boolean; setColorMode: (b: boolean) => void
 }) {
   const [systems, setSystems] = useState<System[]>([])
   useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystems) }, [modelId])
@@ -54,8 +53,6 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
     </div>)
   return (
     <div style={{ padding: '4px 6px' }}>
-      <label title="단축키 K" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', fontSize: 12, color: T.ink[2] }}>
-        <input type="checkbox" checked={colorMode} onChange={e => setColorMode(e.target.checked)} /> 계통별 색으로 보기</label>
       {groupByTeam(systems).map(([team, ss]) => <div key={team?.key ?? 'etc'}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 6px 2px', fontSize: 11, fontWeight: 600, color: team?.color ?? T.ink[2] }}>
           {team && <span style={{ width: 8, height: 8, borderRadius: 999, background: team.color, flexShrink: 0, display: 'inline-block' }} />}{team?.name ?? '기타'}<span style={{ fontWeight: 400, color: T.ink[3] }}>{ss.reduce((n, s) => n + (s.memberCount ?? 0), 0)}</span>
@@ -75,10 +72,10 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
   )
 }
 
-/** 상태판: ALARM/FAULT 목록 + 상태 색 보기 + 정전/복전. 좌측 패널 최상단(탭 무관)에 놓인다 — 뷰어를 열면 제일 먼저 볼 것. 요소별 상태 변경은 우측 속성 패널(StatusEditor) */
-export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setStatusView, power, setPower, collapsed, setCollapsed }: {
+/** 상태판: ALARM/FAULT 목록 + 정전/복전. 좌측 패널 최상단(탭 무관)에 놓인다 — 뷰어를 열면 제일 먼저 볼 것. 요소별 상태 변경은 우측 속성 패널(StatusEditor). 상태 색 보기는 툴바 "색" 메뉴(U309) */
+export function StatusBoard({ rows, modelId, reload, onSelect, power, setPower, collapsed, setCollapsed }: {
   rows: StatusRow[]; modelId: string; reload: () => Promise<unknown>; onSelect: (g: string[]) => void; collapsed: boolean; setCollapsed: (b: boolean) => void
-  statusView: boolean; setStatusView: (b: boolean) => void; power?: PowerResult; setPower: (p?: PowerResult) => void
+  power?: PowerResult; setPower: (p?: PowerResult) => void
 }) {
   const [busy, setBusy] = useState(false)
   const abnormal = rows.filter(r => isAbnormal(r.status.Status))
@@ -92,10 +89,7 @@ export function StatusBoard({ rows, modelId, reload, onSelect, statusView, setSt
         {collapsed ? <ChevronDown size={14} style={{ color: T.ink[2] }} /> : <ChevronUp size={14} style={{ color: T.ink[2] }} />}
       </div>
       {!collapsed && <>
-      <label title="단축키 T" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.ink[2], margin: '6px 0 4px' }}>
-        <input type="checkbox" checked={statusView} onChange={e => setStatusView(e.target.checked)} /> 상태 색으로 보기
-        <span style={{ display: 'inline-flex', gap: 6, marginLeft: 4, color: T.ink[2], fontSize: 11 }}>{[[T.ok, '정상'], [T.crit, '경보'], [T.warn, '장애'], [T.ink[3], '점유·소등']].map(([c, l]) => <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: c }} />{l}</span>)}</span></label>
-      {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: T.radius, background: T.critSoft }}>
+      {abnormal.map(r => <div key={r.globalId} onClick={() => onSelect([r.globalId])} title="클릭: 구역 강조 + 카메라 이동" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 4px', cursor: 'pointer', borderRadius: T.radius, background: T.critSoft, marginTop: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: 999, background: statusHex(r.status.Status), flexShrink: 0 }} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
         <span style={{ color: T.ink[2] }}>{r.spatialName}</span><b style={{ color: statusHex(r.status.Status) }}>{statusLabel(r.status.Status)}</b></div>)}
@@ -113,8 +107,8 @@ function RouteRow({ n, onClick }: { n: { depth: number; name: string | null; ifc
     <span style={{ color: T.ink[2], fontSize: 11 }}>{n.spatialName}</span>
   </div>
 }
-/** 계통을 팀 순서(TEAMS)로 묶고, 팀 안에서는 TEAMS.systems 에 적힌 순서(원천 계통 먼저). 어느 팀에도 없는 계통은 '기타' */
-const groupByTeam = (systems: System[]) => {
+/** 계통을 팀 순서(TEAMS)로 묶고, 팀 안에서는 TEAMS.systems 에 적힌 순서(원천 계통 먼저). 어느 팀에도 없는 계통은 '기타'. ColorPanel 계통 범례(U309)도 같은 묶음을 쓴다 */
+export const groupByTeam = (systems: System[]) => {
   const groups = TEAMS.map(t => [t, t.systems.map(n => systems.find(s => s.name === n)).filter(Boolean) as System[]] as const).filter(([, ss]) => ss.length)
   const rest = systems.filter(s => !TEAMS.some(t => t.systems.includes(s.name)))
   return rest.length ? [...groups, [undefined, rest] as const] : groups

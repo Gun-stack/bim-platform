@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { GripVertical, type LucideIcon } from 'lucide-react'
 import { T } from '../theme'
@@ -46,6 +46,31 @@ export function Tool({ icon: Icon, label, hint, keys, onClick, active, disabled 
     {hov && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: T.ink[1], color: T.bg.base, padding: '4px 8px', borderRadius: T.radius, fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: T.shadow }}>
       {label}{keys && <span style={{ opacity: 0.6, marginLeft: 8 }}>{keys}</span>}{disabled && hint && <span style={{ opacity: 0.65 }}> · {hint}</span>}</span>}
   </span>
+}
+
+/** Tool 버튼 + 작은 선택 메뉴(택1). 클릭하면 위로 펼침 — 바깥 클릭·Esc 로 닫힘. 색 모드(U309)처럼 한 버튼에 여러 보기를 모을 때 */
+export function ToolMenu({ icon, label, active, value, options, onChange }: {
+  icon: LucideIcon; label: string; active?: boolean
+  value: string; options: { value: string; label: string }[]; onChange: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }, key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    addEventListener('pointerdown', close, true); addEventListener('keydown', key)
+    return () => { removeEventListener('pointerdown', close, true); removeEventListener('keydown', key) }
+  }, [open])
+  return (
+    <span ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <Tool icon={icon} label={label} active={active} onClick={() => setOpen(v => !v)} />
+      {open && <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, padding: 4, whiteSpace: 'nowrap', zIndex: 20 }}>
+        {options.map(o => <div key={o.value} onClick={() => { onChange(o.value); setOpen(false) }}
+          style={{ padding: '6px 12px', borderRadius: T.radius, cursor: 'pointer', fontSize: 12, fontWeight: value === o.value ? 600 : 400, color: value === o.value ? T.accent : T.ink[1], background: value === o.value ? T.accentSoft : 'transparent' }}>
+          {o.label}</div>)}
+      </div>}
+    </span>
+  )
 }
 
 export const Gap = () => <span style={{ width: 1, background: T.bg.line, margin: '6px 4px' }} />

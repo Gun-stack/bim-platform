@@ -17,7 +17,7 @@ import { Tiles, tileMode } from './tiles'
 import LeftPanel, { STRUCT, type Hidden, type Opts, type SelectMode } from './LeftPanel'
 import ColorPanel from './ColorPanel'
 import ContextMenu, { type MenuItem } from './ContextMenu'
-import { Axis, Floating, Gap, Tool } from './chrome'
+import { Axis, Floating, Gap, Tool, ToolMenu } from './chrome'
 import { keyAction, type Action } from './keys'
 import Shortcuts from './Shortcuts'
 import { MultiProps, Props } from './Props'
@@ -50,13 +50,12 @@ export default function Viewer({ modelId }: { modelId: string }) {
   const [focus, setFocus] = useState<'none' | 'ghost'>('none')
   const [hover, setHover] = useState<{ x: number; y: number; text: string }>()
   const [copied, setCopied] = useState(false)
-  const [colorMode, setColorMode] = useState(false)
+  const [colorView, setColorView] = useState<'none' | 'status' | 'systems' | 'property'>('none')   // 색 보기 — 툴바 "색" 메뉴 하나(U309), T·K·P 는 같은 상태를 토글
   const [sysMembers, setSysMembers] = useState<Map<number, SystemMember[]>>(new Map())
-  const [sysColor, setSysColor] = useState(false)     // 계통별 색
   const [route, setRoute] = useState<Route>()          // 추적 결과
   const [systemsMeta, setSystemsMeta] = useState<System[]>([])
   const [power, setPower] = useState<PowerResult>()
-  const [statusView, setStatusView] = useState(false); const [boardCollapsed, setBoardCollapsed] = useState(false)
+  const [boardCollapsed, setBoardCollapsed] = useState(false)
   const [assetDetail, setAssetDetail] = useState<AssetDetail>()
   const [focusInfo, setFocusInfo] = useState<{ gid: string; name: string; zone?: string; storey?: string; status?: string; spaceGid?: string }>()
   const [loaded, setLoaded] = useState(false)   // glb 로드 완료 — 딥링크 재적용 effect 가드
@@ -81,17 +80,21 @@ export default function Viewer({ modelId }: { modelId: string }) {
   useEffect(() => { if (focusInfo && !selSet.has(focusInfo.gid)) { setFocusInfo(undefined); setFocus('none'); scene.current?.setMarker(undefined) } }, [selSet, focusInfo])   // 다른 요소를 고르면 포커스 모드(격리·비콘)도 해제 — 배너 X 와 동일
   const { rows: statusRows, fresh: freshAlerts, dismiss: dismissAlert, reload: reloadStatus } = useAlerts(modelId)   // 5초 폴링 — 상태판·트리 배지도 함께 최신 유지
   useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystemsMeta).catch(() => setSystemsMeta([])) }, [modelId])
-  // 계통별 색: 멤버 → 계통 색. 경로 추적 중이면 경로만 진하게, 나머지 회색 (setColors 의 기본 회색)
+  // 색 보기(U309): 추적 > 정전 > 선택한 색 모드 하나(없음·상태·계통·속성). 속성은 ColorPanel 이 자기 범례로 직접 칠한다(분류 기준 선택이 그 안에 있어서) — 여기선 손대지 않는다
   useEffect(() => {
     const s = scene.current; if (!s) return
     if (route) { const m = new Map<string, number>(); for (const n of route.nodes) m.set(n.globalId, n.depth === 0 ? num(T.warn) : route.direction === 'up' ? num(T.accent) : num(T.ok)); s.setColors(m, true); return }
     if (power) { const m = new Map<string, number>(); for (const g of power.powered) m.set(g, num(T.ok)); for (const g of power.unpowered) m.set(g, 0x555c66); /* 무전원: 배경보다 살짝 밝은 짙은 회색 */ s.setColors(m, true); return }
-    if (statusView) { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? num(T.ink[3]) : st.On === false ? num(T.ink[3]) : STATUS[st.Status ?? '']?.color ?? num(T.ink[3])) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
-    if (!sysColor || colorMode) { if (!colorMode) s.setColors(undefined); return }
-    const m = new Map<string, number>()
-    for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, systemColor(sm))
-    s.setColors(m, true)   // 구조체는 반투명 — 계통이 건물 안에서 보이게
-  }, [sysColor, sysMembers, systemsMeta, route, colorMode, bounds, power, statusView, statusRows])
+    if (colorView === 'status') { const m = new Map<string, number>(); for (const r of statusRows) { const st = r.status; m.set(r.globalId, st.Occupied === true ? num(T.ink[3]) : st.On === false ? num(T.ink[3]) : STATUS[st.Status ?? '']?.color ?? num(T.ink[3])) } s.setColors(m, true); return }   // 점유 주차면·소등 조명은 회색
+    if (colorView === 'systems') {
+      if (!sysMembers.size) { s.setColors(undefined); return }   // 계통 탭을 연 적 없으면 멤버가 비어있다(B300) — 전부 회색 대신 평소 색 유지, 범례가 "불러오는 중"
+      const m = new Map<string, number>()
+      for (const sm of systemsMeta) for (const e of sysMembers.get(sm.id) ?? []) m.set(e.globalId, systemColor(sm))
+      s.setColors(m, true)   // 구조체는 반투명 — 계통이 건물 안에서 보이게
+      return
+    }
+    if (colorView !== 'property') s.setColors(undefined)
+  }, [colorView, sysMembers, systemsMeta, route, bounds, power, statusRows])
   const [menu, setMenu] = useState<{ x: number; y: number }>()
   const hq = useHashQuery(), woId = hq.get('wo')
   const [wo, setWo] = useState<WorkOrder>()   // ?wo= 로 열었을 때 상단 배너
@@ -233,6 +236,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
     setHidden({ ...hidden, solo: cur ? undefined : { key: 'sel', label: selection.length === 1 ? (byGid.get(selection[0])?.name ?? selection[0]) : `선택 ${selection.length}개`, gids: selSet } })
   }
   const hideSelected = () => { const g = new Set(hidden.gids); for (const x of selection) g.add(x); setHidden({ ...hidden, gids: g }); scene.current?.select([]) }
+  /** 계통 탭·색 범례(ColorPanel) 공용 "이것만 보기" — 같은 key 를 다시 누르면 해제 */
+  const onLegendSolo = (label: string, gids: string[], key: string) => setHidden(h => ({ ...h, solo: h.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } }))
   const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
   const showAll = () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); setFocus('none') }   // U314: 좌측 눈 버튼·⌥H·우클릭 "전체 보기" 가 같이 부르는 단일 함수
   // U310: 선택 없음 → 접힘, 선택 있음 → 펼침. hasSelection 이 안 바뀌면(선택→다른 선택) effect 가 재실행되지 않아 사용자가 그 사이 직접 접은 상태가 유지된다
@@ -319,9 +324,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
       case 'measure': setMeasuring(m => !m); break
       case 'snap': setSnap(v => !v); break
       case 'grid': flipOpt('grid'); break
-      case 'colors': setColorMode(v => !v); break
-      case 'status': setStatusView(v => !v); break
-      case 'systems': setSysColor(v => !v); break
+      case 'colors': setColorView(v => v === 'property' ? 'none' : 'property'); break
+      case 'status': setColorView(v => v === 'status' ? 'none' : 'status'); break
+      case 'systems': setColorView(v => v === 'systems' ? 'none' : 'systems'); break
       case 'traceUp': trace('up'); break
       case 'traceDown': trace('down'); break
       case 'share': share(); break
@@ -355,10 +360,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
     <Group orientation="horizontal" style={{ height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
         <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel} onShowAll={showAll}
-          statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
+          statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
           systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute}
-            onSolo={(label, gids, key) => setHidden({ ...hidden, solo: hidden.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } })}
-            onSelect={gids => scene.current?.select(gids)} colorMode={sysColor} setColorMode={setSysColor} />} />
+            onSolo={onLegendSolo}
+            onSelect={gids => scene.current?.select(gids)} />} />
       </Panel>
       <Separator style={sep} />
 
@@ -367,8 +372,8 @@ export default function Viewer({ modelId }: { modelId: string }) {
           {err && <p style={{ position: 'absolute', top: 8, left: 8, color: T.crit, background: T.bg.surface, padding: 6 }}>{err}</p>}
           {hover && <div style={{ position: 'fixed', left: hover.x + 12, top: hover.y + 12, background: T.ink[1], color: T.bg.base, padding: '2px 6px', borderRadius: T.radius, fontSize: 12, pointerEvents: 'none' }}>{hover.text}</div>}
 
-          {colorMode && <ColorPanel modelId={modelId} elements={elements} spatial={spatial} onChange={m => scene.current?.setColors(m)}
-            onSolo={(label, gids) => setHidden({ ...hidden, solo: hidden.solo?.key === 'v:' + label ? undefined : { key: 'v:' + label, label, gids: new Set(gids) } })} onClose={() => setColorMode(false)} />}
+          {colorView !== 'none' && <ColorPanel modelId={modelId} mode={colorView} elements={elements} spatial={spatial} systemsMeta={systemsMeta} sysMembers={sysMembers}
+            onChange={m => scene.current?.setColors(m)} onSolo={onLegendSolo} onClose={() => setColorView('none')} />}
 
           {/* 경보/장애 포커스 배너: 층·구역 한 줄만 (U304) — 작업지시로 들어왔으면 그 배너에 합치고 여긴 안 띄운다(배너 중첩 방지) */}
           {focusInfo && !wo && <div title="구역 반투명 강조 · 지붕 위 비콘 · 홈 뷰" style={{ position: 'absolute', top: clip ? 128 : 8, left: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: focusInfo.status === 'ALARM' ? T.critSoft : focusInfo.status === 'FAULT' ? T.warnSoft : T.bg.surface, borderRadius: T.radius, boxShadow: T.shadow, fontSize: 12, maxWidth: 320 }}>
@@ -437,7 +442,9 @@ export default function Viewer({ modelId }: { modelId: string }) {
             <Gap />
             <Tool icon={Scissors} label="단면 — X/Y/Z 범위, 층별 자르기" keys="C" active={!!clip} disabled={!bounds} onClick={() => setClip(clip ? null : bounds!.min.flatMap((m, i) => [m, bounds!.max[i]]))} />
             <Tool icon={Ruler} label="측정 — 면 위 두 점 거리" keys="M" active={measuring} onClick={() => setMeasuring(!measuring)} />
-            <Tool icon={Palette} label="속성별 색상 — 종류·층·속성값으로 칠하기" keys="P" active={colorMode} onClick={() => setColorMode(!colorMode)} />
+            <ToolMenu icon={Palette} label="색 — 없음·상태·계통·속성 중 하나 (T·K·P)" active={colorView !== 'none'} value={colorView}
+              options={[{ value: 'none', label: '없음' }, { value: 'status', label: '상태' }, { value: 'systems', label: '계통' }, { value: 'property', label: '속성' }]}
+              onChange={v => setColorView(v as typeof colorView)} />
             <Gap />
             <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" keys="L" onClick={share} />
             <Tool icon={Keyboard} label="키보드 단축키" keys="?" active={showKeys} onClick={() => setShowKeys(v => !v)} />
