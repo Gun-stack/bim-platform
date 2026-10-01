@@ -196,7 +196,7 @@ flowchart LR
 | 시설관리 | `web/src/FmPage.tsx` (대장) + `FmBoard.tsx` (칸반) | |
 | 지도 | `web/src/MapPage.tsx` | |
 | 계측 트렌드 | `web/src/TrendModal.tsx` | 모니터링·뷰어 공용 |
-| **객체 맥락** | `web/src/context.ts`(`?sel=` 링크·최근·스냅샷 캐시) · `useObject.ts` · `ObjectSummary.tsx` · `ObjectDrawer.tsx` · `ObjectDock.tsx` · `viewer/scene.ts snapshot()` | `context.test.ts` |
+| **객체 맥락** | `web/src/context.ts`(`?sel=` 링크) · `useObject.ts` · `ObjectSummary.tsx` · `ObjectDrawer.tsx` | `context.test.ts` |
 | 전역 경보 토스트 | `web/src/useAlerts.tsx` | 서버 푸시(SSE, 60초 안전망) + diff |
 | **디자인 토큰** | `web/src/theme.ts` (+ `index.css` 사본, `theme.test.ts`) | 배경 4·잉크 3·강조·상태 3+soft·팀 5·축·반지름·글자 크기·굵기·그림자. TSX 는 `T`, CSS 는 `var()` |
 | **상태 → 라벨·색** | `web/src/status.ts` | 모든 화면 공용 (`STATUS`, `statusLabel`, `statusHex`, `WO_STATUS`) |
