@@ -56,6 +56,8 @@ class ElementController {
 		return db.sql("""
 			SELECT e.global_id "globalId", e.ifc_class "ifcClass", e.name, e.properties::text properties,
 			       s.id "spatialNodeId", s.ifc_class "spatialClass", s.name "spatialName",
+			       (EXISTS (SELECT 1 FROM connection c WHERE c.from_element_id = e.id)
+			        OR EXISTS (SELECT 1 FROM connection c WHERE c.to_element_id = e.id)) "connected",
 			""" + Sql.SYSTEMS_AGG + """
 
 			  FROM element e LEFT JOIN spatial_node s ON s.id = e.spatial_node_id

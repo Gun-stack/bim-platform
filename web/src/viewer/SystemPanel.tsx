@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Focus, X } from 'lucide-react'
 import { TEAMS } from '../teams'
-import { api, post, type PowerResult, type Route, type StatusRow, type System, type SystemMember } from '../api'
+import { api, post, type PowerResult, type Route, type StatusRow, type System } from '../api'
 import { hex, isAbnormal, statusHex, statusLabel } from '../status'
 import { btn as btnBase } from '../ui'
 import { T, num } from '../theme'
@@ -14,22 +14,18 @@ export const SYSTEM_COLOR: Record<string, number> = { ELECTRICAL: 0xd1a54a, DOME
   // 예외: 설비 배관은 현업 도색 관례가 우선 — 급수=청, 급탕=적, 가스=황, 오배수=갈, 환기=녹
 export const systemColor = (s: { name: string; predefinedType: string | null }) => SYSTEM_COLOR[s.name] ?? SYSTEM_COLOR[s.predefinedType ?? ''] ?? num(T.ink[3])
 
-/** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 추적 경로 목록(버튼은 요약 카드 — U303). 계통별 색 보기는 툴바 "색" 메뉴(U309) */
-export default function SystemPanel({ modelId, selection, members, setMembers, route, setRoute, onSolo, onSelect }: {
+/** 좌측 "계통" 탭: 계통 목록(색·멤버 수·솔로), 추적 경로 목록(버튼은 요약 카드 — U303). 계통별 색 보기는 툴바 "색" 메뉴(U309).
+ *  멤버는 /systems 응답에 같이 온다(B300·P104) — 이 패널이 따로 받지 않는다, Viewer 가 마운트 때 한 번 받아 둔 것과 같은 모양 */
+export default function SystemPanel({ modelId, selection, route, setRoute, onSolo, onSelect }: {
   modelId: string; selection: string[]
-  members: Map<number, SystemMember[]>; setMembers: (m: Map<number, SystemMember[]>) => void
   route?: Route; setRoute: (r?: Route) => void
   onSolo: (label: string, gids: string[], key: string) => void; onSelect: (gids: string[]) => void
 }) {
   const [systems, setSystems] = useState<System[]>([])
   useEffect(() => { api<System[]>(`/models/${modelId}/systems`).then(setSystems) }, [modelId])
-  useEffect(() => {   // 멤버는 전부 미리 받아둔다 (색상 모드·솔로에 필요, 모델당 수백 개)
-    if (!systems.length) return
-    Promise.all(systems.map(s => api<SystemMember[]>(`/models/${modelId}/systems/${s.id}/elements`).then(m => [s.id, m] as const))).then(r => setMembers(new Map(r)))
-  }, [systems, modelId, setMembers])
 
   const gid = selection.length === 1 ? selection[0] : undefined
-  const inSystems = useMemo(() => systems.filter(s => (members.get(s.id) ?? []).some(m => m.globalId === gid)), [systems, members, gid])
+  const inSystems = useMemo(() => systems.filter(s => s.members.includes(gid ?? '')), [systems, gid])
   const signal = inSystems.length > 0 && inSystems.every(s => s.predefinedType === 'SIGNAL')
 
   // 추적 시작은 요약 카드(ObjectSummary)·단축키 [ ] — 여기는 경로 결과만
@@ -56,14 +52,14 @@ export default function SystemPanel({ modelId, selection, members, setMembers, r
       {groupByTeam(systems).map(([team, ss]) => <div key={team?.key ?? 'etc'}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 6px 2px', fontSize: 11, fontWeight: 600, color: team?.color ?? T.ink[2] }}>
           {team && <span style={{ width: 8, height: 8, borderRadius: 999, background: team.color, flexShrink: 0, display: 'inline-block' }} />}{team?.name ?? '기타'}<span style={{ fontWeight: 400, color: T.ink[3] }}>{ss.reduce((n, s) => n + (s.memberCount ?? 0), 0)}</span>
-          {team && <span title={`${team.name} 계통만 보기`} onClick={() => onSolo(team.name, ss.flatMap(s => (members.get(s.id) ?? []).map(m => m.globalId)), 'team:' + team.key)} style={{ marginLeft: 'auto', cursor: 'pointer', color: T.ink[2], display: 'grid', placeItems: 'center' }}><Focus size={12} /></span>}
+          {team && <span title={`${team.name} 계통만 보기`} onClick={() => onSolo(team.name, ss.flatMap(s => s.members), 'team:' + team.key)} style={{ marginLeft: 'auto', cursor: 'pointer', color: T.ink[2], display: 'grid', placeItems: 'center' }}><Focus size={12} /></span>}
         </div>
       {ss.map(s => { const c = systemColor(s); return (
         <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 6px 0 14px', borderRadius: T.radius }}>
           <span style={{ width: 12, height: 12, borderRadius: T.radius, background: hex(c), flexShrink: 0 }} />
           <span style={{ flex: 1 }}>{s.name}</span>
           <span style={{ color: T.ink[2], fontSize: 11 }}>{s.memberCount} · 연결 {s.connectionCount}</span>
-          <span title="이 계통만 보기" onClick={() => onSolo(`계통 ${s.name}`, (members.get(s.id) ?? []).map(m => m.globalId), 'sys:' + s.id)} style={{ cursor: 'pointer', color: T.ink[3], display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
+          <span title="이 계통만 보기" onClick={() => onSolo(`계통 ${s.name}`, s.members, 'sys:' + s.id)} style={{ cursor: 'pointer', color: T.ink[3], display: 'grid', placeItems: 'center' }}><Focus size={14} /></span>
         </div>) })}</div>)}
 
       <div style={{ borderTop: `1px solid ${T.bg.line}`, margin: '8px 0' }} />

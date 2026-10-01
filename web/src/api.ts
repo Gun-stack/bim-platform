@@ -5,7 +5,7 @@ export type Model = {
 }
 export type SpatialNode = { id: number; parentId: number | null; globalId: string; ifcClass: string; name: string | null; elevation: number | null }
 export type ElementRow = { globalId: string; ifcClass: string; name: string | null; spatialNodeId: number | null }
-export type ElementDetail = ElementRow & { properties: Record<string, Record<string, unknown>>; spatialClass?: string; spatialName?: string; systems?: string[] }
+export type ElementDetail = ElementRow & { properties: Record<string, Record<string, unknown>>; spatialClass?: string; spatialName?: string; systems?: string[]; connected?: boolean }
 
 /** REST 호출. 응답 타입은 호출부가 T 로 선언한다 — 서버 응답이 Map 이라 여기가 유일한 계약 */
 export const api = <T = unknown>(path: string, init?: RequestInit): Promise<T> => fetch('/api' + path, init).then(async r => {
@@ -23,8 +23,8 @@ export type WorkOrder = { id: string; title: string; status: 'OPEN' | 'IN_PROGRE
   assetId?: string; assetTag?: string; assetCategory?: string | null; globalId?: string | null; ifcClass?: string | null; elementName?: string | null; storey?: string | null; zone?: string | null; systems?: string[]; inspectionNote?: string | null }
 export type AssetDetail = Asset & { inspections: Inspection[]; workOrders: WorkOrder[] }
 
-export type System = { id: number; globalId: string; name: string; predefinedType: string | null; memberCount: number; connectionCount: number }
-export type SystemMember = ElementRow & { spatialName: string | null; upstream: number; downstream: number }
+/** members: 소속 요소 GlobalId 전부 — 한 응답에 같이 온다(B300·P104, 탭을 열지 않아도 뷰어가 마운트 때 전체를 받는다) */
+export type System = { id: number; globalId: string; name: string; predefinedType: string | null; memberCount: number; connectionCount: number; members: string[] }
 export type RouteNode = { globalId: string; ifcClass: string; name: string | null; depth: number; spatialName: string | null; via: string | null }
 export type Route = { globalId: string; direction: 'up' | 'down'; systems: string[]; nodes: RouteNode[] }
 export type StatusRow = { globalId: string; ifcClass: string; name: string | null; spatialName: string | null; status: Record<string, unknown> & { Status?: string } }

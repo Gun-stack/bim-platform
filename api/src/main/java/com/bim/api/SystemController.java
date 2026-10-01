@@ -13,26 +13,18 @@ class SystemController {
 	private final JdbcClient db;
 	SystemController(JdbcClient db) { this.db = db; }
 
+	/** 계통 목록 + 멤버 GlobalId(한 번에, B300·P104 — 탭을 열지 않아도 뷰어가 마운트 때 전체를 받는다) */
 	@GetMapping("/systems")
 	List<Map<String, Object>> systems(@PathVariable UUID id) {
-		return db.sql("""
+		var rows = db.sql("""
 			SELECT s.id, s.global_id "globalId", s.name, s.predefined_type "predefinedType",
 			       count(es.element_id) "memberCount",
-			       (SELECT count(*) FROM connection c JOIN element_system a ON a.element_id = c.from_element_id AND a.system_id = s.id) "connectionCount"
-			  FROM system s LEFT JOIN element_system es ON es.system_id = s.id
+			       (SELECT count(*) FROM connection c JOIN element_system a ON a.element_id = c.from_element_id AND a.system_id = s.id) "connectionCount",
+			       string_agg(e.global_id, ',' ORDER BY e.global_id) "members"
+			  FROM system s LEFT JOIN element_system es ON es.system_id = s.id LEFT JOIN element e ON e.id = es.element_id
 			 WHERE s.model_id = :id GROUP BY s.id ORDER BY s.id""").param("id", id).query().listOfRows();
-	}
-
-	/** 계통 멤버 요소 (gid, class, name, 층/구역, 상류·하류 개수) */
-	@GetMapping("/systems/{sid}/elements")
-	List<Map<String, Object>> members(@PathVariable UUID id, @PathVariable long sid) {
-		return db.sql("""
-			SELECT e.global_id "globalId", e.ifc_class "ifcClass", e.name, e.spatial_node_id "spatialNodeId", sn.name "spatialName",
-			       (SELECT count(*) FROM connection c WHERE c.to_element_id = e.id) "upstream",
-			       (SELECT count(*) FROM connection c WHERE c.from_element_id = e.id) "downstream"
-			  FROM element_system es JOIN element e ON e.id = es.element_id LEFT JOIN spatial_node sn ON sn.id = e.spatial_node_id
-			 WHERE es.system_id = :sid AND e.model_id = :id ORDER BY e.ifc_class, e.name""")
-			.param("id", id).param("sid", sid).query().listOfRows();
+		for (var r : rows) r.put("members", Sql.csv(r.get("members")));
+		return rows;
 	}
 
 	/** 요소에서 흐름을 거슬러(up: 원천까지) 또는 따라(down: 말단까지) 추적. depth 순, 순환 방지. */

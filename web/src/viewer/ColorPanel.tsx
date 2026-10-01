@@ -1,7 +1,7 @@
 /* oxlint-disable react/set-state-in-effect */
 import { useEffect, useMemo, useState } from 'react'
 import { Focus, X } from 'lucide-react'
-import { api, type ElementRow, type SpatialNode, type System, type SystemMember } from '../api'
+import { api, type ElementRow, type SpatialNode, type System } from '../api'
 import { STATUS, hex } from '../status'
 import { groupByTeam, systemColor } from './SystemPanel'
 import { T } from '../theme'
@@ -16,10 +16,10 @@ export type ColorView = 'none' | 'status' | 'systems' | 'property'
 export type Legend = { value: string; color: number; gids: string[] }[]
 
 /** 색 범례 — 툴바 "색" 메뉴가 고른 모드 하나를 한 자리에서 보여준다(U309). 속성 모드는 분류 기준 선택도 함께 */
-export default function ColorPanel({ modelId, mode, elements, spatial, systemsMeta, sysMembers, onChange, onSolo, onClose }: {
+export default function ColorPanel({ modelId, mode, elements, spatial, systemsMeta, onChange, onSolo, onClose }: {
   modelId: string; mode: Exclude<ColorView, 'none'>
   elements: ElementRow[]; spatial: SpatialNode[]
-  systemsMeta: System[]; sysMembers: Map<number, SystemMember[]>
+  systemsMeta: System[]
   onChange: (map?: Map<string, number>) => void
   onSolo: (label: string, gids: string[], key: string) => void
   onClose: () => void
@@ -92,11 +92,10 @@ export default function ColorPanel({ modelId, mode, elements, spatial, systemsMe
 
       {mode === 'systems' && <div style={{ overflow: 'auto', padding: '2px 6px 8px' }}>
         {!systemsMeta.length && <div style={{ color: T.ink[2], padding: 6 }}>이 모델에는 계통 정보가 없습니다.</div>}
-        {!!systemsMeta.length && !sysMembers.size && <div style={{ color: T.ink[2], padding: 6 }}>계통 멤버를 불러오는 중…</div>}
-        {!!sysMembers.size && groupByTeam(systemsMeta).map(([team, ss]) => <div key={team?.key ?? 'etc'}>
+        {groupByTeam(systemsMeta).map(([team, ss]) => <div key={team?.key ?? 'etc'}>
           <div style={{ padding: '6px 4px 2px', fontSize: 11, fontWeight: 600, color: team?.color ?? T.ink[2] }}>{team?.name ?? '기타'}</div>
-          {ss.map(s => <LegendRow key={s.id} value={s.name} color={systemColor(s)} gids={(sysMembers.get(s.id) ?? []).map(m => m.globalId)}
-            onSolo={() => onSolo(`계통 ${s.name}`, (sysMembers.get(s.id) ?? []).map(m => m.globalId), 'sys:' + s.id)} />)}
+          {ss.map(s => <LegendRow key={s.id} value={s.name} color={systemColor(s)} gids={s.members}
+            onSolo={() => onSolo(`계통 ${s.name}`, s.members, 'sys:' + s.id)} />)}
         </div>)}
       </div>}
     </div>
