@@ -36,6 +36,7 @@ class FmService {
 	/** 자산 등록. globalId 가 있으면 요소에 연결(없는 요소면 404). tag 중복은 409 */
 	Map<String, Object> createAsset(UUID id, AssetIn in) {
 		if (in.tag() == null || in.tag().isBlank()) throw new ApiErrors.BadRequest("tag required");
+		if (in.attributes() != null) checkIntervalMonths(in.attributes().get("intervalMonths"));
 		Long elementId = null;
 		if (in.globalId() != null) elementId = db.sql("SELECT id FROM element WHERE model_id = :m AND global_id = :g").param("m", id).param("g", in.globalId())
 			.query(Long.class).optional().orElseThrow(() -> new ApiErrors.NotFound("element " + in.globalId()));
@@ -90,7 +91,7 @@ class FmService {
 	record AssetPatch(String status, String category, Integer intervalMonths) {}
 	/** intervalMonths: 점검 주기(개월). 0 이하는 해제. 600 초과는 NEXT_DUE 의 날짜 연산(date + n * interval)이 범위를 벗어나 그 모델의 모니터링·시설관리 쿼리 전체가 깨지므로 400. 다음 점검일 계산은 Sql.NEXT_DUE */
 	Map<String, Object> patchAsset(UUID id, AssetPatch p) {
-		if (p.intervalMonths() != null && p.intervalMonths() > 600) throw new ApiErrors.BadRequest("intervalMonths 1~600");
+		checkIntervalMonths(p.intervalMonths());
 		db.sql("""
 			UPDATE asset SET status = coalesce(:s, status), category = coalesce(:c, category),
 			       attributes = CASE WHEN :i::int IS NULL THEN attributes WHEN :i::int <= 0 THEN attributes - 'intervalMonths'
@@ -99,6 +100,18 @@ class FmService {
 		return asset(id);
 	}
 	void deleteAsset(UUID id) { db.sql("DELETE FROM asset WHERE id = :id").param("id", id).update(); }
+
+	/** intervalMonths 쓰기 검증(patchAsset·createAsset 공유) — attributes 가 jsonb 자유 입력인 createAsset 경로에서는 JSON 값이
+	 *  Integer/Long/String 무엇이든 올 수 있다. 없음은 통과(해제), 정수가 아니면(문자열이어도 숫자가 아니면) 400, 600 초과는 400.
+	 *  0 이하는 patchAsset 과 동일하게 그대로 저장(해제 의미) — Sql.NEXT_DUE 가 읽을 때 다시 걸러낸다 */
+	private static void checkIntervalMonths(Object v) {
+		if (v == null) return;
+		long n;
+		if (v instanceof Integer || v instanceof Long) n = ((Number) v).longValue();
+		else if (v instanceof String s && s.matches("-?[0-9]+")) n = Long.parseLong(s);
+		else throw new ApiErrors.BadRequest("intervalMonths must be an integer");
+		if (n > 600) throw new ApiErrors.BadRequest("intervalMonths 1~600");
+	}
 
 	// ---------- inspection ----------
 	record InspectionIn(LocalDate inspectedOn, String result, String note) {}

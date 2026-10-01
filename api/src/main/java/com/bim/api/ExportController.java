@@ -118,9 +118,8 @@ class ExportController {
 	private static String bcfv(String guid, Map<String, Object> vp) {
 		var sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<VisualizationInfo Guid=\"" + guid + "\">");
 		if (validSelection(vp)) {
-			var sel = (List<?>) vp.get("sel");
 			sb.append("<Components><Selection>");
-			for (var g : sel) sb.append("<Component IfcGuid=\"").append(xml(g)).append("\"/>");
+			for (var g : selection(vp)) sb.append("<Component IfcGuid=\"").append(xml(g)).append("\"/>");
 			sb.append("</Selection></Components>");
 		}
 		if (validCamera(vp)) {
@@ -137,8 +136,11 @@ class ExportController {
 		}
 		return sb.append("</VisualizationInfo>").toString();
 	}
-	/** 선택 요소 GUID 목록이 있는지 — 비어 있지 않은 리스트 */
-	private static boolean validSelection(Map<String, Object> vp) { return vp.get("sel") instanceof List<?> sel && !sel.isEmpty(); }
+	/** 선택 요소 GUID 목록 — 문자열이 아닌 원소(null 등)는 걸러낸다(IfcGuid="null" 방지) */
+	private static List<String> selection(Map<String, Object> vp) {
+		return vp.get("sel") instanceof List<?> sel ? sel.stream().filter(String.class::isInstance).map(String.class::cast).toList() : List.of();
+	}
+	private static boolean validSelection(Map<String, Object> vp) { return !selection(vp).isEmpty(); }
 	/** 카메라 6원소(px,py,pz,tx,ty,tz)가 모두 Number 인지 — 하나라도 아니면(예: null·문자열) 카메라 없이 내보낸다 */
 	private static boolean validCamera(Map<String, Object> vp) {
 		return vp.get("v") instanceof List<?> v && v.size() >= 6 && v.subList(0, 6).stream().allMatch(x -> x instanceof Number);
@@ -161,11 +163,13 @@ class ExportController {
 		zip.write(sb.toString().getBytes(StandardCharsets.UTF_8));
 		zip.closeEntry();
 	}
-	/** 숫자(예: Elevation 음수)는 그대로, 문자열은 CSV 이스케이프 + 수식 주입 방지(=+-@ 로 시작하면 ' 접두, 엑셀이 문자열로 취급) */
+	/** 숫자(예: Elevation 음수)는 그대로, 문자열은 CSV 이스케이프 + 수식 주입 방지(=+-@ 로 시작하면 ' 접두, 엑셀이 문자열로 취급).
+	 *  엑셀은 선행 공백·탭·CR 을 건너뛰고 첫 글자를 보므로 접두 여부는 stripLeading() 으로 판단하되, 쓰는 값은 원본 그대로 둔다(탭을 지우지 않음) */
 	private static String cell(Object v) {
 		if (v instanceof Number) return String.valueOf(v);
 		String s = String.valueOf(v);
-		if (!s.isEmpty() && "=+-@".indexOf(s.charAt(0)) >= 0) s = "'" + s;
+		String lead = s.stripLeading();
+		if (!lead.isEmpty() && "=+-@".indexOf(lead.charAt(0)) >= 0) s = "'" + s;
 		return (s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")) ? '"' + s.replace("\"", "\"\"") + '"' : s;
 	}
 }

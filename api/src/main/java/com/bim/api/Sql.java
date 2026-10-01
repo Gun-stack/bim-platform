@@ -25,9 +25,12 @@ final class Sql {
 		(SELECT count(*) FROM work_order w WHERE w.asset_id = a.id AND w.status <> 'DONE') "openWorkOrders"
 		""";
 
-	/** 다음 점검일 = 마지막 점검(없으면 설치일, 그것도 없으면 오늘) + attributes.intervalMonths. 주기 없으면 NULL */
+	/** 다음 점검일 = 마지막 점검(없으면 설치일, 그것도 없으면 오늘) + attributes.intervalMonths. 주기 없으면 NULL.
+	 *  쓰기 쪽(FmService.checkIntervalMonths)이 1~600 정수만 저장하지만, attributes 는 jsonb 자유 입력이라 값을 다시 신뢰하지 않는다 —
+	 *  숫자 1~3자리 형식이고 1~600 범위일 때만 날짜 연산에 쓴다(그 외는 '주기 없음'과 동치, date + n*interval 범위 초과로 행 하나가 쿼리 전체를 깨는 것 방지) */
 	static final String NEXT_DUE = """
-		CASE WHEN a.id IS NOT NULL AND jsonb_exists(a.attributes, 'intervalMonths') THEN
+		CASE WHEN a.id IS NOT NULL AND a.attributes->>'intervalMonths' ~ '^[0-9]{1,3}$'
+		          AND (a.attributes->>'intervalMonths')::int BETWEEN 1 AND 600 THEN
 		  (coalesce((SELECT max(inspected_on) FROM inspection i WHERE i.asset_id = a.id), a.installed_on, CURRENT_DATE)
 		   + (a.attributes->>'intervalMonths')::int * interval '1 month')::date END "nextDueOn"
 		""";

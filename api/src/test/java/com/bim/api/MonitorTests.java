@@ -62,4 +62,17 @@ class MonitorTests {
 		var pipe = all.stream().filter(r -> "PIPE".equals(r.get("globalId"))).findFirst().orElseThrow();
 		assertThat(pipe.get("storey")).isEqualTo("B1"); assertThat(pipe.get("zone")).isNull(); assertThat(pipe.get("building")).isEqualTo("업무동");   // 층 직접 소속 → 동
 	}
+
+	@Test
+	void readSideGuardsBadIntervalWrittenDirectly() {
+		// createAsset/patchAsset 검증을 우회해 attributes 에 직접 쓴 값 — /monitor 도 NEXT_DUE 를 공유하므로 같이 지켜야 한다
+		fm.bulk(mid);
+		UUID aid = UUID.fromString(String.valueOf(fm.assets(mid).getFirst().get("id")));
+		db.sql("UPDATE asset SET attributes = '{\"intervalMonths\": \"abc\"}'::jsonb WHERE id = :id").param("id", aid).update();
+		assertThat(fm.assets(mid)).hasSize(1);
+		assertThat((List<?>) monitor.monitor(mid, false).get("rows")).hasSize(1);
+		db.sql("UPDATE asset SET attributes = '{\"intervalMonths\": 3600000}'::jsonb WHERE id = :id").param("id", aid).update();
+		assertThat(fm.assets(mid)).hasSize(1);
+		assertThat((List<?>) monitor.monitor(mid, false).get("rows")).hasSize(1);
+	}
 }

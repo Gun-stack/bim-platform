@@ -36,6 +36,7 @@ class ExportTests {
 		fm.inspect(aid, new FmService.InspectionIn(LocalDate.of(2026, 1, 2), "DEFECT", "누수"));
 		fm.createWorkOrder(aid, new FmService.WorkOrderIn("펌프 수리", "김반장", null, null, null, "HIGH", null));
 		fm.createWorkOrder(aid, new FmService.WorkOrderIn("=HYPERLINK(\"x\")", "김반장", null, null, null, "HIGH", null));
+		fm.createWorkOrder(aid, new FmService.WorkOrderIn("\t=HYPERLINK(1)", "김반장", null, null, null, "HIGH", null));
 
 		var body = export.cobie(mid).getBody();
 		Map<String, String> sheets = new HashMap<>();
@@ -46,6 +47,7 @@ class ExportTests {
 		assertThat(sheets.get("Component.csv")).contains("PUMP-01").contains("G1").contains("1F-A").contains("\"소화, \"\"주\"\"펌프\"");   // CSV 이스케이프
 		assertThat(sheets.get("Job.csv")).contains("PUMP-01 점검 2026-01-02,2026-01-02,Inspection,DEFECT").contains("펌프 수리").contains("WorkOrder,OPEN");
 		assertThat(sheets.get("Job.csv")).contains("'=HYPERLINK");   // 수식 주입 방지 접두
+		assertThat(sheets.get("Job.csv")).contains("'\t=HYPERLINK(1)");   // 선행 탭을 건너뛰고도 수식으로 보이면 접두(원본 탭은 그대로 둔다)
 		assertThat(sheets.get("Floor.csv")).contains("1F").contains(",-3.5").doesNotContain("'-3.5");   // Elevation 음수는 숫자 열 — 접두 안 붙음
 	}
 }

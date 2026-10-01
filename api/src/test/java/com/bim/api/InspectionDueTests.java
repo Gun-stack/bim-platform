@@ -56,4 +56,32 @@ class InspectionDueTests {
 			.isInstanceOf(ApiErrors.BadRequest.class);
 		assertThat(fm.assets(modelId)).hasSize(1);   // 거부된 값이 저장되지 않아 쿼리 전체가 깨지지 않는다
 	}
+
+	@Test
+	void boundaryIntervalMonths600AcceptedAnd601Rejected() {
+		fm.patchAsset(assetId, new FmService.AssetPatch(null, null, 600));
+		assertThat(((Map<?, ?>) fm.asset(assetId).get("attributes")).get("intervalMonths")).isEqualTo(600);
+		assertThatThrownBy(() -> fm.patchAsset(assetId, new FmService.AssetPatch(null, null, 601)))
+			.isInstanceOf(ApiErrors.BadRequest.class);
+	}
+
+	@Test
+	void createAssetRejectsHugeOrNonNumericIntervalInAttributes() {
+		assertThatThrownBy(() -> fm.createAsset(modelId, new FmService.AssetIn(null, "A-1", null, null, Map.of("intervalMonths", 3600000))))
+			.isInstanceOf(ApiErrors.BadRequest.class);
+		assertThatThrownBy(() -> fm.createAsset(modelId, new FmService.AssetIn(null, "A-2", null, null, Map.of("intervalMonths", "abc"))))
+			.isInstanceOf(ApiErrors.BadRequest.class);
+		assertThat(fm.assets(modelId)).hasSize(1);   // 둘 다 거부 — seed 의 PUMP-01만 남는다
+	}
+
+	@Test
+	void readSideGuardsBadIntervalWrittenDirectly() {
+		// patchAsset/createAsset 검증을 우회해 attributes 에 직접 쓴 값 — NEXT_DUE 가 이 값을 다시 신뢰하지 않아야 한다
+		db.sql("UPDATE asset SET attributes = '{\"intervalMonths\": \"abc\"}'::jsonb WHERE id = :id").param("id", assetId).update();
+		assertThat(fm.assets(modelId)).hasSize(1);
+		assertThat(nextDueOn()).isNull();
+		db.sql("UPDATE asset SET attributes = '{\"intervalMonths\": 3600000}'::jsonb WHERE id = :id").param("id", assetId).update();
+		assertThat(fm.assets(modelId)).hasSize(1);
+		assertThat(nextDueOn()).isNull();
+	}
 }
