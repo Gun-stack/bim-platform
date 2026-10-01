@@ -61,7 +61,7 @@ export default function Home() {
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap', marginBottom: 18 }}>
           <h1 style={{ margin: 0, fontSize: 20 }}>건물 운영 현황</h1>
-          {kpi('모델', s.models)}{kpi('요소', s.elements)}{kpi('경보', s.alarms, T.crit)}{kpi('장애', s.faults, T.warn)}{kpi('열린 작업지시', s.openWorkOrders, T.accent)}
+          {kpi('경보', s.alarms, T.crit)}{kpi('장애', s.faults, T.warn)}{kpi('열린 작업지시', s.openWorkOrders, T.accent)}
           {converting && <span style={{ color: T.accent, fontSize: T.fs.sm, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Loader2 size={13} className="spin" /> 변환 중</span>}
           <button onClick={() => startTour()} disabled={!models.some(m => m.status === 'READY')} title="대표 건물로 모니터링 → 경보 위치 → 계통 흐름 → 작업지시 (읽기 전용)" style={{ ...(demo ? btnPrimary : btn), marginLeft: 'auto', padding: '6px 12px' }}><PlayCircle size={14} /> 1분 둘러보기</button>
           {demo ? <span title="공개 데모에서는 업로드·삭제가 막혀 있다. 경보 확인·작업지시 이동 같은 체험은 열려 있다" style={{ color: T.ink[2], fontSize: T.fs.sm }}>공개 데모 · 읽기 위주</span>

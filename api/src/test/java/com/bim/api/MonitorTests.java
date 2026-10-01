@@ -64,6 +64,16 @@ class MonitorTests {
 	}
 
 	@Test
+	void bulkMakesWorkOrderForAlreadyAlarmElementWithoutFakeStatusEvent() {
+		// B108: 일괄 등록 뒤 동기화는 patch() 를 재사용하지 않는다 — 이미 ALARM 이던 장비라 실제 상태 변화가 없으므로 가짜 op_event STATUS 행이 남으면 안 된다
+		db.sql("UPDATE element SET properties = jsonb_build_object('Pset_BimStatus', jsonb_build_object('Status', 'ALARM')) WHERE model_id = :m AND global_id = 'PUMP'").param("m", mid).update();
+		fm.bulk(mid);
+		UUID aid = UUID.fromString(String.valueOf(fm.assets(mid).getFirst().get("id")));
+		assertThat(db.sql("SELECT count(*) FROM work_order WHERE asset_id = :a AND status <> 'DONE'").param("a", aid).query(Long.class).single()).isEqualTo(1L);
+		assertThat(db.sql("SELECT count(*) FROM op_event WHERE model_id = :m AND kind = 'STATUS'").param("m", mid).query(Long.class).single()).isEqualTo(0L);
+	}
+
+	@Test
 	void readSideGuardsBadIntervalWrittenDirectly() {
 		// createAsset/patchAsset 검증을 우회해 attributes 에 직접 쓴 값 — /monitor 도 NEXT_DUE 를 공유하므로 같이 지켜야 한다
 		fm.bulk(mid);
