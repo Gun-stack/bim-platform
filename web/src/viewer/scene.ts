@@ -305,16 +305,15 @@ export class Scene3D {
   setFocus(f: Focus, space?: string) { this.focusSet = f; this.focusSpace = space; this.apply() }
 
   private grid?: THREE.GridHelper
-  /** 기준 그리드. plane 은 건축(IFC z-up) 기준 이름 — floor=바닥 XY, front=정면 XZ, side=측면 YZ. 픽킹 대상 아님 */
-  setGrid(on: boolean, plane: 'floor' | 'front' | 'side' = 'floor', step = 1) {
+  /** 기준 그리드 — 바닥 XY·1m 간격 고정(U308). 픽킹 대상 아님 */
+  setGrid(on: boolean) {
     if (this.grid) { this.scene.remove(this.grid); this.grid.geometry.dispose(); (this.grid.material as THREE.Material).dispose(); this.grid = undefined }
-    if (!on || this.box.isEmpty() || !(step > 0)) return
+    if (!on || this.box.isEmpty()) return
+    const step = 1
     const div = Math.max(2, Math.round(this.box.getSize(new THREE.Vector3()).length() * 1.5 / step))
     const g = new THREE.GridHelper(div * step, div, 0x3a4048, 0x262b32)   // 칸 크기가 정확히 step
     const c = this.box.getCenter(new THREE.Vector3())
-    if (plane === 'front') { g.rotation.x = Math.PI / 2; g.position.set(c.x, c.y, this.box.min.z - 0.02) }
-    else if (plane === 'side') { g.rotation.z = Math.PI / 2; g.position.set(this.box.min.x - 0.02, c.y, c.z) }
-    else g.position.set(c.x, this.box.min.y - 0.02, c.z)   // 바닥 슬래브와 z-fighting 방지
+    g.position.set(c.x, this.box.min.y - 0.02, c.z)   // 바닥 슬래브와 z-fighting 방지
     const m = g.material as THREE.Material; m.transparent = true; m.opacity = 0.6
     this.grid = g; this.scene.add(g)
   }

@@ -1,7 +1,7 @@
 /* oxlint-disable react/only-export-components, react-hooks/exhaustive-deps */
 import { useMemo, useState, type ReactNode } from 'react'
 import type React from 'react'
-import { Box, Building2, BrickWall, ChevronDown, ChevronRight, Combine, DoorOpen, Eye, EyeOff, Focus, Grid3x3, Layers, LayoutGrid, MapPin, ScanEye, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
+import { Box, Building2, BrickWall, ChevronDown, ChevronRight, DoorOpen, Eye, EyeOff, Focus, Grid3x3, Layers, LayoutGrid, MapPin, ScanEye, Sofa, Square, Tag, Wind, type LucideIcon } from 'lucide-react'
 import { ifcKo } from '../ifcNames'
 import type { ElementRow, Model, SpatialNode } from '../api'
 import type { Stats } from './scene'
@@ -19,11 +19,11 @@ export const STRUCT = ['IfcWall', 'IfcWallStandardCase', 'IfcSlab', 'IfcRoof', '
 const CLASS_ICON: [RegExp, LucideIcon][] = [[/Door/, DoorOpen], [/Window/, LayoutGrid], [/Furnish|Furniture/, Sofa], [/Wall/, Square], [/Slab|Roof|Covering/, Layers], [/Flow|Duct|Pipe|Terminal/, Wind], [/Site/, MapPin], [/Building$/, Building2], [/Storey/, Layers], [/Space/, Box]]
 const classIcon = (c: string) => CLASS_ICON.find(([re]) => re.test(c))?.[1] ?? Tag
 
-export default function LeftPanel({ model, stats, tileMode, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel, statusBoard, abnormal, onFit }: {
-  model?: Model; stats: Stats; tileMode: boolean; spatial: SpatialNode[]; elements: ElementRow[]
+export default function LeftPanel({ model, stats, spatial, elements, hidden, setHidden, opts, setOpts, selected, onSelect, onContext, systemPanel, statusBoard, abnormal, onFit, onShowAll }: {
+  model?: Model; stats: Stats; spatial: SpatialNode[]; elements: ElementRow[]
   hidden: Hidden; setHidden: (h: Hidden) => void; opts: Opts; setOpts: (f: (o: Opts) => Opts) => void
   selected: Set<string>; onSelect: (gids: string[], mode: SelectMode) => void; onContext: (e: React.MouseEvent, gids: string[]) => void
-  systemPanel?: ReactNode; statusBoard?: ReactNode; abnormal: Map<string, string>; onFit: () => void   // abnormal: gid → ALARM|FAULT (트리 배지)
+  systemPanel?: ReactNode; statusBoard?: ReactNode; abnormal: Map<string, string>; onFit: () => void; onShowAll: () => void   // abnormal: gid → ALARM|FAULT (트리 배지). onShowAll: U314 단일 함수(Viewer.tsx)
 }) {
   const [tab, setTab] = useState<'spatial' | 'class' | 'system'>('spatial')
   const [q, setQ] = useState('')
@@ -74,7 +74,6 @@ export default function LeftPanel({ model, stats, tileMode, spatial, elements, h
     h.solo = r.solo ? undefined : { key: r.key, label: r.label, gids: new Set(r.gids()) }
     setHidden(h)
   }
-  const allVisible = () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); try { localStorage.setItem('viewer.structHidden', '0') } catch { /* 저장 불가 환경 */ } }
   /** 표시 옵션 토글 — 사용자 클릭만 저장. focusOn 등 프로그램적 변경은 저장값을 안 건드림 */
   const flipOpt = (k: keyof Opts) => { const n = { ...opts, [k]: !opts[k] }; try { localStorage.setItem('viewer.opts', JSON.stringify(n)) } catch { /* 저장 불가 환경 */ } setOpts(() => n) }
   const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
@@ -111,14 +110,12 @@ export default function LeftPanel({ model, stats, tileMode, spatial, elements, h
 
       {statusBoard}
       <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: `1px solid ${T.bg.line}` }}>
-        <Toggle icon={Square} label="개구부 표시 · O" on={opts.openings} onClick={() => flipOpt('openings')} />
         <Toggle icon={Box} label="공간(구역) 표시 · Z" on={opts.spaces} onClick={() => flipOpt('spaces')} />
-        <Toggle icon={Grid3x3} label="그리드 (평면·간격은 캔버스 좌하단) · G" on={opts.grid} onClick={() => flipOpt('grid')} />
-        <Toggle icon={Combine} label={tileMode ? '병합 렌더 — 타일 모드에선 꺼짐 (층 타일이 따로 들어오고 나가 합쳐 둘 수 없음)' : '병합 렌더 (성능) · R'} on={opts.merged && !tileMode} disabled={tileMode} onClick={() => flipOpt('merged')} />
+        <Toggle icon={Grid3x3} label="그리드 (바닥 1m 고정) · G" on={opts.grid} onClick={() => flipOpt('grid')} />
         <Toggle icon={ScanEye} label="X-ray — 건축 반투명·외곽선 (끄면 원본 재질) · X" on={opts.xray} onClick={() => flipOpt('xray')} />
         <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕) · B" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }} />
         <span style={{ flex: 1 }} />
-        <Toggle icon={Eye} label="숨긴 것 모두 표시 · ⌥H" on={false} disabled={!anyHidden} onClick={allVisible} />
+        <Toggle icon={Eye} label="전체 보기 · ⌥H" on={false} disabled={!anyHidden} onClick={onShowAll} />
       </div>
 
       <div style={{ position: 'relative', margin: '8px 12px 4px' }}>

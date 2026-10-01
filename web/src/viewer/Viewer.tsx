@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
-import { Group, Panel, Separator } from 'react-resizable-panels'
-import { Check, Magnet, Eye, Palette, Ruler, Trash2, X, EyeOff, Focus, Grid2x2, Home, Keyboard, Link, Maximize, RectangleHorizontal, RotateCcw, Scissors } from 'lucide-react'
+import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels'
+import { Check, Eye, Palette, Ruler, Trash2, X, EyeOff, Focus, Home, Keyboard, Link, Maximize, Scissors } from 'lucide-react'
 import { api, type Asset, type AssetDetail, type ElementDetail, type ElementRow, type Model, type PowerResult, type Route, type SpatialNode, type System, type SystemMember, type Viewpoint, type WorkOrder } from '../api'
 import { AlertToast, useAlerts } from '../useAlerts'
 import SystemPanel, { StatusBoard, systemColor } from './SystemPanel'
@@ -219,9 +219,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const p = new URLSearchParams(location.hash.split('?')[1] ?? ''); p.delete('focus'); if (gid) p.set('sel', gid); else p.delete('sel')
     history.replaceState(null, '', `#/models/${modelId}${String(p) ? '?' + p : ''}`); notify()
   }, [selection, byGid, modelId, loaded])
-  const [gridCfg, setGridCfgState] = useState<{ plane: 'floor' | 'front' | 'side'; step: number }>(() => { const d = { plane: 'floor' as const, step: 1 }; try { return { ...d, ...JSON.parse(localStorage.getItem('viewer.grid') ?? '{}') } } catch { return d } })
-  const setGridCfg = (c: typeof gridCfg) => { setGridCfgState(c); try { localStorage.setItem('viewer.grid', JSON.stringify(c)) } catch { /* 저장 불가 환경 */ } }
-  useEffect(() => { scene.current?.setGrid(opts.grid, gridCfg.plane, gridCfg.step) }, [opts.grid, gridCfg, bounds])   // bounds: 로드 뒤에야 크기·바닥을 안다
+  useEffect(() => { scene.current?.setGrid(opts.grid) }, [opts.grid, bounds])   // bounds: 로드 뒤에야 크기·바닥을 안다. 평면·간격은 바닥 XY·1m 고정(U308)
   useEffect(() => { scene.current?.setClipBox(clip) }, [clip, bounds])
   useEffect(() => { if (scene.current) scene.current.measuring = measuring }, [measuring])
   const [snap, setSnap] = useState(() => { try { return localStorage.getItem('viewer.snap') !== '0' } catch { return true } })
@@ -239,7 +237,11 @@ export default function Viewer({ modelId }: { modelId: string }) {
   }
   const hideSelected = () => { const g = new Set(hidden.gids); for (const x of selection) g.add(x); setHidden({ ...hidden, gids: g }); scene.current?.select([]) }
   const anyHidden = hidden.nodes.size + hidden.classes.size + hidden.gids.size > 0 || !!hidden.solo
-  const showAll = () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); setFocus('none') }
+  const showAll = () => { setHidden({ nodes: new Set(), classes: new Set(), gids: new Set() }); setFocus('none') }   // U314: 좌측 눈 버튼·⌥H·우클릭 "전체 보기" 가 같이 부르는 단일 함수
+  // U310: 선택 없음 → 접힘, 선택 있음 → 펼침. hasSelection 이 안 바뀌면(선택→다른 선택) effect 가 재실행되지 않아 사용자가 그 사이 직접 접은 상태가 유지된다
+  const rightPanelRef = useRef<PanelImperativeHandle>(null)
+  const hasSelection = selection.length > 0
+  useLayoutEffect(() => { const p = rightPanelRef.current; if (p) { if (hasSelection) p.expand(); else p.collapse() } }, [hasSelection])
   const menuItems = (): MenuItem[] => {
     const n = selection.length, none = n === 0, label = n === 1 ? (byGid.get(selection[0])?.name ?? selection[0]) : `${n}개`
     return [
@@ -248,7 +250,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       { icon: Focus, label: focus === 'ghost' ? '격리 해제' : '격리 (나머지 반투명)', hint: 'I', disabled: none && focus !== 'ghost', onClick: () => setFocus(focus === 'ghost' ? 'none' : 'ghost') },
       { icon: EyeOff, label: hidden.solo?.key === 'sel' ? '선택만 보기 해제' : '선택만 보기', hint: '⇧H', disabled: none && hidden.solo?.key !== 'sel', onClick: soloSelected },
       { icon: EyeOff, label: '숨김', hint: 'H', disabled: none, onClick: hideSelected },
-      { icon: Eye, label: '숨긴 것 모두 표시', hint: '⌥H', disabled: !anyHidden, onClick: showAll },
+      { icon: Eye, label: '전체 보기', hint: '⌥H', disabled: !anyHidden, onClick: showAll },
       'sep',
       { label: n === 1 ? 'GlobalId 복사' : `GlobalId ${n}개 복사`, disabled: none, onClick: () => navigator.clipboard?.writeText(selection.join('\n')) },
       { label: '선택 해제', hint: 'Esc', disabled: none, onClick: () => scene.current?.select([]) },
@@ -355,7 +357,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
   return (
     <Group orientation="horizontal" style={{ height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
-        <LeftPanel model={model} stats={stats} tileMode={tileOn} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel}
+        <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel} onShowAll={showAll}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} statusView={statusView} setStatusView={setStatusView} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} />}
           systemPanel={<SystemPanel modelId={modelId} selection={selection} members={sysMembers} setMembers={setSysMembers} route={route} setRoute={setRoute} onTrace={trace}
             onSolo={(label, gids, key) => setHidden({ ...hidden, solo: hidden.solo?.key === key ? undefined : { key, label, gids: new Set(gids) } })}
@@ -434,35 +436,24 @@ export default function Viewer({ modelId }: { modelId: string }) {
           <Floating id="toolbar" anchor={{ bottom: 8, left: '50%', transform: 'translateX(-50%)', gap: 2, padding: 4, borderRadius: T.radius }}>
             <Tool icon={Home} label="홈" keys="Home" onClick={() => scene.current?.preset('home')} />
             <Tool icon={Maximize} label="선택 요소에 맞춤 (더블클릭)" keys="F" onClick={fitSel} />
-            <Tool icon={Grid2x2} label="평면" keys="7" onClick={() => scene.current?.preset('top')} />
-            <Tool icon={RectangleHorizontal} label="정면" keys="1" onClick={() => scene.current?.preset('front')} />
             <Gap />
             <Tool icon={Focus} label="격리 — 선택 외 반투명" keys="I" hint="요소를 먼저 선택" active={focus === 'ghost'} disabled={!selection.length} onClick={() => setFocus(focus === 'ghost' ? 'none' : 'ghost')} />
             <Tool icon={EyeOff} label="선택만 보기 (나머지 숨김)" keys="⇧H" hint="요소를 먼저 선택" active={hidden.solo?.key === 'sel'} disabled={!selection.length} onClick={soloSelected} />
-            <Tool icon={RotateCcw} label="격리·솔로 해제" keys="⌥H" hint="적용된 격리·솔로 없음" disabled={focus === 'none' && !hidden.solo} onClick={() => { setFocus('none'); if (hidden.solo) setHidden({ ...hidden, solo: undefined }) }} />
             <Gap />
             <Tool icon={Scissors} label="단면 — X/Y/Z 범위, 층별 자르기" keys="C" active={!!clip} disabled={!bounds} onClick={() => setClip(clip ? null : bounds!.min.flatMap((m, i) => [m, bounds!.max[i]]))} />
             <Tool icon={Ruler} label="측정 — 면 위 두 점 거리" keys="M" active={measuring} onClick={() => setMeasuring(!measuring)} />
-            <Tool icon={Magnet} label="스냅 — 빈 곳 클릭 시 가까운 요소, 측정 시 꼭짓점·모서리" keys="N" active={snap} onClick={() => setSnap(!snap)} />
             <Tool icon={Palette} label="속성별 색상 — 종류·층·속성값으로 칠하기" keys="P" active={colorMode} onClick={() => setColorMode(!colorMode)} />
             <Gap />
             <Tool icon={copied ? Check : Link} label="현재 화면을 링크로 복사 (뷰·선택·단면 포함)" keys="L" onClick={share} />
             <Tool icon={Keyboard} label="키보드 단축키" keys="?" active={showKeys} onClick={() => setShowKeys(v => !v)} />
           </Floating>
 
-          {/* 그리드 설정: 평면(건축 z-up 기준 이름)·간격 — 그리드가 켜져 있을 때만 */}
-          {opts.grid && <Floating id="grid" anchor={{ left: 8, bottom: 60, gap: 4, padding: '4px 8px', fontSize: 12 }}>
-            {([['floor', '바닥 XY'], ['front', '정면 XZ'], ['side', '측면 YZ']] as const).map(([p, l]) =>
-              <button key={p} onClick={() => setGridCfg({ ...gridCfg, plane: p })} style={{ padding: '2px 8px', border: 0, borderRadius: T.radius, cursor: 'pointer', background: gridCfg.plane === p ? T.accent : 'transparent', color: gridCfg.plane === p ? T.bg.base : T.ink[2], fontSize: 12 }}>{l}</button>)}
-            <input type="number" min={0.1} max={50} step={0.5} value={gridCfg.step} onChange={e => { const v = +e.target.value; if (Number.isFinite(v) && v >= 0.1 && v <= 50) setGridCfg({ ...gridCfg, step: v }) }} title="간격 (m)" style={{ width: 48, padding: '2px 4px', border: `1px solid ${T.bg.line}`, borderRadius: T.radius, fontSize: 12 }} /><span style={{ color: T.ink[2] }}>m</span>
-          </Floating>}
-
           <AlertToast modelId={modelId} fresh={freshAlerts} dismiss={dismissAlert} onFocus={g => focusOn(g)} />
         </div>
       </Panel>
       <Separator style={sep} />
 
-      <Panel defaultSize={340} minSize={200} collapsible collapsedSize={0}>
+      <Panel panelRef={rightPanelRef} defaultSize={340} minSize={200} collapsible collapsedSize={0}>
         <aside style={{ overflow: 'auto', height: '100%', padding: 12, boxSizing: 'border-box' }}>
           {selection.length === 1 && detail && 'properties' in detail && <ObjectSummary modelId={modelId} detail={detail} asset={selAsset} openWos={assetDetail?.workOrders.filter(w => w.status !== 'DONE')} onFm={() => setTab('fm')} />}
           <div style={{ display: 'flex', borderBottom: `1px solid ${T.bg.line}`, marginBottom: 10 }}>
