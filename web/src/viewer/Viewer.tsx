@@ -250,7 +250,7 @@ export default function Viewer({ modelId }: { modelId: string }) {
       { icon: Focus, label: focus === 'ghost' ? '격리 해제' : '격리 (나머지 반투명)', hint: 'I', disabled: none && focus !== 'ghost', onClick: () => setFocus(focus === 'ghost' ? 'none' : 'ghost') },
       { icon: EyeOff, label: hidden.solo?.key === 'sel' ? '선택만 보기 해제' : '선택만 보기', hint: '⇧H', disabled: none && hidden.solo?.key !== 'sel', onClick: soloSelected },
       { icon: EyeOff, label: '숨김', hint: 'H', disabled: none, onClick: hideSelected },
-      { icon: Eye, label: '전체 보기', hint: '⌥H', disabled: !anyHidden, onClick: showAll },
+      { icon: Eye, label: '모두 표시', hint: '⌥H', disabled: !anyHidden, onClick: showAll },
       'sep',
       { label: n === 1 ? 'GlobalId 복사' : `GlobalId ${n}개 복사`, disabled: none, onClick: () => navigator.clipboard?.writeText(selection.join('\n')) },
       { label: '선택 해제', hint: 'Esc', disabled: none, onClick: () => scene.current?.select([]) },

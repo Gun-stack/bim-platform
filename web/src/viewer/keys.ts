@@ -19,7 +19,7 @@ export const KEYS: { group: string; keys: string; label: string }[] = [
   { group: '표시', keys: 'I', label: '격리 — 선택 외 반투명' },
   { group: '표시', keys: 'H', label: '선택 숨김' },
   { group: '표시', keys: 'Shift H', label: '선택만 보기' },
-  { group: '표시', keys: 'Alt H', label: '숨긴 것 모두 표시 · 격리·솔로 해제' },
+  { group: '표시', keys: 'Alt H', label: '모두 표시 — 숨김·솔로·격리 해제' },
   { group: '표시', keys: 'B', label: '구조체 숨김 (벽·슬래브·지붕)' },
   { group: '표시', keys: 'O', label: '개구부 표시' },
   { group: '표시', keys: 'Z', label: '공간(구역) 표시' },

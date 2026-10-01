@@ -115,7 +115,7 @@ export default function LeftPanel({ model, stats, spatial, elements, hidden, set
         <Toggle icon={ScanEye} label="X-ray — 건축 반투명·외곽선 (끄면 원본 재질) · X" on={opts.xray} onClick={() => flipOpt('xray')} />
         <Toggle icon={BrickWall} label="구조체 숨김 (벽·슬래브·지붕) · B" on={STRUCT.every(c => hidden.classes.has(c))} onClick={() => { const h = clone(); const on = STRUCT.every(c => h.classes.has(c)); for (const c of STRUCT) { if (on) h.classes.delete(c); else h.classes.add(c) } setHidden(h); try { localStorage.setItem('viewer.structHidden', on ? '0' : '1') } catch { /* 저장 불가 환경 */ } }} />
         <span style={{ flex: 1 }} />
-        <Toggle icon={Eye} label="전체 보기 · ⌥H" on={false} disabled={!anyHidden} onClick={onShowAll} />
+        <Toggle icon={Eye} label="모두 표시 · ⌥H" on={false} disabled={!anyHidden} onClick={onShowAll} />
       </div>
 
       <div style={{ position: 'relative', margin: '8px 12px 4px' }}>
