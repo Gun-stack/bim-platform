@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { day, hm, hms, dateTime, today, inspectionOverdue, woOverdue, pushEscLayer, hasEscLayer, fireEsc } from './ui'
+import { day, hm, hms, dateTime, today, inspectionOverdue, woOverdue, pushEscLayer, hasEscLayer, fireEsc, inp } from './ui'
+
+describe('공용 입력칸 스타일(U319)', () => {
+  it('inp 는 border-box — width:100% 와 합쳐도 패딩·테두리만큼 밖으로 넘치지 않는다', () => {
+    expect(inp.boxSizing).toBe('border-box')
+  })
+})
 
 describe('날짜·시간 규칙', () => {
   it('today 는 로컬 자정 기준 YYYY-MM-DD (UTC 가 아니라)', () => {

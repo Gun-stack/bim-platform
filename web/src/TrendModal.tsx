@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { api } from './api'
 import { READINGS, recentWindow } from './readings'
-import { hm, useEsc } from './ui'
+import { hm, useEscLayer } from './ui'
 import { T } from './theme'
 
 type Pt = { at: string; data: Record<string, unknown> }
@@ -12,7 +12,7 @@ type S = { at: number; v: number }[]
 export default function TrendModal({ modelId, globalId, name, onClose }: { modelId: string; globalId: string; name: string; onClose: () => void }) {
   const [pts, setPts] = useState<Pt[] | null>(null)
   useEffect(() => { api<Pt[]>(`/models/${modelId}/elements/${encodeURIComponent(globalId)}/readings`).then(setPts).catch(() => setPts([])) }, [modelId, globalId])
-  useEsc(onClose)
+  useEscLayer(true, onClose)
   const series = useMemo(() => {
     const keys = new Map<string, S>()
     for (const p of pts ?? []) for (const [k, v] of Object.entries(p.data ?? {}))
@@ -27,7 +27,7 @@ export default function TrendModal({ modelId, globalId, name, onClose }: { model
           <button onClick={onClose} aria-label="닫기" style={{ marginLeft: 'auto', border: 0, background: 'none', cursor: 'pointer', color: T.ink[2], padding: 4 }}><X size={16} /></button>
         </div>
         {pts === null ? <div style={{ color: T.ink[2], padding: 20, fontSize: 13 }}>불러오는 중…</div>
-          : !series.length ? <div style={{ color: T.ink[2], padding: 20, fontSize: 13 }}>계측 이력이 아직 없습니다.<br />상태 API(PATCH)로 값이 들어올 때마다 여기 쌓입니다.</div>
+          : !series.length ? <div style={{ color: T.ink[2], padding: 20, fontSize: 13 }}>아직 기록된 변화가 없습니다.</div>
           : series.map(([k, s]) => <Chart key={k} k={k} s={s} />)}
       </div>
     </div>)

@@ -9,3 +9,4 @@ samples/*.ifc
 samples/**/*.ifc
 .idea/
 docs/cobie-*
+docs/learning/

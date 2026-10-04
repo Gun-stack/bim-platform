@@ -56,7 +56,9 @@ export default function FmPage({ modelId }: { modelId: string }) {
 
 
   return (
-    <main style={{ fontFamily: 'system-ui', fontSize: 13, maxWidth: 1100, margin: '0 auto', padding: '24px 20px', paddingRight: selGid ? 460 : 20 }}>   {/* 객체 패널(440px) 자리 */}
+    // U320: 기존엔 paddingRight 만 늘려 박스가 뷰포트보다 넓어지면 margin:auto 가 0 으로 무너져 좌측으로 붙었다.
+    // 왼쪽 여백(LEFT_X)은 뷰포트 기준 고정값(선택 유무와 무관) — 폭만 패널 자리만큼 줄여 가운데 정렬 기준을 지킨다
+    <main style={{ fontFamily: 'system-ui', fontSize: 13, boxSizing: 'border-box', marginLeft: LEFT_X, width: `min(${OUTER_W}px, calc(100vw - ${LEFT_X} - ${selGid ? PANEL_W : 0}px))`, padding: '24px 20px' }}>   {/* 객체 패널(440px) 자리 */}
       <Section title="작업지시 보드" count={`열림 ${wos.filter(w => w.status !== 'DONE').length} · 완료 ${wos.filter(w => w.status === 'DONE').length}`} open={open.board || !!woId} onToggle={() => toggle('board')}
                right={wos.length > 0 && <a href={`/api/models/${modelId}/export/bcf`} title="작업지시를 BCF 2.1 topic·viewpoint 로 — Navisworks·BIMcollab 등에서 열람" style={btn}>BCF 내보내기</a>}>
       <FmBoard modelId={modelId} wos={wos} assets={assets} reload={reload} openWoId={woId} />
@@ -126,3 +128,9 @@ export default function FmPage({ modelId }: { modelId: string }) {
 }
 
 const PAGE = 100
+const CONTENT_W = 1100   // 기존 maxWidth
+const PAD_X = 20   // 기존 좌우 padding
+const OUTER_W = CONTENT_W + PAD_X * 2   // 1140 — border-box 렌더 폭
+const PANEL_W = 440   // 객체 패널 폭(ObjectDrawer.tsx 와 동일)
+/** margin:0 auto 와 같은 왼쪽 여백이지만 뷰포트(vw) 기준 — 패널 유무로 폭이 바뀌어도 값이 그대로라 좌측으로 튀지 않는다(U320) */
+const LEFT_X = `max(0px, calc(50vw - ${OUTER_W / 2}px))`

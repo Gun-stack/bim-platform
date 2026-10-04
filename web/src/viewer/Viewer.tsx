@@ -366,8 +366,10 @@ export default function Viewer({ modelId }: { modelId: string }) {
     const sorted = [...floors].sort((a, b) => (storeys.find(x => x.name === a)?.elevation ?? 0) - (storeys.find(x => x.name === b)?.elevation ?? 0))
     return { origin: byGid.get(route.globalId)?.name ?? route.globalId, floors: sorted.length > 1 ? `${sorted[0]}~${sorted[sorted.length - 1]}` : sorted[0] ?? '', top: [...cls].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, n]) => `${ifcKo(c)} ${n}`).join(' · ') } }, [route, spatial, byGid, storeys])
 
+  // 키오스크(App.tsx 가 ?kiosk= 면 Shell 을 안 그린다)는 상단 바가 없으니 그만큼 비워 두면 안 된다(U329)
+  const kiosk = hq.has('kiosk')
   return (
-    <Group orientation="horizontal" style={{ height: `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
+    <Group orientation="horizontal" style={{ height: kiosk ? '100vh' : `calc(100vh - ${SHELL_H}px)`, fontFamily: 'system-ui', fontSize: 13 }}>
       <Panel defaultSize={300} minSize={200} collapsible collapsedSize={0}>
         <LeftPanel model={model} stats={stats} spatial={spatial} elements={elements} hidden={hidden} setHidden={setHidden} opts={opts} setOpts={setOpts} selected={selSet} onSelect={onSelect} onContext={onContext} abnormal={abnormal} onFit={fitSel} onShowAll={showAll} anyHidden={anyHidden}
           statusBoard={<StatusBoard rows={statusRows} modelId={modelId} reload={reloadStatus} onSelect={g => focusOn(g[0])} power={power} setPower={setPower} collapsed={boardCollapsed} setCollapsed={setBoardCollapsed} hasPower={hasPower} />}

@@ -53,7 +53,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       setRows(d.rows); setPower(d.power); setUnpowered(new Set(pw.unpowered)); setEvents(ev); setTimeline(tl); setTick(new Date()) }), [modelId])
   useEffect(() => { api<Model>(`/models/${modelId}`).then(setModel); load() }, [modelId, load])
   useStream(modelId, ['status', 'work_order'], load)
-  useEffect(() => { if (sec.stats) api<StatRow[]>(`/models/${modelId}/monitor/stats?days=${days}`).then(setStats).catch(() => {}) }, [modelId, days, sec.stats, tick])
+  const statsOpen = kiosk || sec.stats   // 키오스크는 접기 화살표가 없는 항상-열림(U329) — sec.stats(localStorage) 는 건드리지 않는다
+  useEffect(() => { if (statsOpen) api<StatRow[]>(`/models/${modelId}/monitor/stats?days=${days}`).then(setStats).catch(() => {}) }, [modelId, days, statsOpen, tick])
 
   // ?sel={gid} 딥링크: 해당 행으로 스크롤 + 4초 플래시 (기존 .fresh 재사용). 현재 필터에 안 잡히는 행이면 '전체' 모드로
   const sel = hq.get('sel')
@@ -105,15 +106,16 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
     <main style={{ fontFamily: 'system-ui', fontSize: 13 * fs, padding: kiosk ? '14px 18px' : '20px 24px', paddingRight: kiosk ? 18 : sel ? 460 : 24, minHeight: '100vh', background: T.bg.base }}>   {/* 페이지=base, 카드=surface — 다른 화면과 같은 돌출 계층. 객체 패널(440px)이 떠 있으면 그만큼 비워 최근 이벤트 열이 가려지지 않게 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
         <h1 style={{ margin: 0, fontSize: 18 * fs, display: 'flex', alignItems: 'center', gap: 8 }}>{model?.name ?? '…'} <span style={{ color: T.ink[2], fontWeight: 400 }}>설비 모니터링</span></h1>
-        <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: T.ink[2], cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} /> 알림음</label>
+        {/* 알림음 체크는 조작 요소 — 손 닿지 않는 벽면 키오스크에는 숨긴다(U329). 이미 켜 둔 값은 그대로 유지돼 켜진 채 울린다 */}
+        {!kiosk && <label title="새 경보·장애가 들어오면 알림음" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 * fs, color: T.ink[2], cursor: 'pointer' }}><input type="checkbox" checked={sound} onChange={e => { setSound(e.target.checked); if (e.target.checked) beep() }} /> 알림음</label>}
         <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 * fs }}>갱신 {hms(tick)} · 실시간</span>
         {(() => { const q = new URLSearchParams(hq); if (kiosk) q.delete('kiosk'); else q.set('kiosk', '1'); const url = `#/models/${modelId}/monitor${q.size ? '?' + q.toString() : ''}`
           return kiosk ? <a href={url} style={{ color: T.ink[3], fontSize: 12 * fs, textDecoration: 'none' }}>키오스크 해제</a>
             : <a href={url} title="벽면 모드 — 내비 숨김 · 글자 확대 · 이상만" style={btn}>키오스크</a> })()}
       </div>
 
-      {/* 건물 전체 요약 — 관제 화면의 첫 줄은 총계 */}
-      <div className={flash.size ? 'pulse' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 16px', marginBottom: 12, borderRadius: T.radius, background: tot.alarm ? T.critSoft : tot.fault ? T.warnSoft : T.bg.surface, border: '1px solid ' + (tot.alarm ? T.crit : tot.fault ? T.warn : T.bg.line), fontSize: 13 * fs }}>
+      {/* 건물 전체 요약 — 관제 화면의 첫 줄은 총계. flexWrap: 키오스크 글자 확대(fs 1.25)에서도 1440 폭에서 넘치면 줄바꿈(U329) */}
+      <div className={flash.size ? 'pulse' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 18, rowGap: 6, flexWrap: 'wrap', padding: '10px 16px', marginBottom: 12, borderRadius: T.radius, background: tot.alarm ? T.critSoft : tot.fault ? T.warnSoft : T.bg.surface, border: '1px solid ' + (tot.alarm ? T.crit : tot.fault ? T.warn : T.bg.line), fontSize: 13 * fs }}>
         {tot.alarm
           ? <button className="stat-link" onClick={goTodo} title="조치 필요 목록으로" style={{ fontWeight: 600, fontSize: 15 * fs, color: T.crit }}>경보 발생</button>
           : tot.fault ? <button className="stat-link" onClick={goTodo} title="조치 필요 목록으로" style={{ fontWeight: 600, fontSize: 15 * fs, color: T.warn }}>장애 발생</button>
@@ -141,12 +143,13 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
       <div style={{ flex: '1 1 600px', minWidth: 0 }}>
 
       <Section title="분야 현황" count={team ? `${TEAMS.find(t => t.key === team)!.name}만 표시 — 클릭 해제` : undefined} open collapsible={false} pad={10}>
-      <div style={{ display: 'flex', gap: 12 }}>
+      {/* flexWrap + minWidth: 키오스크 글자 확대에서도 다섯 칸이 비좁으면 줄바꿈(U329) — 그전엔 minWidth:0 라 0까지 찌그러지며 글자만 밖으로 넘쳤다 */}
+      <div style={{ display: 'flex', gap: 12, rowGap: 10, flexWrap: 'wrap' }}>
         {TEAMS.map(t => { const k = kpi(t), active = team === t.key; return (
-          <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} title={`클릭: 이 분야만 보기\n${t.systems.join(' · ')}`} style={{ flex: '1 1 0', minWidth: 0, background: T.bg.surface, border: '1px solid ' + (active ? t.color : T.bg.line), borderRadius: T.radius, padding: '10px 12px', cursor: 'pointer' }}>
+          <div key={t.key} onClick={() => setTeam(active ? undefined : t.key)} title={`클릭: 이 분야만 보기\n${t.systems.join(' · ')}`} style={{ flex: '1 1 150px', minWidth: 150, background: T.bg.surface, border: '1px solid ' + (active ? t.color : T.bg.line), borderRadius: T.radius, padding: '10px 12px', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: t.color, flexShrink: 0 }} /><b style={{ whiteSpace: 'nowrap', color: active ? t.color : T.ink[1] }}>{t.name}</b></div>
-            {(k.due > 0 || k.dead > 0) && <div style={{ color: T.ink[2], fontSize: 12 * fs, marginTop: 2, whiteSpace: 'nowrap' }}>{k.due ? <b style={{ color: T.warn }}>점검 지연 {k.due}</b> : ''}{k.due && k.dead ? ' · ' : ''}{k.dead ? <b style={{ color: T.ink[1] }}>무전원 {k.dead}</b> : ''}</div>}
-            <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12 * fs, whiteSpace: 'nowrap' }}>
+            {(k.due > 0 || k.dead > 0) && <div style={{ color: T.ink[2], fontSize: 12 * fs, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k.due ? <b style={{ color: T.warn }}>점검 지연 {k.due}</b> : ''}{k.due && k.dead ? ' · ' : ''}{k.dead ? <b style={{ color: T.ink[1] }}>무전원 {k.dead}</b> : ''}</div>}
+            <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12 * fs, whiteSpace: 'nowrap', overflow: 'hidden' }}>
               <span style={{ color: k.alarm ? T.crit : T.ink[3] }}>경보 <b>{k.alarm}</b></span>
               <span style={{ color: k.fault ? T.warn : T.ink[3] }}>장애 <b>{k.fault}</b></span>
             </div>
@@ -215,8 +218,8 @@ export default function MonitorPage({ modelId }: { modelId: string }) {
 
       {/* 경보 통계 — 이력(op_event)이 있어서 나오는 것. 격자는 '지금', 여기는 '얼마나 자주·얼마나 오래' */}
       {(() => { const ts = teamStats(stats), total = stats.reduce((n, r) => n + r.alarms + r.faults, 0), recurring = stats.filter(r => r.alarms + r.faults >= 2).slice(0, 8); return (
-        <Section title="경보 통계" count={sec.stats ? `${days}일 · 에피소드 ${total} · 재발 요소 ${stats.filter(r => r.alarms + r.faults >= 2).length}` : '발생 빈도 · 복구 시간 · 재발'} open={sec.stats} onToggle={() => toggleSec('stats')} pad={10}
-          right={<select value={days} onChange={e => setDays(+e.target.value)} onClick={e => e.stopPropagation()} style={{ fontSize: 12 * fs }}>{[7, 30, 90].map(d => <option key={d} value={d}>최근 {d}일</option>)}</select>}>
+        <Section title="경보 통계" count={statsOpen ? `${days}일 · 에피소드 ${total} · 재발 요소 ${stats.filter(r => r.alarms + r.faults >= 2).length}` : '발생 빈도 · 복구 시간 · 재발'} open={statsOpen} collapsible={!kiosk} onToggle={() => toggleSec('stats')} pad={10}
+          right={!kiosk && <select value={days} onChange={e => setDays(+e.target.value)} onClick={e => e.stopPropagation()} style={{ fontSize: 12 * fs }}>{[7, 30, 90].map(d => <option key={d} value={d}>최근 {d}일</option>)}</select>}>
           <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <table style={{ borderCollapse: 'collapse', fontSize: 12 * fs, background: T.bg.surface, border: `1px solid ${T.bg.line}`, borderRadius: T.radius, minWidth: 520 }}><thead>
               <tr style={{ color: T.ink[2], textAlign: 'right' }}><th style={{ ...th, textAlign: 'left' }}>분야</th><th style={th}>경보</th><th style={th}>장애</th><th style={th} title="정상→이상 전이부터 다시 정상이 기록될 때까지, 복구된 에피소드 평균">평균 복구</th><th style={th}>미복구</th><th style={th} title="기간 안에 2회 이상 발생한 요소">재발 요소</th></tr></thead><tbody>

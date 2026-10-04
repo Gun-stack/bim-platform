@@ -3,11 +3,12 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUp, X } from 'lu
 import { api, post, type Asset, type Priority, type StatusRow, type WorkOrder } from './api'
 import { StatusBadge } from './viewer/FmPanel'
 import { patchStatus, statusPatchFor } from './statusApi'
-import { btn, btnPrimary, dateTime, day, inp, useEsc, woOverdue } from './ui'
+import { btn, btnPrimary, dateTime, day, inp, useEsc, useEscLayer, woOverdue } from './ui'
 import { setHashParam, useHashQuery } from './useHashQuery'
 import { isAbnormal, statusLabel, WO_STATUS } from './status'
 import { TEAMS, teamOfSystems } from './teams'
 import { ifcKo } from './ifcNames'
+import { SHELL_H } from './Shell'
 import { T } from './theme'
 import NavLinks from './NavLinks'
 
@@ -70,7 +71,7 @@ export default function FmBoard({ modelId, wos: server, assets, reload, openWoId
       {/* 필터 바 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative' }}>          <input value={q} onChange={e => setQ(e.target.value)} placeholder="제목 · 자산 · 담당자" style={{ ...inp, width: 220 }} /></div>
-        <div style={{ display: 'flex', gap: 4 }}>{TEAMS.map(t => <button key={t.key} onClick={() => setTeam(team === t.key ? undefined : t.key)} style={{ ...chip, borderColor: team === t.key ? t.color : T.bg.line, background: team === t.key ? t.color : T.ink[1], color: team === t.key ? T.bg.surface : T.ink[2] }}>{t.short}</button>)}</div>
+        <div style={{ display: 'flex', gap: 4 }}>{TEAMS.map(t => <button key={t.key} onClick={() => setTeam(team === t.key ? undefined : t.key)} style={{ ...chip, borderColor: team === t.key ? t.color : T.bg.line, background: team === t.key ? t.color : T.bg.raised, color: team === t.key ? T.bg.base : T.ink[2] }}>{t.short}</button>)}</div>
         <select value={assignee ?? ''} onChange={e => setAssignee(e.target.value || undefined)} style={inp}><option value="">담당자 전체</option><option value="none">미배정</option>{assignees.map(a => <option key={a}>{a}</option>)}</select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: T.crit }}><input type="checkbox" checked={onlyOverdue} onChange={e => setOnlyOverdue(e.target.checked)} /> 기한 초과만</label>
         <span style={{ marginLeft: 'auto', color: T.ink[2], fontSize: 12 }}>{visible.length} / {wos.length}</span>
@@ -134,31 +135,31 @@ function Card({ w, modelId, dragging, busy, hilite, lifted, onOpen, viewerUrl, o
 
 function Drawer({ w, modelId, viewerUrl, onClose, reload, move }: { w: WorkOrder; modelId: string; viewerUrl: string; onClose: () => void; reload: () => Promise<unknown>; move: (w: WorkOrder, s: WorkOrder['status']) => Promise<unknown> }) {
   const [f, setF] = useState({ title: w.title, assignee: w.assignee ?? '', dueOn: w.dueOn ? day(w.dueOn) : '', priority: w.priority ?? 'NORMAL', description: w.description ?? '' })
-  const [saving, setSaving] = useState(false); useEsc(onClose)
-  const save = () => { setSaving(true); post(`/work-orders/${w.id}`, { title: f.title, assignee: f.assignee || null, dueOn: f.dueOn || null, priority: f.priority, description: f.description }, 'PATCH').then(reload).finally(() => setSaving(false)) }
+  const [err, setErr] = useState<string>()
+  useEscLayer(true, onClose)
+  // 필드마다 즉시 저장 — 상태 칩과 같은 방식(§U319). 백엔드 PATCH 는 보낸 필드만 반영(coalesce)하므로 필드 단위 호출이 안전
+  const patch = (body: Record<string, unknown>) => { setErr(undefined); post(`/work-orders/${w.id}`, body, 'PATCH').then(reload).catch(e => setErr(e.message)) }
   const t = teamOf(w)
   return (
     <>{/* 막(40) < 열린 카드(41, Card lifted) < 패널(42): 카드는 막 위로 뜨되 패널은 못 덮는다 */}
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40 }} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 18, overflow: 'auto', fontSize: 13, zIndex: 42, boxSizing: 'border-box' }}>
+      <div style={{ position: 'fixed', top: SHELL_H, right: 0, bottom: 0, width: 440, background: T.bg.surface, boxShadow: T.shadow, padding: 18, overflow: 'auto', fontSize: 13, zIndex: 42, boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><StatusBadge s={w.status} />{t && <span style={{ fontSize: 11, color: t.color, border: '1px solid ' + t.color, borderRadius: T.radius, padding: '0 5px' }}>{t.short}</span>}
           <span style={{ color: T.ink[2], fontSize: 11 }}>{w.id.slice(0, 8)}</span><NavLinks modelId={modelId} gid={w.globalId} viewer={viewerUrl} style={{ fontSize: 12 }} /><X size={16} style={{ cursor: 'pointer', color: T.ink[2] }} onClick={onClose} /></div>
-        <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} style={{ ...inp, width: '100%', fontSize: 15, fontWeight: 600, marginBottom: 10 }} />
+        <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} onBlur={() => { if (f.title !== w.title) patch({ title: f.title }) }} style={{ ...inp, width: '100%', fontSize: 15, fontWeight: 600, marginBottom: 10 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', rowGap: 8, columnGap: 8, alignItems: 'center' }}>
-          <span style={lbl}>상태</span><div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>{COLS.map(s => <button key={s} onClick={() => move(w, s)} style={{ ...chip, fontWeight: w.status === s ? 700 : 400, borderColor: w.status === s ? T.accent : T.bg.line, background: w.status === s ? T.accentSoft : T.bg.surface }}>{WO_STATUS[s]}</button>)}<span style={{ fontSize: T.fs.xs, color: T.ink[2] }}>즉시 저장</span></div>
-          <span style={lbl}>우선순위</span><select value={f.priority} onChange={e => setF({ ...f, priority: e.target.value as Priority })} style={inp}>{(Object.keys(PRIO) as Priority[]).map(p => <option key={p} value={p}>{PRIO[p].label}</option>)}</select>
-          <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} placeholder="미배정" style={inp} />
-          <span style={lbl}>기한</span><input type="date" value={f.dueOn} onChange={e => setF({ ...f, dueOn: e.target.value })} style={inp} />
+          <span style={lbl}>상태</span><div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>{COLS.map(s => <button key={s} onClick={() => move(w, s)} style={{ ...chip, fontWeight: w.status === s ? 700 : 400, borderColor: w.status === s ? T.accent : T.bg.line, background: w.status === s ? T.accentSoft : T.bg.surface }}>{WO_STATUS[s]}</button>)}</div>
+          <span style={lbl}>우선순위</span><select value={f.priority} onChange={e => { const v = e.target.value as Priority; setF({ ...f, priority: v }); patch({ priority: v }) }} style={inp}>{(Object.keys(PRIO) as Priority[]).map(p => <option key={p} value={p}>{PRIO[p].label}</option>)}</select>
+          <span style={lbl}>담당자</span><input value={f.assignee} onChange={e => setF({ ...f, assignee: e.target.value })} onBlur={() => { if ((f.assignee || null) !== (w.assignee ?? null)) patch({ assignee: f.assignee || null }) }} placeholder="미배정" style={inp} />
+          <span style={lbl}>기한</span><input type="date" value={f.dueOn} onChange={e => { const v = e.target.value; setF({ ...f, dueOn: v }); patch({ dueOn: v || null }) }} style={inp} />
           <span style={lbl}>자산</span><span><b>{w.assetTag}</b> <span style={{ color: T.ink[2] }}>{w.assetCategory}</span></span>
           <span style={lbl}>위치</span><span>{w.storey}{w.zone ? ` · ${w.zone}` : ''} · {w.elementName}</span>
           {w.inspectionNote && <><span style={lbl}>점검 메모</span><span style={{ color: T.crit }}>{w.inspectionNote}</span></>}
           <span style={lbl}>생성 / 변경</span><span style={{ color: T.ink[2], fontSize: 12 }}>{dateTime(w.createdAt)} / {w.updatedAt ? dateTime(w.updatedAt) : '—'}</span>
         </div>
         <div style={{ marginTop: 12 }}><div style={lbl}>설명</div>
-          <textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={5} placeholder="작업 내용과 조치 사항" style={{ ...inp, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} /></div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <button disabled={saving} onClick={save} style={btnPrimary}>저장</button>
-        </div>
+          <textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} onBlur={() => { if (f.description !== (w.description ?? '')) patch({ description: f.description }) }} rows={5} placeholder="작업 내용과 조치 사항" style={{ ...inp, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} /></div>
+        {err && <div role="alert" style={{ color: T.crit, fontSize: 12, marginTop: 8 }}>{err}</div>}
       </div>
     </>
   )
